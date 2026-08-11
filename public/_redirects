@@ -1,0 +1,4 @@
+# Netlify SPA fallback: serve index.html for every client-side route so that
+# refreshing a deep link (e.g. /admin/employees/123) never returns a 4XX.
+# Static assets are still served first; only unmatched paths fall through.
+/*    /index.html   200
