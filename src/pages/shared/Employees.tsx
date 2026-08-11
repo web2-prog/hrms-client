@@ -6,6 +6,14 @@ import { StatusBadge } from '../../components/StatusBadge';
 import { ConfirmClearData } from '../../components/ConfirmClearData';
 import { BondSalaryManager } from '../../components/BondSalaryManager';
 import { useAuth } from '../../context/AuthContext';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 type Dept = { _id: string; name: string };
 type Emp = {
@@ -92,7 +100,7 @@ export function EmployeesPage({ basePath }: { basePath: string }) {
           </>
         }
         actions={
-          <button className="btn" onClick={() => setShowAdd(true)}>Add Employee</button>
+          <Button onClick={() => setShowAdd(true)}>Add Employee</Button>
         }
       >
         <div className="table-wrap">
@@ -117,7 +125,7 @@ export function EmployeesPage({ basePath }: { basePath: string }) {
                   <td>{e.department_id?.name || '—'}</td>
                   <td>{e.role}</td>
                   <td><StatusBadge status={e.status} /></td>
-                  <td><Link className="btn btn-ghost" to={`${basePath}/employees/${e._id}`}>Manage</Link></td>
+                  <td><Button asChild variant="outline"><Link to={`${basePath}/employees/${e._id}`}>Manage</Link></Button></td>
                 </tr>
               ))}
             </tbody>
@@ -142,9 +150,11 @@ function AddEmployeeModal({ depts, canSetRole, onClose, onSaved }: { depts: Dept
   const [busy, setBusy] = useState(false);
 
   return (
-    <div className="modal-backdrop">
-      <div className="modal" style={{ width: 'min(560px, 100%)' }}>
-        <h2>Add Employee</h2>
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-[560px]">
+        <DialogHeader>
+          <DialogTitle>Add Employee</DialogTitle>
+        </DialogHeader>
         <div className="form-grid">
           {(['name', 'email', 'phone'] as const).map((k) => (
             <div key={k}>
@@ -179,10 +189,9 @@ function AddEmployeeModal({ depts, canSetRole, onClose, onSaved }: { depts: Dept
           </div>
         </div>
         {err && <p style={{ color: 'var(--error)' }}>{err}</p>}
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
-          <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button
-            className="btn"
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button
             disabled={busy}
             onClick={async () => {
               setBusy(true);
@@ -201,10 +210,10 @@ function AddEmployeeModal({ depts, canSetRole, onClose, onSaved }: { depts: Dept
             }}
           >
             Create
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -268,7 +277,7 @@ export function EmployeeManagePage({ basePath }: { basePath: string }) {
           <div style={{ color: 'var(--muted)' }}>{emp.employee_id} · {emp.email}</div>
         </div>
         {user?.role === 'admin' && (
-          <button className="btn btn-danger" style={{ flexShrink: 0, whiteSpace: 'nowrap' }} onClick={() => setClearOpen(true)}>Clear Data</button>
+          <Button variant="destructive" style={{ flexShrink: 0, whiteSpace: 'nowrap' }} onClick={() => setClearOpen(true)}>Clear Data</Button>
         )}
       </div>
       <div className="card" style={{ marginBottom: 16 }}>
@@ -369,9 +378,9 @@ export function EmployeeManagePage({ basePath }: { basePath: string }) {
         )}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
           {emp.offer_letter_url && (
-            <button
+            <Button
               type="button"
-              className="btn btn-ghost"
+              variant="outline"
               onClick={async () => {
                 try {
                   setOfferErr('');
@@ -388,7 +397,7 @@ export function EmployeeManagePage({ basePath }: { basePath: string }) {
               }}
             >
               Download
-            </button>
+            </Button>
           )}
           {user?.role === 'admin' && (
             <>
@@ -425,9 +434,9 @@ export function EmployeeManagePage({ basePath }: { basePath: string }) {
                 />
               </label>
               {emp.offer_letter_url && (
-                <button
+                <Button
                   type="button"
-                  className="btn btn-ghost"
+                  variant="outline"
                   onClick={async () => {
                     if (!confirm('Remove offer letter for this employee?')) return;
                     try {
@@ -441,7 +450,7 @@ export function EmployeeManagePage({ basePath }: { basePath: string }) {
                   }}
                 >
                   Remove
-                </button>
+                </Button>
               )}
             </>
           )}
@@ -468,8 +477,7 @@ export function EmployeeManagePage({ basePath }: { basePath: string }) {
         }}
       />
       {msg && <p style={{ color: 'var(--success)' }}>{msg}</p>}
-      <button
-        className="btn"
+      <Button
         onClick={async () => {
           const body: any = {
             name: emp.name,
@@ -493,7 +501,7 @@ export function EmployeeManagePage({ basePath }: { basePath: string }) {
         }}
       >
         Save changes
-      </button>
+      </Button>
       <ConfirmClearData
         open={clearOpen}
         onClose={() => setClearOpen(false)}

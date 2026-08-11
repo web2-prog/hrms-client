@@ -16,6 +16,16 @@ import {
 import { api, apiUrl } from '../../services/api';
 import { formatHours, hoursBadge, StatusBadge } from '../../components/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 import {
   displayClock,
   formatBreakMinutes,
@@ -34,7 +44,10 @@ export function EmployeeDashboard() {
   const [data, setData] = useState<any>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const [confirmEarly, setConfirmEarly] = useState(false);
+  const [earlyOpen, setEarlyOpen] = useState(false);
+  const [earlyReason, setEarlyReason] = useState('');
+  const [earlyErr, setEarlyErr] = useState('');
+  const [earlyBusy, setEarlyBusy] = useState(false);
   const [tick, setTick] = useState(() => new Date());
 
   const load = () =>
@@ -54,7 +67,7 @@ export function EmployeeDashboard() {
   const action = async (path: string) => {
     setBusy(true);
     setErr('');
-    setConfirmEarly(false);
+    setEarlyOpen(false);
     try {
       await api(path, { method: 'POST', body: {} });
       await load();
@@ -64,6 +77,19 @@ export function EmployeeDashboard() {
       setBusy(false);
     }
   };
+
+  // Poll while checked in (and not checked out) so HR decisions appear without a manual refresh.
+  useEffect(() => {
+    if (data?.attendance?.check_out) return;
+    const id = window.setInterval(() => load(), 30000);
+    const onFocus = () => load();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener('focus', onFocus);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.attendance?.check_out]);
 
   const live = useMemo(() => {
     if (!data) return null;
@@ -115,13 +141,51 @@ export function EmployeeDashboard() {
   const att = data.attendance;
   const shift = data.shift || {};
   const summary = data.monthly_summary;
+  const ecr = data.early_checkout_request || null;
   const monthTarget = Number(summary?.monthly_target_hours || 0);
   const monthCounted = Number(summary?.monthly_counted_hours || 0);
   const monthPct = monthTarget > 0 ? Math.min(100, Math.round((monthCounted / monthTarget) * 100)) : 0;
 
+  const submitEarlyRequest = async () => {
+    if (!earlyReason.trim()) {
+      setEarlyErr('Please add a reason for leaving early.');
+      return;
+    }
+    setEarlyBusy(true);
+    setEarlyErr('');
+    try {
+      await api('/attendance/me/early-checkout-request', {
+        method: 'POST',
+        body: { reason: earlyReason },
+      });
+      setEarlyOpen(false);
+      setEarlyReason('');
+      await load();
+    } catch (e) {
+      setEarlyErr(e instanceof Error ? e.message : 'Failed to send request');
+    } finally {
+      setEarlyBusy(false);
+    }
+  };
+
+  const cancelEarlyRequest = async () => {
+    if (!ecr?._id) return;
+    setBusy(true);
+    setErr('');
+    try {
+      await api(`/attendance/me/early-checkout-request/${ecr._id}/cancel`, { method: 'POST', body: {} });
+      await load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Failed to cancel request');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const requestCheckout = () => {
+    if (ecr?.status === 'Pending') return;
     if (live.isEarly) {
-      setConfirmEarly(true);
+      setEarlyOpen(true);
       return;
     }
     action('/attendance/me/check-out');
@@ -151,9 +215,9 @@ export function EmployeeDashboard() {
 
         {!live.checkedIn && (
           <div className="emp-action-row">
-            <button className="btn emp-action-primary" disabled={busy} onClick={() => action('/attendance/me/check-in')}>
+            <Button className="emp-action-primary" disabled={busy} onClick={() => action('/attendance/me/check-in')}>
               Check In
-            </button>
+            </Button>
             <p className="emp-action-help">Start your workday. Current time: {live.now}</p>
           </div>
         )}
@@ -161,27 +225,38 @@ export function EmployeeDashboard() {
         {live.checkedIn && !live.checkedOut && (
           <div className="emp-action-row">
             {live.onBreak ? (
-              <button className="btn emp-action-primary" disabled={busy} onClick={() => action('/attendance/me/end-break')}>
+              <Button className="emp-action-primary" disabled={busy} onClick={() => action('/attendance/me/end-break')}>
                 End Break
-              </button>
+              </Button>
             ) : (
-              <button className="btn" disabled={busy} onClick={() => action('/attendance/me/start-break')}>
+              <Button disabled={busy} onClick={() => action('/attendance/me/start-break')}>
                 Start Break
-              </button>
+              </Button>
             )}
-            <button
-              className={`btn ${live.isEarly ? 'btn-danger' : 'btn-ghost'}`}
-              disabled={busy}
+            <Button
+              variant={live.isEarly ? 'destructive' : 'outline'}
+              disabled={busy || ecr?.status === 'Pending'}
               onClick={requestCheckout}
             >
-              {live.isEarly ? 'Early Check Out' : 'Check Out'}
-            </button>
+              {ecr?.status === 'Pending'
+                ? 'Early Checkout Pending'
+                : live.isEarly
+                  ? 'Early Check Out'
+                  : 'Check Out'}
+            </Button>
+            {ecr?.status === 'Pending' && (
+              <Button variant="outline" disabled={busy} onClick={cancelEarlyRequest}>
+                Cancel request
+              </Button>
+            )}
             <p className="emp-action-help">
               {live.onBreak
                 ? 'Break is running — end break to resume work, or check out to close the day.'
-                : live.isEarly
-                  ? `Shift ends at ${shift.shift_end}. Early check-out will mark hours as Low if under target.`
-                  : 'Ready to end the day? Check out to lock today’s hours.'}
+                : ecr?.status === 'Pending'
+                  ? `Request sent at ${displayClock(ecr.requested_time)} — waiting for HR/Admin approval. You will be checked out once it's approved.`
+                  : live.isEarly
+                    ? `Shift ends at ${shift.shift_end}. Leaving early needs HR/Admin approval — you'll be asked for a reason.`
+                    : 'Ready to end the day? Check out to lock today’s hours.'}
             </p>
           </div>
         )}
@@ -192,19 +267,12 @@ export function EmployeeDashboard() {
           </p>
         )}
 
-        {confirmEarly && (
+        {ecr?.status === 'Rejected' && (
           <div className="emp-early-confirm">
-            <p>
-              You are checking out <strong>early</strong> (shift ends at {shift.shift_end}). Continue?
+            <p style={{ margin: 0 }}>
+              <strong>Early checkout request declined.</strong>{' '}
+              {ecr.decision_note || 'HR/Admin did not approve your early checkout.'}
             </p>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn btn-ghost" disabled={busy} onClick={() => setConfirmEarly(false)}>
-                Cancel
-              </button>
-              <button className="btn btn-danger" disabled={busy} onClick={() => action('/attendance/me/check-out')}>
-                Confirm Early Check Out
-              </button>
-            </div>
           </div>
         )}
       </div>
@@ -215,6 +283,8 @@ export function EmployeeDashboard() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <StatusBadge status={att.status} />
             {live.checkedOut && hoursBadge(att.surplus_shortfall, att.status)}
+            {ecr?.status === 'Pending' && <span className="badge badge-info">Early checkout pending</span>}
+            {ecr?.status === 'Approved' && !live.checkedOut && <span className="badge badge-success">Early checkout approved</span>}
             {live.isEarly && !live.checkedOut && <span className="badge badge-warn">Before shift end</span>}
             {live.onBreak && !live.checkedOut && <span className="badge badge-warn">On break</span>}
           </div>
@@ -325,6 +395,39 @@ export function EmployeeDashboard() {
           </div>
         </div>
       </div>
+
+      <Dialog open={earlyOpen} onOpenChange={(o) => !o && setEarlyOpen(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Early Checkout Request</DialogTitle>
+            <DialogDescription>
+              Your shift ends at {shift.shift_end || '—'} and the current time is {live.clock}. Leave a note so
+              HR/Admin can approve your request — you'll stay checked in until they decide.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-1.5">
+            <label className="label" htmlFor="early-reason">
+              Reason <span style={{ color: 'var(--error)' }}>*</span>
+            </label>
+            <Textarea
+              id="early-reason"
+              rows={3}
+              placeholder="e.g. Doctor's appointment, family emergency, personal work…"
+              value={earlyReason}
+              onChange={(e) => setEarlyReason(e.target.value)}
+            />
+          </div>
+          {earlyErr && <p style={{ color: 'var(--error)', margin: 0 }}>{earlyErr}</p>}
+          <DialogFooter>
+            <Button variant="outline" disabled={earlyBusy} onClick={() => setEarlyOpen(false)}>
+              Cancel
+            </Button>
+            <Button disabled={earlyBusy} onClick={submitEarlyRequest}>
+              {earlyBusy ? 'Sending…' : 'Send Request'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -500,9 +603,9 @@ export function AdminDashboard() {
             </span>
           </div>
 
-          <button type="button" className="btn btn-ghost" onClick={() => setOpen(!open)}>
+          <Button type="button" variant="outline" onClick={() => setOpen(!open)}>
             {open ? 'Hide' : 'Show'} breakdown
-          </button>
+          </Button>
           {open && wd?.breakdown && (
             <ul className="dash-breakdown">
               <li>Sundays: {wd.breakdown.sundays}</li>
@@ -741,9 +844,8 @@ export function ProfilePage() {
               </div>
             </div>
             {emp.offer_letter_url ? (
-              <button
+              <Button
                 type="button"
-                className="btn"
                 disabled={downloadingOffer}
                 onClick={async () => {
                   setOfferErr('');
@@ -765,7 +867,7 @@ export function ProfilePage() {
               >
                 <Download size={16} />
                 {downloadingOffer ? 'Downloading…' : 'Download'}
-              </button>
+              </Button>
             ) : (
               <span className="badge badge-neutral">Unavailable</span>
             )}
@@ -803,13 +905,15 @@ export function ProfilePage() {
               {bd.account_number ? (
                 <span className="profile-account">
                   <span>{revealAccount ? bd.account_number : maskAccount(bd.account_number)}</span>
-                  <button
+                  <Button
                     type="button"
-                    className="btn btn-ghost profile-reveal-btn"
+                    variant="ghost"
+                    size="sm"
+                    className="profile-reveal-btn"
                     onClick={() => setRevealAccount((v) => !v)}
                   >
                     {revealAccount ? 'Hide' : 'Show'}
-                  </button>
+                  </Button>
                 </span>
               ) : (
                 displayValue(null)
@@ -953,8 +1057,7 @@ export function GlobalDataPage() {
             </select>
           </div>
         </div>
-        <button
-          className="btn"
+        <Button
           style={{ marginTop: 12 }}
           onClick={async () => {
             const res = await api<any>('/attendance/bulk/recalc', {
@@ -965,7 +1068,7 @@ export function GlobalDataPage() {
           }}
         >
           Recalculate
-        </button>
+        </Button>
         {msg && <p style={{ color: 'var(--success)' }}>{msg}</p>}
       </div>
       <div className="card card-accent teal">
@@ -980,7 +1083,7 @@ export function GlobalDataPage() {
             <input className="input" type="number" step="0.1" value={settings.deduction_multiplier} onChange={(e) => setSettings({ ...settings, deduction_multiplier: Number(e.target.value) })} />
           </div>
         </div>
-        <button className="btn" style={{ marginTop: 12 }} onClick={async () => { await api('/settings', { method: 'PUT', body: settings }); setMsg('Settings saved'); }}>Save settings</button>
+        <Button style={{ marginTop: 12 }} onClick={async () => { await api('/settings', { method: 'PUT', body: settings }); setMsg('Settings saved'); }}>Save settings</Button>
       </div>
     </div>
   );

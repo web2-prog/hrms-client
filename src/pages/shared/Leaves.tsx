@@ -3,6 +3,14 @@ import { api, buildQuery, type ListResult } from '../../services/api';
 import { ListingPage, useListParams } from '../../components/ListingPage';
 import { StatusBadge } from '../../components/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 type Leave = {
   _id: string;
@@ -106,9 +114,9 @@ export function LeavesPage() {
         <div className="card" style={{ marginBottom: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginBottom: 10 }}>
             <h3 style={{ margin: 0 }}>Upcoming & current leaves</h3>
-            <button type="button" className="btn btn-ghost" style={{ padding: '4px 8px' }} onClick={() => list.setFilter('when', 'upcoming')}>
+            <Button type="button" variant="ghost" onClick={() => list.setFilter('when', 'upcoming')}>
               View all upcoming
-            </button>
+            </Button>
           </div>
           <div className="table-wrap">
             <table className="data">
@@ -196,9 +204,9 @@ export function LeavesPage() {
           </>
         }
         actions={
-          <button className="btn" onClick={() => setShowApply(true)}>
+          <Button onClick={() => setShowApply(true)}>
             Apply Leave
-          </button>
+          </Button>
         }
       >
         <div className="table-wrap">
@@ -235,8 +243,7 @@ export function LeavesPage() {
                     </td>
                     {isStaff && l.status === 'Pending' && (
                       <td className="row-actions">
-                        <button
-                          className="btn"
+                        <Button
                           onClick={async () => {
                             await api(`/leaves/${l._id}/decide`, { method: 'PATCH', body: { status: 'Approved' } });
                             load();
@@ -244,9 +251,9 @@ export function LeavesPage() {
                           }}
                         >
                           Approve
-                        </button>
-                        <button
-                          className="btn btn-ghost"
+                        </Button>
+                        <Button
+                          variant="outline"
                           onClick={async () => {
                             await api(`/leaves/${l._id}/decide`, { method: 'PATCH', body: { status: 'Rejected' } });
                             load();
@@ -254,7 +261,7 @@ export function LeavesPage() {
                           }}
                         >
                           Reject
-                        </button>
+                        </Button>
                       </td>
                     )}
                     {isStaff && l.status !== 'Pending' && <td />}
@@ -285,9 +292,11 @@ function ApplyLeaveModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
   const [err, setErr] = useState('');
 
   return (
-    <div className="modal-backdrop">
-      <div className="modal">
-        <h2>Apply for leave</h2>
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Apply for leave</DialogTitle>
+        </DialogHeader>
         <div className="form-grid">
           <div style={{ gridColumn: '1 / -1' }}>
             <label className="label">Day Type</label>
@@ -326,12 +335,11 @@ function ApplyLeaveModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
           </div>
         </div>
         {err && <p style={{ color: 'var(--error)' }}>{err}</p>}
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
-          <button className="btn btn-ghost" onClick={onClose}>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
             Cancel
-          </button>
-          <button
-            className="btn"
+          </Button>
+          <Button
             onClick={async () => {
               try {
                 if (!from_date) {
@@ -351,9 +359,9 @@ function ApplyLeaveModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
             }}
           >
             Submit
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

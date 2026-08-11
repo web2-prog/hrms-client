@@ -2,8 +2,17 @@ import { useEffect, useState } from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
 import { api, buildQuery, type ListResult } from '../../services/api';
 import { ListingPage, useListParams } from '../../components/ListingPage';
-import { StatusBadge } from '../../components/StatusBadge';
-import { RequireRole } from '../../components/StatusBadge';
+import { StatusBadge, RequireRole } from '../../components/StatusBadge';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 type Dept = {
   _id: string;
@@ -63,7 +72,7 @@ function DepartmentsInner() {
             <option value="inactive">Inactive</option>
           </select>
         }
-        actions={<button className="btn" onClick={() => setEditing({ name: '', working_hours_per_day: 8.25, shift_start: '09:15', shift_end: '17:30', status: 'active' })}>Add Department</button>}
+        actions={<Button onClick={() => setEditing({ name: '', working_hours_per_day: 8.25, shift_start: '09:15', shift_end: '17:30', status: 'active' })}>Add Department</Button>}
       >
         <div className="dept-grid">
           {data.map((d) => (
@@ -71,8 +80,8 @@ function DepartmentsInner() {
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <h3>{d.name}</h3>
                 <div className="row-actions">
-                  <button className="btn btn-ghost btn-icon" onClick={() => setEditing(d)}><Pencil size={16} /></button>
-                  <button className="btn btn-ghost btn-icon" onClick={async () => { await api(`/departments/${d._id}`, { method: 'DELETE' }); load(); }}><Trash2 size={16} /></button>
+                  <Button variant="outline" size="icon" onClick={() => setEditing(d)}><Pencil size={16} /></Button>
+                  <Button variant="outline" size="icon" onClick={async () => { await api(`/departments/${d._id}`, { method: 'DELETE' }); load(); }}><Trash2 size={16} /></Button>
                 </div>
               </div>
               <p style={{ color: 'var(--muted)', margin: '0.35rem 0' }}>{d.working_hours_per_day}h/day · {d.shift_start} – {d.shift_end}</p>
@@ -81,39 +90,55 @@ function DepartmentsInner() {
           ))}
         </div>
       </ListingPage>
-      {editing && (
-        <div className="modal-backdrop">
-          <div className="modal">
-            <h2>{editing._id ? 'Edit' : 'Add'} Department</h2>
-            <div className="form-grid">
-              <div><label className="label">Name</label><input className="input" value={editing.name || ''} onChange={(e) => setEditing({ ...editing, name: e.target.value })} /></div>
-              <div><label className="label">Hours/day</label><input className="input" type="number" step="0.25" value={editing.working_hours_per_day ?? 8} onChange={(e) => setEditing({ ...editing, working_hours_per_day: Number(e.target.value) })} /></div>
-              <div><label className="label">Shift start</label><input className="input" value={editing.shift_start || ''} onChange={(e) => setEditing({ ...editing, shift_start: e.target.value })} /></div>
-              <div><label className="label">Shift end</label><input className="input" value={editing.shift_end || ''} onChange={(e) => setEditing({ ...editing, shift_end: e.target.value })} /></div>
-              <div><label className="label">Status</label>
-                <select className="select" value={editing.status || 'active'} onChange={(e) => setEditing({ ...editing, status: e.target.value })}>
-                  <option value="active">active</option>
-                  <option value="inactive">inactive</option>
-                </select>
+      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editing?._id ? 'Edit' : 'Add'} Department</DialogTitle>
+          </DialogHeader>
+          {editing && (
+            <>
+              <div className="form-grid">
+                <div className="grid gap-1.5">
+                  <Label>Name</Label>
+                  <Input value={editing.name || ''} onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Hours/day</Label>
+                  <Input type="number" step="0.25" value={editing.working_hours_per_day ?? 8} onChange={(e) => setEditing({ ...editing, working_hours_per_day: Number(e.target.value) })} />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Shift start</Label>
+                  <Input value={editing.shift_start || ''} onChange={(e) => setEditing({ ...editing, shift_start: e.target.value })} />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Shift end</Label>
+                  <Input value={editing.shift_end || ''} onChange={(e) => setEditing({ ...editing, shift_end: e.target.value })} />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Status</Label>
+                  <select className="select" value={editing.status || 'active'} onChange={(e) => setEditing({ ...editing, status: e.target.value })}>
+                    <option value="active">active</option>
+                    <option value="inactive">inactive</option>
+                  </select>
+                </div>
               </div>
-            </div>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
-              <button className="btn btn-ghost" onClick={() => setEditing(null)}>Cancel</button>
-              <button
-                className="btn"
-                onClick={async () => {
-                  if (editing._id) await api(`/departments/${editing._id}`, { method: 'PUT', body: editing });
-                  else await api('/departments', { method: 'POST', body: editing });
-                  setEditing(null);
-                  load();
-                }}
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
+                <Button
+                  onClick={async () => {
+                    if (editing._id) await api(`/departments/${editing._id}`, { method: 'PUT', body: editing });
+                    else await api('/departments', { method: 'POST', body: editing });
+                    setEditing(null);
+                    load();
+                  }}
+                >
+                  Save
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

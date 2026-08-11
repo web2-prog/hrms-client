@@ -129,7 +129,7 @@ export function SalarySlipPreview({ form, previewRef }: Props) {
         </div>
 
         <div className="net-pay-card">
-          <div className="net-pay-green">
+          <div className="net-pay-accent">
             <p className="net-pay-amount">{formatSlipAmount(netPay, true)}</p>
             <p className="net-pay-label">Employee Net Pay</p>
           </div>

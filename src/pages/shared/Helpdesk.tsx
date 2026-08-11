@@ -4,6 +4,14 @@ import { api, buildQuery, type ListResult } from '../../services/api';
 import { ListingPage, useListParams } from '../../components/ListingPage';
 import { StatusBadge } from '../../components/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 type Ticket = {
   _id: string;
@@ -90,7 +98,7 @@ export function HelpdeskPage() {
             </select>
           </>
         }
-        actions={<button className="btn" onClick={() => setShowCreate(true)}>New Ticket</button>}
+        actions={<Button onClick={() => setShowCreate(true)}>New Ticket</Button>}
       >
         <div className="table-wrap">
           <table className="data">
@@ -129,9 +137,9 @@ export function HelpdeskPage() {
                   </td>
                   <td>{t.createdAt ? new Date(t.createdAt).toLocaleDateString() : '—'}</td>
                   <td>
-                    <button className="btn btn-ghost btn-icon" title="View" onClick={() => setViewing(t)}>
+                    <Button variant="ghost" size="icon" title="View" onClick={() => setViewing(t)}>
                       <Eye size={16} />
-                    </button>
+                    </Button>
                   </td>
                 </tr>
               ))}
@@ -173,9 +181,11 @@ function CreateTicketModal({ onClose, onSaved }: { onClose: () => void; onSaved:
   const [err, setErr] = useState('');
 
   return (
-    <div className="modal-backdrop">
-      <div className="modal" style={{ maxWidth: 560 }}>
-        <h2>New helpdesk ticket</h2>
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-[560px]">
+        <DialogHeader>
+          <DialogTitle>New helpdesk ticket</DialogTitle>
+        </DialogHeader>
         <div className="form-grid">
           <div>
             <label className="label">Type</label>
@@ -208,12 +218,11 @@ function CreateTicketModal({ onClose, onSaved }: { onClose: () => void; onSaved:
           </div>
         </div>
         {err && <p style={{ color: 'var(--error)' }}>{err}</p>}
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
-          <button className="btn btn-ghost" onClick={onClose}>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
             Cancel
-          </button>
-          <button
-            className="btn"
+          </Button>
+          <Button
             onClick={async () => {
               try {
                 await api('/helpdesk', { method: 'POST', body: { type, subject, description, priority } });
@@ -224,10 +233,10 @@ function CreateTicketModal({ onClose, onSaved }: { onClose: () => void; onSaved:
             }}
           >
             Submit
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -248,9 +257,11 @@ function TicketDetailModal({
   const [saving, setSaving] = useState(false);
 
   return (
-    <div className="modal-backdrop">
-      <div className="modal" style={{ maxWidth: 640 }}>
-        <h2>{ticket.subject}</h2>
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-[640px]">
+        <DialogHeader>
+          <DialogTitle>{ticket.subject}</DialogTitle>
+        </DialogHeader>
         <p style={{ color: 'var(--muted)', margin: '0 0 12px', fontSize: 13 }}>
           {ticket.type} · {ticket.priority} priority · <StatusBadge status={ticket.status} />
           {isStaff && ticket.employee_id?.name ? ` · ${ticket.employee_id.name}` : ''}
@@ -305,13 +316,12 @@ function TicketDetailModal({
         )}
 
         {err && <p style={{ color: 'var(--error)' }}>{err}</p>}
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
-          <button className="btn btn-ghost" onClick={onClose}>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
             Close
-          </button>
+          </Button>
           {isStaff && (
-            <button
-              className="btn"
+            <Button
               disabled={saving}
               onClick={async () => {
                 setSaving(true);
@@ -330,10 +340,10 @@ function TicketDetailModal({
               }}
             >
               Save response
-            </button>
+            </Button>
           )}
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

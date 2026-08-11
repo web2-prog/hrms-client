@@ -3,6 +3,14 @@ import { api, buildQuery, type ListResult } from '../../services/api';
 import { ListingPage, useListParams } from '../../components/ListingPage';
 import { StatusBadge, formatHours } from '../../components/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 type OtRequest = {
   _id: string;
@@ -113,9 +121,9 @@ export function OvertimePage() {
           </>
         }
         actions={
-          <button className="btn" onClick={() => setShowApply(true)}>
+          <Button onClick={() => setShowApply(true)}>
             Request Overtime
-          </button>
+          </Button>
         }
       >
         <p style={{ color: 'var(--muted)', fontSize: 13, margin: '0 0 12px' }}>
@@ -157,9 +165,9 @@ export function OvertimePage() {
                   </td>
                   {isManager && row.source !== 'attendance' && row.status === 'Pending' && (
                     <td className="row-actions">
-                      <button className="btn" onClick={() => setDecideRow(row)}>
+                      <Button onClick={() => setDecideRow(row)}>
                         Decide
-                      </button>
+                      </Button>
                     </td>
                   )}
                   {isManager && (row.source === 'attendance' || row.status !== 'Pending') && <td />}
@@ -200,9 +208,11 @@ function ApplyOtModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
   const [err, setErr] = useState('');
 
   return (
-    <div className="modal-backdrop">
-      <div className="modal">
-        <h2>Request overtime</h2>
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Request overtime</DialogTitle>
+        </DialogHeader>
         <div className="form-grid">
           <div>
             <label className="label">Date</label>
@@ -226,12 +236,11 @@ function ApplyOtModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
           </div>
         </div>
         {err && <p style={{ color: 'var(--error)' }}>{err}</p>}
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
-          <button className="btn btn-ghost" onClick={onClose}>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
             Cancel
-          </button>
-          <button
-            className="btn"
+          </Button>
+          <Button
             onClick={async () => {
               try {
                 if (!date) return setErr('Date required');
@@ -245,10 +254,10 @@ function ApplyOtModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
             }}
           >
             Submit
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -287,9 +296,11 @@ function DecideOtModal({
   };
 
   return (
-    <div className="modal-backdrop">
-      <div className="modal">
-        <h2>Decide overtime request</h2>
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Decide overtime request</DialogTitle>
+        </DialogHeader>
         <p style={{ color: 'var(--muted)', marginBottom: 12 }}>
           {row.employee_id?.name || 'Employee'} · {row.date} · {formatHours(row.hours)}
         </p>
@@ -311,18 +322,18 @@ function DecideOtModal({
           </div>
         </div>
         {err && <p style={{ color: 'var(--error)' }}>{err}</p>}
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
-          <button className="btn btn-ghost" disabled={busy} onClick={onClose}>
+        <DialogFooter>
+          <Button variant="outline" disabled={busy} onClick={onClose}>
             Cancel
-          </button>
-          <button className="btn btn-ghost" disabled={busy} onClick={() => submit('Rejected')}>
+          </Button>
+          <Button variant="outline" disabled={busy} onClick={() => submit('Rejected')}>
             Reject
-          </button>
-          <button className="btn" disabled={busy} onClick={() => submit('Approved')}>
+          </Button>
+          <Button disabled={busy} onClick={() => submit('Approved')}>
             Approve as {otType} OT
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

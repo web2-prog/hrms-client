@@ -1,9 +1,18 @@
 import { useEffect, useState } from 'react';
 import { api, buildQuery, type ListResult } from '../../services/api';
 import { ListingPage, useListParams } from '../../components/ListingPage';
-import { hoursBadge, formatHours } from '../../components/StatusBadge';
+import { StatusBadge, hoursBadge, formatHours } from '../../components/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
 import { displayClock, formatBreakMinutes, parseBreakMinutes } from '../../utils/timeFormat';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 
 type Att = {
   _id: string;
@@ -74,6 +83,7 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
 
   return (
     <>
+      {user?.role !== 'employee' && <EarlyCheckoutRequestsCard />}
       <ListingPage
         title="Attendance"
         loading={loading}
@@ -133,7 +143,7 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
                   <td>{formatHours(r.working_hours)}</td>
                   <td>{hoursBadge(r.surplus_shortfall, r.status)}</td>
                   {(user?.role === 'admin' || user?.role === 'hr') && (
-                    <td><button className="btn btn-ghost" onClick={() => openEdit(r)}>Manage</button></td>
+                    <td><Button variant="outline" onClick={() => openEdit(r)}>Manage</Button></td>
                   )}
                 </tr>
               ))}
@@ -141,10 +151,13 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
           </table>
         </div>
       </ListingPage>
-      {edit && (
-        <div className="modal-backdrop">
-          <div className="modal">
-            <h2>Edit attendance — {edit.date}</h2>
+      <Dialog open={!!edit} onOpenChange={(o) => !o && setEdit(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit attendance — {edit?.date}</DialogTitle>
+          </DialogHeader>
+          {edit && (
+            <>
             <div className="form-grid">
               <div>
                 <label className="label">Check-in (HH:MM:SS)</label>
@@ -180,10 +193,9 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
             <p className="emp-action-help" style={{ marginTop: 8 }}>
               Times use seconds (HH:MM:SS). Break is shown in whole minutes (e.g. 24m). Hours and OT recalculate on save.
             </p>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
-              <button className="btn btn-ghost" onClick={() => setEdit(null)}>Cancel</button>
-              <button
-                className="btn"
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEdit(null)}>Cancel</Button>
+              <Button
                 onClick={async () => {
                   const breakMins = parseBreakMinutes(edit.break_display ?? edit.break_total ?? 0);
                   await api(`/attendance/${edit._id}`, {
@@ -199,11 +211,216 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
                 }}
               >
                 Save
-              </button>
-            </div>
+              </Button>
+            </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+type EcRequest = {
+  _id: string;
+  date: string;
+  requested_time: string;
+  reason: string;
+  status: string;
+  decision_note?: string;
+  createdAt?: string;
+  employee_id?: { name: string; department_id?: { name: string } };
+  decided_by?: { name?: string } | null;
+};
+
+/** HR/Admin approval queue for early checkout requests (Attendance page). */
+function EarlyCheckoutRequestsCard() {
+  const [pending, setPending] = useState<EcRequest[]>([]);
+  const [recent, setRecent] = useState<EcRequest[]>([]);
+  const [rejecting, setRejecting] = useState<EcRequest | null>(null);
+  const [note, setNote] = useState('');
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [msg, setMsg] = useState('');
+  const [err, setErr] = useState('');
+
+  const load = async () => {
+    setErr('');
+    try {
+      const [p, r] = await Promise.all([
+        api<ListResult<EcRequest>>('/attendance/early-checkout-requests?status=Pending&limit=50'),
+        api<ListResult<EcRequest>>('/attendance/early-checkout-requests?limit=8'),
+      ]);
+      setPending(p.data || []);
+      setRecent(r.data || []);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Failed to load requests');
+    }
+  };
+
+  useEffect(() => {
+    load();
+    const onFocus = () => load();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const decide = async (req: EcRequest, status: 'Approved' | 'Rejected', decisionNote = '') => {
+    setBusyId(req._id);
+    setErr('');
+    try {
+      await api(`/attendance/early-checkout-requests/${req._id}/decide`, {
+        method: 'POST',
+        body: { status, note: decisionNote },
+      });
+      setMsg(
+        status === 'Approved'
+          ? `Approved — ${req.employee_id?.name || 'employee'} has been checked out at ${displayClock(req.requested_time)}.`
+          : 'Request rejected.'
+      );
+      setRejecting(null);
+      setNote('');
+      await load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <div className="card ecr-card" style={{ marginBottom: 16 }}>
+      <div className="ecr-head">
+        <div>
+          <h3 style={{ margin: 0 }}>Early Checkout Requests</h3>
+          <p className="emp-action-help" style={{ margin: '4px 0 0' }}>
+            Employees leaving before shift end need approval. Approving checks them out at the requested time.
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {pending.length > 0 && <span className="badge badge-warn">{pending.length} pending</span>}
+          <Button variant="outline" size="sm" onClick={load}>
+            Refresh
+          </Button>
+        </div>
+      </div>
+
+      {msg && <p style={{ color: 'var(--success)', margin: '0.75rem 0 0' }}>{msg}</p>}
+      {err && <p style={{ color: 'var(--error)', margin: '0.75rem 0 0' }}>{err}</p>}
+
+      {pending.length === 0 ? (
+        <p className="ecr-empty">No pending early checkout requests.</p>
+      ) : (
+        <div className="table-wrap" style={{ marginTop: 12 }}>
+          <table className="data">
+            <thead>
+              <tr>
+                <th>Employee</th>
+                <th>Requested at</th>
+                <th>Date</th>
+                <th>Reason</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {pending.map((r) => (
+                <tr key={r._id}>
+                  <td>
+                    <div>{r.employee_id?.name || '—'}</div>
+                    {r.employee_id?.department_id?.name && (
+                      <div style={{ color: 'var(--muted)', fontSize: 12 }}>{r.employee_id.department_id.name}</div>
+                    )}
+                  </td>
+                  <td>{displayClock(r.requested_time)}</td>
+                  <td>{r.date}</td>
+                  <td style={{ maxWidth: 320 }}>{r.reason || '—'}</td>
+                  <td className="row-actions">
+                    <Button
+                      size="sm"
+                      disabled={busyId === r._id}
+                      onClick={() => decide(r, 'Approved')}
+                    >
+                      Approve
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={busyId === r._id}
+                      onClick={() => {
+                        setRejecting(r);
+                        setNote('');
+                      }}
+                    >
+                      Reject
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {recent.some((r) => r.status !== 'Pending') && (
+        <div style={{ marginTop: 14, borderTop: '1px solid var(--hairline)', paddingTop: 12 }}>
+          <span className="label">Recent decisions</span>
+          <div className="ecr-recent-list">
+            {recent
+              .filter((r) => r.status !== 'Pending')
+              .slice(0, 5)
+              .map((r) => (
+                <div key={r._id} className="ecr-recent-item">
+                  <span style={{ fontWeight: 600 }}>{r.employee_id?.name || '—'}</span>
+                  <StatusBadge status={r.status} />
+                  <span style={{ color: 'var(--muted)', fontSize: '0.82rem' }}>
+                    {displayClock(r.requested_time)} · {r.date}
+                    {r.decision_note ? ` · “${r.decision_note}”` : ''}
+                  </span>
+                </div>
+              ))}
           </div>
         </div>
       )}
-    </>
+
+      <Dialog open={!!rejecting} onOpenChange={(o) => !o && setRejecting(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reject early checkout</DialogTitle>
+          </DialogHeader>
+          {rejecting && (
+            <>
+              <p style={{ margin: 0, color: 'var(--muted)' }}>
+                {rejecting.employee_id?.name || 'Employee'} · {displayClock(rejecting.requested_time)} ·{' '}
+                {rejecting.reason || 'No reason given'}
+              </p>
+              <div className="grid gap-1.5">
+                <label className="label" htmlFor="ecr-note">
+                  Note (optional)
+                </label>
+                <Textarea
+                  id="ecr-note"
+                  rows={3}
+                  placeholder="e.g. Please finish the pending task before leaving…"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" disabled={busyId === rejecting._id} onClick={() => setRejecting(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  disabled={busyId === rejecting._id}
+                  onClick={() => decide(rejecting, 'Rejected', note)}
+                >
+                  Reject request
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

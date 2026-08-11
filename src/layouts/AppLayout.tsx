@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { Button } from '@/components/ui/button';
 import {
   LayoutDashboard,
   Building2,
@@ -22,40 +23,94 @@ import {
   Headphones,
 } from 'lucide-react';
 
-const adminLinks = [
-  { to: '/admin', end: true, label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/admin/departments', label: 'Departments', icon: Building2 },
-  { to: '/admin/employees', label: 'Employees', icon: Users },
-  { to: '/admin/summary', label: 'Emp. Summary', icon: ClipboardList },
-  { to: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
-  { to: '/admin/attendance', label: 'Attendance', icon: Clock },
-  { to: '/admin/performance', label: 'Performance', icon: TrendingUp },
-  { to: '/admin/overtime', label: 'Overtime', icon: Timer },
-  { to: '/admin/leaves', label: 'Leaves', icon: CalendarDays },
-  { to: '/admin/holidays', label: 'Holidays', icon: Palmtree },
-  { to: '/admin/policies', label: 'Policies', icon: BookOpen },
-  { to: '/admin/helpdesk', label: 'Helpdesk', icon: Headphones },
-  { to: '/admin/salary', label: 'Salary', icon: Wallet },
-  { to: '/admin/global', label: 'Global / Bulk', icon: Settings },
-  { to: '/admin/audit', label: 'Audit', icon: ScrollText },
+type NavItem = { to: string; end?: boolean; label: string; icon: typeof LayoutDashboard };
+type NavGroup = { title: string; items: NavItem[] };
+
+const adminGroups: NavGroup[] = [
+  {
+    title: 'Overview',
+    items: [{ to: '/admin', end: true, label: 'Dashboard', icon: LayoutDashboard }],
+  },
+  {
+    title: 'People',
+    items: [
+      { to: '/admin/departments', label: 'Departments', icon: Building2 },
+      { to: '/admin/employees', label: 'Employees', icon: Users },
+      { to: '/admin/summary', label: 'Emp. Summary', icon: ClipboardList },
+    ],
+  },
+  {
+    title: 'Time & Work',
+    items: [
+      { to: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
+      { to: '/admin/attendance', label: 'Attendance', icon: Clock },
+      { to: '/admin/performance', label: 'Performance', icon: TrendingUp },
+      { to: '/admin/overtime', label: 'Overtime', icon: Timer },
+    ],
+  },
+  {
+    title: 'Calendar',
+    items: [
+      { to: '/admin/leaves', label: 'Leaves', icon: CalendarDays },
+      { to: '/admin/holidays', label: 'Holidays', icon: Palmtree },
+    ],
+  },
+  {
+    title: 'Documents',
+    items: [
+      { to: '/admin/policies', label: 'Policies', icon: BookOpen },
+      { to: '/admin/helpdesk', label: 'Helpdesk', icon: Headphones },
+      { to: '/admin/salary', label: 'Salary', icon: Wallet },
+    ],
+  },
+  {
+    title: 'System',
+    items: [
+      { to: '/admin/global', label: 'Global / Bulk', icon: Settings },
+      { to: '/admin/audit', label: 'Audit', icon: ScrollText },
+    ],
+  },
 ];
 
-const hrLinks = [
-  { to: '/hr', end: true, label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/hr/employees', label: 'Employees', icon: Users },
-  { to: '/hr/summary', label: 'Emp. Summary', icon: ClipboardList },
-  { to: '/hr/analytics', label: 'Analytics', icon: BarChart3 },
-  { to: '/hr/attendance', label: 'Attendance', icon: Clock },
-  { to: '/hr/performance', label: 'Performance', icon: TrendingUp },
-  { to: '/hr/overtime', label: 'Overtime', icon: Timer },
-  { to: '/hr/leaves', label: 'Leaves', icon: CalendarDays },
-  { to: '/hr/holidays', label: 'Holidays', icon: Palmtree },
-  { to: '/hr/policies', label: 'Policies', icon: BookOpen },
-  { to: '/hr/helpdesk', label: 'Helpdesk', icon: Headphones },
-  { to: '/hr/salary', label: 'Salary', icon: Wallet },
+const hrGroups: NavGroup[] = [
+  {
+    title: 'Overview',
+    items: [{ to: '/hr', end: true, label: 'Dashboard', icon: LayoutDashboard }],
+  },
+  {
+    title: 'People',
+    items: [
+      { to: '/hr/employees', label: 'Employees', icon: Users },
+      { to: '/hr/summary', label: 'Emp. Summary', icon: ClipboardList },
+    ],
+  },
+  {
+    title: 'Time & Work',
+    items: [
+      { to: '/hr/analytics', label: 'Analytics', icon: BarChart3 },
+      { to: '/hr/attendance', label: 'Attendance', icon: Clock },
+      { to: '/hr/performance', label: 'Performance', icon: TrendingUp },
+      { to: '/hr/overtime', label: 'Overtime', icon: Timer },
+    ],
+  },
+  {
+    title: 'Calendar',
+    items: [
+      { to: '/hr/leaves', label: 'Leaves', icon: CalendarDays },
+      { to: '/hr/holidays', label: 'Holidays', icon: Palmtree },
+    ],
+  },
+  {
+    title: 'Documents',
+    items: [
+      { to: '/hr/policies', label: 'Policies', icon: BookOpen },
+      { to: '/hr/helpdesk', label: 'Helpdesk', icon: Headphones },
+      { to: '/hr/salary', label: 'Salary', icon: Wallet },
+    ],
+  },
 ];
 
-const empLinks = [
+const empLinks: NavItem[] = [
   { to: '/app', end: true, label: 'Dashboard', icon: LayoutDashboard },
   { to: '/app/profile', label: 'Profile', icon: Users },
   { to: '/app/salary', label: 'Salary Slip', icon: Wallet },
@@ -81,7 +136,9 @@ export function AppLayout({ variant }: { variant: 'admin' | 'hr' | 'employee' })
   const navigate = useNavigate();
   const location = useLocation();
   const [navOpen, setNavOpen] = useState(false);
-  const links = variant === 'admin' ? adminLinks : variant === 'hr' ? hrLinks : empLinks;
+  const groups = variant === 'admin' ? adminGroups : variant === 'hr' ? hrGroups : null;
+  // All links rendered flat together (no section-wise dropdowns)
+  const links = groups ? groups.flatMap((g) => g.items) : empLinks;
 
   useEffect(() => {
     setNavOpen(false);
@@ -96,6 +153,18 @@ export function AppLayout({ variant }: { variant: 'admin' | 'hr' | 'employee' })
     return () => window.removeEventListener('keydown', onKey);
   }, [navOpen]);
 
+  const renderLink = (l: NavItem) => (
+    <NavLink
+      key={l.to}
+      to={l.to}
+      end={'end' in l ? l.end : false}
+      className={({ isActive }) => (isActive ? 'active' : '')}
+    >
+      <l.icon size={18} />
+      {l.label}
+    </NavLink>
+  );
+
   return (
     <div className={`app-shell${navOpen ? ' nav-open' : ''}`}>
       {navOpen && <div className="sidebar-overlay" onClick={() => setNavOpen(false)} aria-hidden />}
@@ -107,18 +176,9 @@ export function AppLayout({ variant }: { variant: 'admin' | 'hr' | 'employee' })
             <small>{variant} portal</small>
           </span>
         </div>
-        <nav className="sidebar-nav">
-          {links.map((l) => (
-            <NavLink
-              key={l.to}
-              to={l.to}
-              end={'end' in l ? l.end : false}
-              className={({ isActive }) => (isActive ? 'active' : '')}
-            >
-              <l.icon size={18} />
-              {l.label}
-            </NavLink>
-          ))}
+
+        <nav className="sidebar-nav" aria-label="Portal pages">
+          {links.map(renderLink)}
         </nav>
       </aside>
       <div className="main">
@@ -143,8 +203,8 @@ export function AppLayout({ variant }: { variant: 'admin' | 'hr' | 'employee' })
               </div>
             </div>
           </div>
-          <button
-            className="btn btn-ghost"
+          <Button
+            variant="outline"
             onClick={() => {
               logout();
               navigate('/login');
@@ -152,7 +212,7 @@ export function AppLayout({ variant }: { variant: 'admin' | 'hr' | 'employee' })
           >
             <LogOut size={16} />
             Logout
-          </button>
+          </Button>
         </header>
         <div className="content">
           <Outlet />

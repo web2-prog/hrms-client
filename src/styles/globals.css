@@ -1,0 +1,124 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+/* ═══════════════════════════════════════════════════════════════════
+   HRMS — shadcn/ui theme built from frontend/DESIGN.md
+   Airtable-style: near-black ink primary · white canvas · hairline
+   borders · link blue accents · Inter type (Haas substitute).
+   ═══════════════════════════════════════════════════════════════════ */
+
+:root {
+  --radius: 0.75rem; /* rounded-lg 12px (CTAs), rounded-md 10px (cards), rounded-sm 8px */
+
+  /* Canvas & ink */
+  --background: #ffffff; /* colors.canvas */
+  --foreground: #181d26; /* colors.ink */
+
+  --card: #ffffff;
+  --card-foreground: #181d26;
+
+  --popover: #ffffff;
+  --popover-foreground: #181d26;
+
+  /* Primary — near-black ink CTA (colors.primary #181d26) */
+  --primary: #181d26;
+  --primary-foreground: #ffffff;
+  --primary-active: #0d1218;
+
+  /* Secondary — surface-soft #f8fafc */
+  --secondary: #f8fafc;
+  --secondary-foreground: #181d26;
+
+  --muted: #f8fafc;
+  --muted-foreground: #41454d; /* colors.muted */
+
+  /* Accent — surface-strong #e0e2e6 */
+  --accent: #e0e2e6;
+  --accent-foreground: #181d26;
+
+  /* Destructive — signature coral #aa2d00 */
+  --destructive: #aa2d00;
+  --destructive-foreground: #ffffff;
+
+  /* Hairline borders */
+  --border: #dddddd; /* colors.hairline */
+  --input: #dddddd;
+  --ring: #1b61c9; /* colors.link — focus ring */
+
+  /* Status */
+  --success: #006400;
+  --success-foreground: #ffffff;
+  --info: #254fad;
+  --info-border: #458fff;
+
+  /* Sidebar — surface-dark #181d26 */
+  --sidebar: #181d26;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #181d26;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgba(255, 255, 255, 0.08);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.12);
+  --sidebar-ring: #1b61c9;
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-display: 'Inter Display', 'Inter', ui-sans-serif, system-ui, sans-serif;
+
+  --chart-1: #181d26;
+  --chart-2: #1b61c9;
+  --chart-3: #006400;
+  --chart-4: #d9a441;
+  --chart-5: #aa2d00;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-info: var(--info);
+  --color-info-border: var(--info-border);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+}

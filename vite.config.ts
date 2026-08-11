@@ -1,7 +1,9 @@
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath, URL } from 'node:url';
 
 // The app uses BrowserRouter (client-side routing), so EVERY server that hosts
 // the build must fall back to index.html for unknown paths — otherwise a page
@@ -35,7 +37,13 @@ function spa404Fallback(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), spa404Fallback()],
+  plugins: [react(), tailwindcss(), spa404Fallback()],
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
+
 
   // 'spa' (the Vite default) turns on HTML history fallback on both the dev
   // and preview servers: any GET that doesn't match a real asset is served

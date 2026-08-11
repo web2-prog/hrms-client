@@ -2,6 +2,14 @@ import { useEffect, useState } from 'react';
 import { api, buildQuery, type ListResult } from '../../services/api';
 import { ListingPage, useListParams } from '../../components/ListingPage';
 import { useAuth } from '../../context/AuthContext';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 type HolidayType = 'Saturday' | 'Festival' | 'Vacation' | 'Manual';
 
@@ -70,10 +78,10 @@ export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
         actions={
           manage ? (
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button className="btn" onClick={() => setAddType('Saturday')}>+ Sat off</button>
-              <button className="btn" onClick={() => setAddType('Festival')}>+ Festival</button>
-              <button className="btn" onClick={() => setAddType('Vacation')}>+ Vacation</button>
-              <button className="btn" onClick={() => setAddType('Manual')}>+ Manual</button>
+              <Button onClick={() => setAddType('Saturday')}>+ Sat off</Button>
+              <Button variant="outline" onClick={() => setAddType('Festival')}>+ Festival</Button>
+              <Button variant="outline" onClick={() => setAddType('Vacation')}>+ Vacation</Button>
+              <Button variant="outline" onClick={() => setAddType('Manual')}>+ Manual</Button>
             </div>
           ) : undefined
         }
@@ -98,15 +106,15 @@ export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
                   <td>{h.year}</td>
                   {manage && (
                     <td>
-                      <button
-                        className="btn btn-ghost"
+                      <Button
+                        variant="outline"
                         onClick={async () => {
                           await api(`/holidays/${h._id}`, { method: 'DELETE' });
                           load();
                         }}
                       >
                         Delete
-                      </button>
+                      </Button>
                     </td>
                   )}
                 </tr>
@@ -131,9 +139,11 @@ function AddHolidayModal({ type, onClose, onSaved }: { type: HolidayType; onClos
   const [err, setErr] = useState('');
 
   return (
-    <div className="modal-backdrop">
-      <div className="modal">
-        <h2>Add {type}</h2>
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Add {type}</DialogTitle>
+        </DialogHeader>
         <div className="form-grid">
           {type !== 'Saturday' && (
             <div><label className="label">Name</label><input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={type === 'Manual' ? 'e.g. Office maintenance' : ''} /></div>
@@ -149,10 +159,9 @@ function AddHolidayModal({ type, onClose, onSaved }: { type: HolidayType; onClos
           )}
         </div>
         {err && <p style={{ color: 'var(--error)' }}>{err}</p>}
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
-          <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button
-            className="btn"
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button
             onClick={async () => {
               try {
                 const body =
@@ -169,9 +178,9 @@ function AddHolidayModal({ type, onClose, onSaved }: { type: HolidayType; onClos
             }}
           >
             Save
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

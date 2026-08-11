@@ -10,6 +10,7 @@ import {
 import { api, buildQuery, type ListResult } from '../../services/api';
 import { formatHours } from '../../components/StatusBadge';
 import { RequireRole } from '../../components/StatusBadge';
+import { Button } from '@/components/ui/button';
 
 type AnalyticType =
   | 'working_hours'
@@ -498,25 +499,25 @@ function AnalyticsInner() {
                 <option value={50}>50</option>
                 <option value={100}>100</option>
               </select>
-              <button
+              <Button
                 type="button"
-                className="btn btn-ghost"
+                variant="outline"
                 disabled={pageSafe <= 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
               >
                 Prev
-              </button>
+              </Button>
               <span>
                 Page {pageSafe} / {pages}
               </span>
-              <button
+              <Button
                 type="button"
-                className="btn btn-ghost"
+                variant="outline"
                 disabled={pageSafe >= pages}
                 onClick={() => setPage((p) => Math.min(pages, p + 1))}
               >
                 Next
-              </button>
+              </Button>
             </div>
           </>
         )}

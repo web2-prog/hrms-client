@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 type Props = {
   title: string;
@@ -69,17 +78,17 @@ export function ListingPage({
       </div>
       <div className="card card-accent">
         <div className="listing-toolbar">
-          <input
-            className="input search"
+          <Input
+            className="search"
             placeholder={searchPlaceholder}
             value={localSearch}
             onChange={(e) => setLocalSearch(e.target.value)}
           />
           {filters}
           <div className="right">
-            <button type="button" className="btn btn-ghost btn-icon" title="Refresh" onClick={onRefresh}>
-              <RefreshCw size={18} />
-            </button>
+            <Button type="button" variant="outline" size="icon" title="Refresh" onClick={onRefresh}>
+              <RefreshCw size={16} />
+            </Button>
           </div>
         </div>
         {loading && <div className="state-box">Loading…</div>}
@@ -88,26 +97,26 @@ export function ListingPage({
         {!loading && !error && !empty && children}
         <div className="pagination">
           <span>Total: {total}</span>
-          <select
-            className="select"
-            style={{ width: 90 }}
-            value={limit >= 10000 ? 10000 : limit}
-            onChange={(e) => setLimit(Number(e.target.value))}
-          >
-            <option value={10}>10</option>
-            <option value={25}>25</option>
-            <option value={50}>50</option>
-            <option value={10000}>All</option>
-          </select>
-          <button className="btn btn-ghost" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+          <Select value={String(limit >= 10000 ? 10000 : limit)} onValueChange={(v) => setLimit(Number(v))}>
+            <SelectTrigger className="w-[90px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="10">10</SelectItem>
+              <SelectItem value="25">25</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+              <SelectItem value="10000">All</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button variant="outline" disabled={page <= 1} onClick={() => setPage(page - 1)}>
             Prev
-          </button>
+          </Button>
           <span>
             Page {page} / {pages}
           </span>
-          <button className="btn btn-ghost" disabled={page >= pages} onClick={() => setPage(page + 1)}>
+          <Button variant="outline" disabled={page >= pages} onClick={() => setPage(page + 1)}>
             Next
-          </button>
+          </Button>
         </div>
       </div>
     </div>

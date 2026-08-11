@@ -4,6 +4,13 @@ import { ListingPage, useListParams } from '../../components/ListingPage';
 import { StatusBadge, formatHours } from '../../components/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
 import { SalarySlipPreview } from '../../components/SalarySlipPreview';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   apiPayslipToForm,
   applyCompanyToForm,
@@ -347,13 +354,13 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
                   </option>
                 ))}
               </select>
-              <button className="btn" disabled={genBusy} onClick={handleGenerate}>
+              <Button disabled={genBusy} onClick={handleGenerate}>
                 {genBusy ? 'Generating…' : 'Generate'}
-              </button>
+              </Button>
               {allowBulk && (
-                <button className="btn btn-ghost" disabled={genBusy} onClick={handleBulkGenerate}>
+                <Button variant="outline" disabled={genBusy} onClick={handleBulkGenerate}>
                   Bulk generate
-                </button>
+                </Button>
               )}
             </div>
           ) : undefined
@@ -416,15 +423,14 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
                     <StatusBadge status={s.payment_status} />
                   </td>
                   <td className="row-actions">
-                    <button className="btn btn-ghost" onClick={() => openPreview(s._id)} disabled={previewLoading}>
+                    <Button variant="outline" onClick={() => openPreview(s._id)} disabled={previewLoading}>
                       View
-                    </button>
-                    <button className="btn btn-ghost" onClick={() => downloadServerPdf(s._id)}>
+                    </Button>
+                    <Button variant="outline" onClick={() => downloadServerPdf(s._id)}>
                       PDF
-                    </button>
+                    </Button>
                     {(user?.role === 'admin' || user?.role === 'hr') && s.status === 'Draft' && (
-                      <button
-                        className="btn"
+                      <Button
                         onClick={async () => {
                           try {
                             setError(null);
@@ -436,24 +442,23 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
                         }}
                       >
                         Finalize
-                      </button>
+                      </Button>
                     )}
                     {user?.role === 'admin' && s.status === 'Finalized' && (
-                      <button
-                        className="btn btn-ghost"
+                      <Button
+                        variant="outline"
                         onClick={async () => {
                           await api(`/salary/${s._id}/reverse`, { method: 'POST', body: { reason: 'reissue' } });
                           load();
                         }}
                       >
                         Reverse
-                      </button>
+                      </Button>
                     )}
                     {(user?.role === 'admin' || user?.role === 'hr') &&
                       s.status === 'Finalized' &&
                       s.payment_status === 'Pending' && (
-                        <button
-                          className="btn"
+                        <Button
                           onClick={async () => {
                             await api(`/salary/${s._id}/payment`, {
                               method: 'PATCH',
@@ -467,7 +472,7 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
                           }}
                         >
                           Mark paid
-                        </button>
+                        </Button>
                       )}
                   </td>
                 </tr>
@@ -478,55 +483,53 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
       </ListingPage>
 
       {previewForm && (
-        <div
-          className="modal-backdrop"
-          onClick={() => {
-            setPreviewForm(null);
-            setPreviewSlipId(null);
+        <Dialog
+          open
+          onOpenChange={(o) => {
+            if (!o) {
+              setPreviewForm(null);
+              setPreviewSlipId(null);
+            }
           }}
         >
-          <div
-            className="modal"
-            style={{ width: 'min(860px, 96vw)', maxHeight: '92vh', overflow: 'auto' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 12, flexWrap: 'wrap' }}>
-              <h3 style={{ margin: 0 }}>Salary Slip Preview</h3>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                {(user?.role === 'admin' || user?.role === 'hr') && (
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.9rem' }}>
-                    Company
-                    <select
-                      className="select"
-                      style={{ width: 120 }}
-                      disabled={companySaving}
-                      value={resolveCompanyKeyFromForm(previewForm)}
-                      onChange={(e) => changePreviewCompany(e.target.value as SalaryCompanyKey)}
-                    >
-                      <option value="kriraai">KriraAI</option>
-                      <option value="ondial">Ondial</option>
-                    </select>
-                  </label>
-                )}
-                <button className="btn" onClick={downloadPreviewPdf}>
-                  Download PDF
-                </button>
-                <button
-                  className="btn btn-ghost"
-                  onClick={() => {
-                    setPreviewForm(null);
-                    setPreviewSlipId(null);
-                  }}
-                >
-                  Close
-                </button>
-              </div>
+          <DialogContent className="sm:max-w-[860px]" style={{ maxHeight: '92vh', overflow: 'auto' }}>
+            <DialogHeader>
+              <DialogTitle>Salary Slip Preview</DialogTitle>
+            </DialogHeader>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              {(user?.role === 'admin' || user?.role === 'hr') && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.9rem' }}>
+                  Company
+                  <select
+                    className="select"
+                    style={{ width: 120 }}
+                    disabled={companySaving}
+                    value={resolveCompanyKeyFromForm(previewForm)}
+                    onChange={(e) => changePreviewCompany(e.target.value as SalaryCompanyKey)}
+                  >
+                    <option value="kriraai">KriraAI</option>
+                    <option value="ondial">Ondial</option>
+                  </select>
+                </label>
+              )}
+              <Button onClick={downloadPreviewPdf}>
+                Download PDF
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setPreviewForm(null);
+                  setPreviewSlipId(null);
+                }}
+              >
+                Close
+              </Button>
             </div>
             <div style={{ overflowX: 'auto' }}>
               <SalarySlipPreview form={previewForm} previewRef={previewRef} />
             </div>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
     </>
   );

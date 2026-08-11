@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Button } from '@/components/ui/button';
 
 export type Bond = {
   _id?: string;
@@ -191,9 +192,9 @@ export function BondSalaryManager({ bonds, salarySchedule, baseSalary, onChange 
       <div className="card" style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 12 }}>
           <h3 style={{ margin: 0 }}>Bond details</h3>
-          <button type="button" className="btn" onClick={() => setShowAddBond((v) => !v)}>
+          <Button type="button" variant={showAddBond ? 'outline' : 'default'} onClick={() => setShowAddBond((v) => !v)}>
             {showAddBond ? 'Cancel' : '+ Add bond'}
-          </button>
+          </Button>
         </div>
 
         {showAddBond && (
@@ -283,9 +284,9 @@ export function BondSalaryManager({ bonds, salarySchedule, baseSalary, onChange 
             )}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
-              <button type="button" className="btn" onClick={addBond} disabled={!bondForm.start_date}>
+              <Button type="button" onClick={addBond} disabled={!bondForm.start_date}>
                 Add bond
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -433,13 +434,13 @@ export function BondSalaryManager({ bonds, salarySchedule, baseSalary, onChange 
                       </select>
                     </td>
                     <td>
-                      <button
+                      <Button
                         type="button"
-                        className="btn btn-ghost"
+                        variant="outline"
                         onClick={() => setBonds(list.filter((_, idx) => idx !== i))}
                       >
                         Remove
-                      </button>
+                      </Button>
                     </td>
                   </tr>
                 ))}
@@ -458,9 +459,9 @@ export function BondSalaryManager({ bonds, salarySchedule, baseSalary, onChange 
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button
+            <Button
               type="button"
-              className="btn btn-ghost"
+              variant="outline"
               onClick={() =>
                 setSchedule([
                   ...schedule,
@@ -475,7 +476,7 @@ export function BondSalaryManager({ bonds, salarySchedule, baseSalary, onChange 
               }
             >
               + Add salary band
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -546,13 +547,13 @@ export function BondSalaryManager({ bonds, salarySchedule, baseSalary, onChange 
                       />
                     </td>
                     <td>
-                      <button
+                      <Button
                         type="button"
-                        className="btn btn-ghost"
+                        variant="outline"
                         onClick={() => setSchedule(schedule.filter((_, idx) => idx !== i))}
                       >
                         Remove
-                      </button>
+                      </Button>
                     </td>
                   </tr>
                 ))}

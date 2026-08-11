@@ -3,6 +3,14 @@ import { api, buildQuery, type ListResult } from '../../services/api';
 import { ListingPage, useListParams } from '../../components/ListingPage';
 import { StatusBadge, formatHours } from '../../components/StatusBadge';
 import type { SalaryCompanyKey } from '../../services/salarySlipDefaults';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 type PerformanceRow = {
   employee_id?: {
@@ -228,13 +236,12 @@ export function PerformancePage() {
                   </td>
                   <td className="row-actions">
                     {(row.needs_shortfall_decision || row.pending_hours > 0) && (
-                      <button
-                        className="btn"
+                      <Button
                         disabled={busyId === row.employee_id?._id}
                         onClick={() => setDecideRow(row)}
                       >
                         Month-end
-                      </button>
+                      </Button>
                     )}
                   </td>
                 </tr>
@@ -273,9 +280,11 @@ function ShortfallModal({
   const nextTargetApprox = (row.base_monthly_target_hours || row.monthly_target_hours) + row.pending_hours;
 
   return (
-    <div className="modal-backdrop">
-      <div className="modal">
-        <h2>Month-end shortfall</h2>
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Month-end shortfall</DialogTitle>
+        </DialogHeader>
         <p style={{ color: 'var(--muted)', marginBottom: 8 }}>
           {row.employee_id?.name} · {MONTH_NAMES[row.month - 1]} {row.year}
         </p>
@@ -315,14 +324,13 @@ function ShortfallModal({
               Create / update salary slip with deduction for {formatHours(row.pending_hours)} shortfall. No hours
               move to next month.
             </p>
-            <button
-              className="btn"
+            <Button
               style={{ marginTop: 10 }}
               disabled={busy}
               onClick={() => onDecide('deduct', companyKey)}
             >
               Apply salary deduction
-            </button>
+            </Button>
           </div>
           <div className="card" style={{ padding: 12 }}>
             <strong>Carry Forward</strong>
@@ -331,14 +339,14 @@ function ShortfallModal({
               that month’s target plus this pending (approx. {formatHours(nextTargetApprox)} if base stays similar).
               No salary cut for these hours.
             </p>
-            <button
-              className="btn btn-ghost"
+            <Button
+              variant="outline"
               style={{ marginTop: 10 }}
               disabled={busy}
               onClick={() => onDecide('carry_forward', companyKey)}
             >
               Carry forward to next month
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -348,12 +356,12 @@ function ShortfallModal({
           </p>
         )}
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button className="btn btn-ghost" disabled={busy} onClick={onClose}>
+        <DialogFooter>
+          <Button variant="outline" disabled={busy} onClick={onClose}>
             Cancel
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

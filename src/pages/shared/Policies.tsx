@@ -4,6 +4,14 @@ import { api, buildQuery, type ListResult } from '../../services/api';
 import { ListingPage, useListParams } from '../../components/ListingPage';
 import { StatusBadge } from '../../components/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 const CATEGORIES = ['General', 'Attendance', 'Leave', 'Code of Conduct', 'Salary', 'Other'] as const;
 
@@ -150,9 +158,9 @@ export function PoliciesPage({ canManage = true }: { canManage?: boolean }) {
         }
         actions={
           manage ? (
-            <button className="btn" onClick={() => openEdit()}>
+            <Button onClick={() => openEdit()}>
               Add Policy
-            </button>
+            </Button>
           ) : undefined
         }
       >
@@ -187,16 +195,17 @@ export function PoliciesPage({ canManage = true }: { canManage?: boolean }) {
                   <td>{p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : '—'}</td>
                   <td>
                     <div className="row-actions">
-                      <button className="btn btn-ghost btn-icon" title="View" onClick={() => setViewing(p)}>
+                      <Button variant="ghost" size="icon" title="View" onClick={() => setViewing(p)}>
                         <Eye size={16} />
-                      </button>
+                      </Button>
                       {manage && (
                         <>
-                          <button className="btn btn-ghost btn-icon" title="Edit" onClick={() => openEdit(p)}>
+                          <Button variant="ghost" size="icon" title="Edit" onClick={() => openEdit(p)}>
                             <Pencil size={16} />
-                          </button>
-                          <button
-                            className="btn btn-ghost btn-icon"
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             title="Delete"
                             onClick={async () => {
                               if (!confirm(`Delete policy "${p.title}"?`)) return;
@@ -205,7 +214,7 @@ export function PoliciesPage({ canManage = true }: { canManage?: boolean }) {
                             }}
                           >
                             <Trash2 size={16} />
-                          </button>
+                          </Button>
                         </>
                       )}
                     </div>
@@ -217,10 +226,13 @@ export function PoliciesPage({ canManage = true }: { canManage?: boolean }) {
         </div>
       </ListingPage>
 
-      {editing && (
-        <div className="modal-backdrop">
-          <div className="modal" style={{ maxWidth: 640 }}>
-            <h2>{editing._id ? 'Edit' : 'Add'} Policy</h2>
+      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+        <DialogContent className="sm:max-w-[640px]">
+          <DialogHeader>
+            <DialogTitle>{editing?._id ? 'Edit' : 'Add'} Policy</DialogTitle>
+          </DialogHeader>
+          {editing && (
+            <>
             <div className="form-grid">
               <div style={{ gridColumn: '1 / -1' }}>
                 <label className="label">Title</label>
@@ -277,24 +289,28 @@ export function PoliciesPage({ canManage = true }: { canManage?: boolean }) {
               </div>
             </div>
             {saveErr && <p style={{ color: 'var(--error)' }}>{saveErr}</p>}
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
-              <button className="btn btn-ghost" onClick={() => setEditing(null)}>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditing(null)}>
                 Cancel
-              </button>
-              <button className="btn" onClick={save}>
+              </Button>
+              <Button onClick={save}>
                 Save
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+              </Button>
+            </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
-      {viewing && (
-        <div className="modal-backdrop">
-          <div className="modal" style={{ maxWidth: 680 }}>
+      <Dialog open={!!viewing} onOpenChange={(o) => !o && setViewing(null)}>
+        <DialogContent className="sm:max-w-[680px]">
+          <DialogHeader>
+            <DialogTitle>{viewing?.title}</DialogTitle>
+          </DialogHeader>
+          {viewing && (
+            <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
               <div>
-                <h2 style={{ marginBottom: 4 }}>{viewing.title}</h2>
                 <p style={{ color: 'var(--muted)', margin: 0, fontSize: 13 }}>
                   {viewing.category}
                   {viewing.effective_date ? ` · Effective ${viewing.effective_date}` : ''}
@@ -327,25 +343,26 @@ export function PoliciesPage({ canManage = true }: { canManage?: boolean }) {
                 {viewing.updatedAt ? ` on ${new Date(viewing.updatedAt).toLocaleString()}` : ''}
               </p>
             )}
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
+            <DialogFooter>
               {manage && (
-                <button
-                  className="btn btn-ghost"
+                <Button
+                  variant="outline"
                   onClick={() => {
                     setViewing(null);
                     openEdit(viewing);
                   }}
                 >
                   Edit
-                </button>
+                </Button>
               )}
-              <button className="btn" onClick={() => setViewing(null)}>
+              <Button onClick={() => setViewing(null)}>
                 Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+              </Button>
+            </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

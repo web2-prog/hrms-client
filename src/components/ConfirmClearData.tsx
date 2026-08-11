@@ -1,4 +1,15 @@
 import { useState } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 type Props = {
   open: boolean;
@@ -12,33 +23,35 @@ export function ConfirmClearData({ open, onClose, onConfirm }: Props) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
-  if (!open) return null;
-
   return (
-    <div className="modal-backdrop">
-      <div className="modal">
-        <h2>Clear employee data</h2>
-        <p style={{ color: 'var(--muted)', fontSize: '0.92rem' }}>
-          This permanently deletes attendance, leaves, salary slips, and monthly summaries in the selected date range.
-          Profile, bank, and bond details are kept.
-        </p>
-        <div className="form-grid" style={{ marginTop: '1rem' }}>
-          <div>
-            <label className="label">Start date</label>
-            <input className="input" type="date" value={start} onChange={(e) => setStart(e.target.value)} />
+    <Dialog open={open} onOpenChange={(o) => !o && !busy && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Clear employee data</DialogTitle>
+          <DialogDescription>
+            This permanently deletes attendance, leaves, salary slips, and monthly summaries in the
+            selected date range. Profile, bank, and bond details are kept.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-2">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-1.5">
+              <Label htmlFor="clear-start">Start date</Label>
+              <Input id="clear-start" type="date" value={start} onChange={(e) => setStart(e.target.value)} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="clear-end">End date</Label>
+              <Input id="clear-end" type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
+            </div>
           </div>
-          <div>
-            <label className="label">End date</label>
-            <input className="input" type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
-          </div>
+          {err && <p className="text-sm text-destructive">{err}</p>}
         </div>
-        {err && <p style={{ color: 'var(--error)' }}>{err}</p>}
-        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '1.25rem' }}>
-          <button className="btn btn-ghost" onClick={onClose} disabled={busy}>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={busy}>
             Cancel
-          </button>
-          <button
-            className="btn btn-danger"
+          </Button>
+          <Button
+            variant="destructive"
             disabled={!start || !end || busy}
             onClick={async () => {
               setBusy(true);
@@ -54,9 +67,9 @@ export function ConfirmClearData({ open, onClose, onConfirm }: Props) {
             }}
           >
             Confirm clear
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
