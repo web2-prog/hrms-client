@@ -159,7 +159,7 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
                   <td>{displayClock(r.check_out)}</td>
                   <td>{formatBreakMinutes(r.break_total ?? 0)}</td>
                   <td>{formatHours(r.working_hours)}</td>
-                  <td>{hoursBadge(r.surplus_shortfall, displayStatus(r))}</td>
+                  <td>{hoursBadge(r.surplus_shortfall, r.status === 'OnBreak' ? 'Working' : r.status)}</td>
                   {(user?.role === 'admin' || user?.role === 'hr') && (
                     <td><Button variant="outline" onClick={() => openEdit(r)}>Manage</Button></td>
                   )}

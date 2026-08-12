@@ -7,6 +7,7 @@ import { EmployeesPage, EmployeeManagePage } from './pages/shared/Employees';
 import EmployeeSummaryPage from './pages/shared/EmployeeSummary';
 import AnalyticsPage from './pages/shared/Analytics';
 import { AttendancePage } from './pages/shared/Attendance';
+import { TodayAttendancePage } from './pages/shared/Today';
 import { LeavesPage } from './pages/shared/Leaves';
 import { HolidaysPage } from './pages/shared/Holidays';
 import { PoliciesPage } from './pages/shared/Policies';
@@ -54,6 +55,7 @@ function AppRoutes() {
         <Route path="summary" element={<EmployeeSummaryPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="attendance" element={<AttendancePage allowBulk />} />
+        <Route path="today" element={<TodayAttendancePage />} />
         <Route path="performance" element={<PerformancePage />} />
         <Route path="overtime" element={<OvertimePage />} />
         <Route path="leaves" element={<LeavesPage />} />
@@ -73,11 +75,13 @@ function AppRoutes() {
         }
       >
         <Route index element={<HrDashboard />} />
+        <Route path="departments" element={<DepartmentsPage />} />
         <Route path="employees" element={<EmployeesPage basePath="/hr" />} />
         <Route path="employees/:id" element={<EmployeeManagePage basePath="/hr" />} />
         <Route path="summary" element={<EmployeeSummaryPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="attendance" element={<AttendancePage />} />
+        <Route path="today" element={<TodayAttendancePage />} />
         <Route path="performance" element={<PerformancePage />} />
         <Route path="overtime" element={<OvertimePage />} />
         <Route path="leaves" element={<LeavesPage />} />

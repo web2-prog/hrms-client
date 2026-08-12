@@ -25,7 +25,7 @@ type Dept = {
 
 export default function DepartmentsPage() {
   return (
-    <RequireRole roles={['admin']}>
+    <RequireRole roles={['admin', 'hr']}>
       <DepartmentsInner />
     </RequireRole>
   );

@@ -25,6 +25,38 @@ export function minutesBetween(start?: string | null, end?: string | null) {
   return secondsBetween(start, end) / 60;
 }
 
+/** Add minutes to HH:MM / HH:MM:SS → HH:MM:SS */
+export function addMinutesToTime(t: string, mins: number) {
+  const sec = timeToSeconds(t);
+  if (sec == null) return t;
+  let total = Math.round(sec + Number(mins || 0) * 60);
+  if (total < 0) total = 0;
+  const h = Math.floor(total / 3600) % 24;
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  return `${pad2(h)}:${pad2(m)}:${pad2(s)}`;
+}
+
+export const LATE_CHECKIN_PENALTY_MINUTES = 15;
+
+export function isLateCheckIn(checkIn?: string | null, shiftStart?: string | null) {
+  if (!checkIn || !shiftStart) return false;
+  return minutesBetween(shiftStart, checkIn) > 1 / 60;
+}
+
+/** If late (and not waived), work counts from check_in + 15 minutes */
+export function effectiveWorkStart(
+  checkIn?: string | null,
+  shiftStart?: string | null,
+  penaltyWaived = false
+) {
+  if (!checkIn) return null;
+  if (!penaltyWaived && isLateCheckIn(checkIn, shiftStart)) {
+    return addMinutesToTime(checkIn, LATE_CHECKIN_PENALTY_MINUTES);
+  }
+  return checkIn;
+}
+
 /** Decimal hours → H:MM:SS */
 export function formatHours(n?: number) {
   if (n == null || Number.isNaN(n)) return '—';

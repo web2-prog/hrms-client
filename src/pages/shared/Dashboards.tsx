@@ -33,6 +33,8 @@ import {
   minutesBetween,
   pad2,
   timeToSeconds,
+  effectiveWorkStart,
+  LATE_CHECKIN_PENALTY_MINUTES,
 } from '../../utils/timeFormat';
 
 function nowHMS(d = new Date()) {
@@ -108,7 +110,11 @@ export function EmployeeDashboard() {
     let workMins = 0;
     if (checkedIn) {
       const end = checkedOut ? att.check_out : now;
-      const span = minutesBetween(att.check_in, end);
+      const start =
+        data.work_start ||
+        effectiveWorkStart(att.check_in, shift.shift_start, !!att.penalty_waived) ||
+        att.check_in;
+      const span = minutesBetween(start, end);
       workMins = Math.max(0, span - breakMins);
     }
 
@@ -119,6 +125,8 @@ export function EmployeeDashboard() {
     const shiftEndSec = timeToSeconds(shift.shift_end);
     const nowSec = timeToSeconds(now)!;
     const isEarly = checkedIn && !checkedOut && shiftEndSec != null && nowSec < shiftEndSec;
+    const penaltyMinutes = Number(data.penalty_minutes || 0);
+    const lateMinutes = Number(data.late_minutes || 0);
 
     return {
       now,
@@ -133,6 +141,11 @@ export function EmployeeDashboard() {
       onBreak,
       checkedIn,
       checkedOut,
+      workStart: data.work_start || effectiveWorkStart(att.check_in, shift.shift_start, !!att.penalty_waived),
+      penaltyMinutes,
+      lateMinutes,
+      penaltyWaived: !!att.penalty_waived,
+      latePenaltyRule: Number(data.late_penalty_rule_minutes || LATE_CHECKIN_PENALTY_MINUTES),
     };
   }, [data, tick]);
 
@@ -300,6 +313,13 @@ export function EmployeeDashboard() {
           <div>
             <span className="label">Check in</span>
             <strong>{displayClock(att.check_in)}</strong>
+          </div>
+          <div>
+            <span className="label">Work from</span>
+            <strong>{displayClock(live.workStart || att.check_in)}</strong>
+            {live.penaltyMinutes > 0 && !live.penaltyWaived ? (
+              <div className="label">+{live.latePenaltyRule}m late penalty</div>
+            ) : null}
           </div>
           <div>
             <span className="label">Check out</span>
