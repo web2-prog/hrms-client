@@ -6,6 +6,7 @@ import { StatusBadge } from '../../components/StatusBadge';
 import { ConfirmClearData } from '../../components/ConfirmClearData';
 import { BondSalaryManager } from '../../components/BondSalaryManager';
 import { useAuth } from '../../context/AuthContext';
+import { formatClockInput, to24HourClock } from '../../utils/timeFormat';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -79,20 +80,22 @@ export function EmployeesPage({ basePath }: { basePath: string }) {
         total={total}
         onRefresh={load}
         filters={
+          <select className="select" value={list.get('department_id')} onChange={(e) => list.setFilter('department_id', e.target.value)}>
+            <option value="">All depts</option>
+            {depts.map((d) => (
+              <option key={d._id} value={d._id}>{d.name}</option>
+            ))}
+          </select>
+        }
+        typeFilters={
           <>
-            <select className="select" style={{ width: 150 }} value={list.get('department_id')} onChange={(e) => list.setFilter('department_id', e.target.value)}>
-              <option value="">All depts</option>
-              {depts.map((d) => (
-                <option key={d._id} value={d._id}>{d.name}</option>
-              ))}
-            </select>
-            <select className="select" style={{ width: 120 }} value={list.get('role')} onChange={(e) => list.setFilter('role', e.target.value)}>
+            <select className="select" value={list.get('role')} onChange={(e) => list.setFilter('role', e.target.value)}>
               <option value="">All roles</option>
               <option value="admin">Admin</option>
               <option value="hr">HR</option>
               <option value="employee">Employee</option>
             </select>
-            <select className="select" style={{ width: 120 }} value={list.get('status')} onChange={(e) => list.setFilter('status', e.target.value)}>
+            <select className="select" value={list.get('status')} onChange={(e) => list.setFilter('status', e.target.value)}>
               <option value="">All status</option>
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
@@ -246,6 +249,8 @@ export function EmployeeManagePage({ basePath }: { basePath: string }) {
       ...e,
       bonds,
       salary_schedule: Array.isArray(e.salary_schedule) ? e.salary_schedule : [],
+      custom_shift_start: formatClockInput(e.custom_shift_start),
+      custom_shift_end: formatClockInput(e.custom_shift_end),
     });
     setUseDefault(!(e.custom_shift_start || e.custom_shift_end || e.custom_working_hours_per_day != null));
   });
@@ -308,8 +313,8 @@ export function EmployeeManagePage({ basePath }: { basePath: string }) {
         </label>
         {!useDefault && (
           <div className="form-grid">
-            <div><label className="label">Custom start</label><input className="input" value={emp.custom_shift_start || ''} onChange={(e) => set('custom_shift_start', e.target.value)} placeholder="09:00" /></div>
-            <div><label className="label">Custom end</label><input className="input" value={emp.custom_shift_end || ''} onChange={(e) => set('custom_shift_end', e.target.value)} placeholder="18:00" /></div>
+            <div><label className="label">Custom start</label><input className="input" value={emp.custom_shift_start || ''} onChange={(e) => set('custom_shift_start', e.target.value)} placeholder="9:00 AM" /></div>
+            <div><label className="label">Custom end</label><input className="input" value={emp.custom_shift_end || ''} onChange={(e) => set('custom_shift_end', e.target.value)} placeholder="6:00 PM" /></div>
             <div><label className="label">Hours/day</label><input className="input" type="number" step="0.25" value={emp.custom_working_hours_per_day ?? ''} onChange={(e) => set('custom_working_hours_per_day', e.target.value === '' ? null : Number(e.target.value))} /></div>
           </div>
         )}
@@ -491,8 +496,8 @@ export function EmployeeManagePage({ basePath }: { basePath: string }) {
             use_department_default: useDefault,
           };
           if (!useDefault) {
-            body.custom_shift_start = emp.custom_shift_start;
-            body.custom_shift_end = emp.custom_shift_end;
+            body.custom_shift_start = to24HourClock(emp.custom_shift_start);
+            body.custom_shift_end = to24HourClock(emp.custom_shift_end);
             body.custom_working_hours_per_day = emp.custom_working_hours_per_day;
           }
           await api(`/employees/${id}`, { method: 'PUT', body });

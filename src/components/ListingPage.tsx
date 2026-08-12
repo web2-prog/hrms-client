@@ -15,6 +15,7 @@ type Props = {
   title: string;
   searchPlaceholder?: string;
   filters?: React.ReactNode;
+  typeFilters?: React.ReactNode;
   actions?: React.ReactNode;
   loading?: boolean;
   error?: string | null;
@@ -28,6 +29,7 @@ export function ListingPage({
   title,
   searchPlaceholder = 'Search…',
   filters,
+  typeFilters,
   actions,
   loading,
   error,
@@ -78,14 +80,15 @@ export function ListingPage({
       </div>
       <div className="card card-accent">
         <div className="listing-toolbar">
+          {filters}
           <Input
             className="search"
             placeholder={searchPlaceholder}
             value={localSearch}
             onChange={(e) => setLocalSearch(e.target.value)}
           />
-          {filters}
           <div className="right">
+            {typeFilters}
             <Button type="button" variant="outline" size="icon" title="Refresh" onClick={onRefresh}>
               <RefreshCw size={16} />
             </Button>

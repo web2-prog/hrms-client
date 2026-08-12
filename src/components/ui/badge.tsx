@@ -19,9 +19,9 @@ const badgeVariants = cva(
         ghost: "[a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
         link: "text-primary underline-offset-4 [a&]:hover:underline",
         // DESIGN.md status colors
-        success: "bg-[#e6f0e6] text-[#004a00] [a&]:hover:bg-[#d3e6d3]",
-        warning: "bg-[#fdf3e0] text-[#7a4a00] [a&]:hover:bg-[#f9e8c4]",
-        info: "bg-[#e8effa] text-[#1a3866] [a&]:hover:bg-[#d5e3f5]",
+        success: "bg-emerald-50 text-emerald-800 [a&]:hover:bg-emerald-100",
+        warning: "bg-amber-50 text-amber-800 [a&]:hover:bg-amber-100",
+        info: "bg-indigo-50 text-indigo-800 [a&]:hover:bg-indigo-100",
       },
     },
     defaultVariants: {

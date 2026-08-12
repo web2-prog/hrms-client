@@ -3,6 +3,7 @@ import { Pencil, Trash2 } from 'lucide-react';
 import { api, buildQuery, type ListResult } from '../../services/api';
 import { ListingPage, useListParams } from '../../components/ListingPage';
 import { StatusBadge, RequireRole } from '../../components/StatusBadge';
+import { displayClock, formatClockInput, to24HourClock } from '../../utils/timeFormat';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -25,7 +26,7 @@ type Dept = {
 
 export default function DepartmentsPage() {
   return (
-    <RequireRole roles={['admin']}>
+    <RequireRole roles={['admin', 'hr']}>
       <DepartmentsInner />
     </RequireRole>
   );
@@ -65,14 +66,14 @@ function DepartmentsInner() {
         empty={!data.length}
         total={total}
         onRefresh={load}
-        filters={
-          <select className="select" style={{ width: 140 }} value={list.get('status')} onChange={(e) => list.setFilter('status', e.target.value)}>
+        typeFilters={
+          <select className="select" value={list.get('status')} onChange={(e) => list.setFilter('status', e.target.value)}>
             <option value="">All status</option>
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
           </select>
         }
-        actions={<Button onClick={() => setEditing({ name: '', working_hours_per_day: 8.25, shift_start: '09:15', shift_end: '17:30', status: 'active' })}>Add Department</Button>}
+        actions={<Button onClick={() => setEditing({ name: '', working_hours_per_day: 8.25, shift_start: '9:15 AM', shift_end: '5:30 PM', status: 'active' })}>Add Department</Button>}
       >
         <div className="dept-grid">
           {data.map((d) => (
@@ -80,11 +81,15 @@ function DepartmentsInner() {
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <h3>{d.name}</h3>
                 <div className="row-actions">
-                  <Button variant="outline" size="icon" onClick={() => setEditing(d)}><Pencil size={16} /></Button>
+                  <Button variant="outline" size="icon" onClick={() => setEditing({
+                    ...d,
+                    shift_start: formatClockInput(d.shift_start),
+                    shift_end: formatClockInput(d.shift_end),
+                  })}><Pencil size={16} /></Button>
                   <Button variant="outline" size="icon" onClick={async () => { await api(`/departments/${d._id}`, { method: 'DELETE' }); load(); }}><Trash2 size={16} /></Button>
                 </div>
               </div>
-              <p style={{ color: 'var(--muted)', margin: '0.35rem 0' }}>{d.working_hours_per_day}h/day · {d.shift_start} – {d.shift_end}</p>
+              <p style={{ color: 'var(--muted)', margin: '0.35rem 0' }}>{d.working_hours_per_day}h/day · {displayClock(d.shift_start)} – {displayClock(d.shift_end)}</p>
               <StatusBadge status={d.status} />
             </div>
           ))}
@@ -107,12 +112,12 @@ function DepartmentsInner() {
                   <Input type="number" step="0.25" value={editing.working_hours_per_day ?? 8} onChange={(e) => setEditing({ ...editing, working_hours_per_day: Number(e.target.value) })} />
                 </div>
                 <div className="grid gap-1.5">
-                  <Label>Shift start</Label>
-                  <Input value={editing.shift_start || ''} onChange={(e) => setEditing({ ...editing, shift_start: e.target.value })} />
+                  <Label>Shift start (e.g. 9:15 AM)</Label>
+                  <Input value={editing.shift_start || ''} onChange={(e) => setEditing({ ...editing, shift_start: e.target.value })} placeholder="9:15 AM" />
                 </div>
                 <div className="grid gap-1.5">
-                  <Label>Shift end</Label>
-                  <Input value={editing.shift_end || ''} onChange={(e) => setEditing({ ...editing, shift_end: e.target.value })} />
+                  <Label>Shift end (e.g. 5:30 PM)</Label>
+                  <Input value={editing.shift_end || ''} onChange={(e) => setEditing({ ...editing, shift_end: e.target.value })} placeholder="5:30 PM" />
                 </div>
                 <div className="grid gap-1.5">
                   <Label>Status</Label>
@@ -126,8 +131,13 @@ function DepartmentsInner() {
                 <Button variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
                 <Button
                   onClick={async () => {
-                    if (editing._id) await api(`/departments/${editing._id}`, { method: 'PUT', body: editing });
-                    else await api('/departments', { method: 'POST', body: editing });
+                    const body = {
+                      ...editing,
+                      shift_start: to24HourClock(editing.shift_start) || editing.shift_start,
+                      shift_end: to24HourClock(editing.shift_end) || editing.shift_end,
+                    };
+                    if (editing._id) await api(`/departments/${editing._id}`, { method: 'PUT', body });
+                    else await api('/departments', { method: 'POST', body });
                     setEditing(null);
                     load();
                   }}

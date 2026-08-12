@@ -33,6 +33,9 @@ import {
   minutesBetween,
   pad2,
   timeToSeconds,
+  effectiveWorkStart,
+  LATE_CHECKIN_PENALTY_MINUTES,
+  displayDateTime,
 } from '../../utils/timeFormat';
 
 function nowHMS(d = new Date()) {
@@ -40,6 +43,14 @@ function nowHMS(d = new Date()) {
 }
 
 export function EmployeeDashboard() {
+  return (
+    <div className="emp-dash">
+      <PersonalAttendanceBody title="Dashboard" />
+    </div>
+  );
+}
+
+function PersonalAttendanceBody({ title }: { title: string }) {
   const { user } = useAuth();
   const [data, setData] = useState<any>(null);
   const [busy, setBusy] = useState(false);
@@ -108,7 +119,11 @@ export function EmployeeDashboard() {
     let workMins = 0;
     if (checkedIn) {
       const end = checkedOut ? att.check_out : now;
-      const span = minutesBetween(att.check_in, end);
+      const start =
+        data.work_start ||
+        effectiveWorkStart(att.check_in, shift.shift_start, !!att.penalty_waived) ||
+        att.check_in;
+      const span = minutesBetween(start, end);
       workMins = Math.max(0, span - breakMins);
     }
 
@@ -119,6 +134,8 @@ export function EmployeeDashboard() {
     const shiftEndSec = timeToSeconds(shift.shift_end);
     const nowSec = timeToSeconds(now)!;
     const isEarly = checkedIn && !checkedOut && shiftEndSec != null && nowSec < shiftEndSec;
+    const penaltyMinutes = Number(data.penalty_minutes || 0);
+    const lateMinutes = Number(data.late_minutes || 0);
 
     return {
       now,
@@ -133,6 +150,11 @@ export function EmployeeDashboard() {
       onBreak,
       checkedIn,
       checkedOut,
+      workStart: data.work_start || effectiveWorkStart(att.check_in, shift.shift_start, !!att.penalty_waived),
+      penaltyMinutes,
+      lateMinutes,
+      penaltyWaived: !!att.penalty_waived,
+      latePenaltyRule: Number(data.late_penalty_rule_minutes || LATE_CHECKIN_PENALTY_MINUTES),
     };
   }, [data, tick]);
 
@@ -192,18 +214,18 @@ export function EmployeeDashboard() {
   };
 
   return (
-    <div className="emp-dash">
+    <>
       <div className="emp-dash-header">
         <div>
-          <h1>Dashboard</h1>
+          <h1>{title}</h1>
           <p className="emp-dash-sub">
             Welcome{user?.name ? `, ${user.name.split(' ')[0]}` : ''} · {att.date}
           </p>
         </div>
         <div className="emp-dash-clock">
-          <div className="emp-dash-clock-time">{live.clock}</div>
+          <div className="emp-dash-clock-time">{displayClock(live.clock)}</div>
           <div className="emp-dash-clock-meta">
-            Shift {shift.shift_start || '—'} – {shift.shift_end || '—'}
+            Shift {displayClock(shift.shift_start)} – {displayClock(shift.shift_end)}
             {shift.has_custom ? ' · Custom' : ''}
           </div>
         </div>
@@ -218,7 +240,7 @@ export function EmployeeDashboard() {
             <Button className="emp-action-primary" disabled={busy} onClick={() => action('/attendance/me/check-in')}>
               Check In
             </Button>
-            <p className="emp-action-help">Start your workday. Current time: {live.now}</p>
+            <p className="emp-action-help">Start your workday. Current time: {displayClock(live.now)}</p>
           </div>
         )}
 
@@ -255,7 +277,7 @@ export function EmployeeDashboard() {
                 : ecr?.status === 'Pending'
                   ? `Request sent at ${displayClock(ecr.requested_time)} — waiting for HR/Admin approval. You will be checked out once it's approved.`
                   : live.isEarly
-                    ? `Shift ends at ${shift.shift_end}. Leaving early needs HR/Admin approval — you'll be asked for a reason.`
+                    ? `Shift ends at ${displayClock(shift.shift_end)}. Leaving early needs HR/Admin approval — you'll be asked for a reason.`
                     : 'Ready to end the day? Check out to lock today’s hours.'}
             </p>
           </div>
@@ -281,18 +303,32 @@ export function EmployeeDashboard() {
         <div className="emp-dash-status-main">
           <span className="label">Today’s status</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <StatusBadge status={att.status} />
+            <StatusBadge
+              status={
+                live.onBreak && !live.checkedOut
+                  ? 'OnBreak'
+                  : live.checkedIn && !live.checkedOut
+                    ? 'Working'
+                    : att.status
+              }
+            />
             {live.checkedOut && hoursBadge(att.surplus_shortfall, att.status)}
             {ecr?.status === 'Pending' && <span className="badge badge-info">Early checkout pending</span>}
             {ecr?.status === 'Approved' && !live.checkedOut && <span className="badge badge-success">Early checkout approved</span>}
-            {live.isEarly && !live.checkedOut && <span className="badge badge-warn">Before shift end</span>}
-            {live.onBreak && !live.checkedOut && <span className="badge badge-warn">On break</span>}
+            {live.isEarly && !live.checkedOut && !live.onBreak && <span className="badge badge-warn">Before shift end</span>}
           </div>
         </div>
         <div className="emp-dash-timeline">
           <div>
             <span className="label">Check in</span>
             <strong>{displayClock(att.check_in)}</strong>
+          </div>
+          <div>
+            <span className="label">Work from</span>
+            <strong>{displayClock(live.workStart || att.check_in)}</strong>
+            {live.penaltyMinutes > 0 && !live.penaltyWaived ? (
+              <div className="label">+{live.latePenaltyRule}m late penalty</div>
+            ) : null}
           </div>
           <div>
             <span className="label">Check out</span>
@@ -401,7 +437,7 @@ export function EmployeeDashboard() {
           <DialogHeader>
             <DialogTitle>Early Checkout Request</DialogTitle>
             <DialogDescription>
-              Your shift ends at {shift.shift_end || '—'} and the current time is {live.clock}. Leave a note so
+              Your shift ends at {displayClock(shift.shift_end)} and the current time is {displayClock(live.clock)}. Leave a note so
               HR/Admin can approve your request — you'll stay checked in until they decide.
             </DialogDescription>
           </DialogHeader>
@@ -428,7 +464,7 @@ export function EmployeeDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }
 
@@ -576,8 +612,7 @@ export function AdminDashboard() {
               </div>
             </div>
             <select
-              className="select"
-              style={{ width: 108 }}
+              className="select select-year"
               value={year}
               onChange={(e) => setYear(Number(e.target.value))}
               aria-label="Year"
@@ -641,13 +676,8 @@ export function HrDashboard() {
   const fmt = (n: number | null) => (n == null ? '—' : n);
 
   return (
-    <div className="dash-page">
-      <div className="page-header">
-        <div>
-          <h1>HR Dashboard</h1>
-          <p className="page-header-sub">Your hub for people operations</p>
-        </div>
-      </div>
+    <div className="emp-dash">
+      <PersonalAttendanceBody title="HR Dashboard" />
 
       <div className="dash-metrics">
         <DashMetric
@@ -688,7 +718,7 @@ export function HrDashboard() {
         />
       </div>
 
-      <div className="card card-accent dash-shortcuts" style={{ marginTop: '1rem' }}>
+      <div className="card card-accent dash-shortcuts">
         <h3 style={{ marginTop: 0 }}>Quick links</h3>
         <div className="dash-shortcut-list">
           <Link to="/hr/summary"><Users size={16} /> Emp. Summary</Link>
@@ -1113,7 +1143,7 @@ export function AuditPage() {
             <tbody>
               {data.map((a) => (
                 <tr key={a._id}>
-                  <td>{new Date(a.timestamp).toLocaleString()}</td>
+                  <td>{displayDateTime(a.timestamp)}</td>
                   <td>{a.action}</td>
                   <td>{a.performed_by?.name}</td>
                   <td>{a.target_employee_id?.name || '—'}</td>
