@@ -28,8 +28,11 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import {
   displayClock,
+  displayDateTime,
+  effectiveWorkStart,
   formatBreakMinutes,
   formatDurationMinutes,
+  LATE_CHECKIN_PENALTY_MINUTES,
   minutesBetween,
   pad2,
   timeToSeconds,
