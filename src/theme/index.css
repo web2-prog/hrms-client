@@ -50,16 +50,15 @@
   --warn-soft: #fffbeb;
   --warn-ink: #b45309;
 
-  /* Back-compat aliases */
-  --bg: #f4f6fb;
-  --surface-2: #f1f5f9;
-  --accent: #0d9488;
-  --accent-soft: #ecfdf5;
-  --accent-foreground: #ffffff;
-  --violet: #4f46e5;
-  --violet-soft: #eef2ff;
-  --primary-hover: #4338ca;
-  --primary-dark: #3730a3;
+  /* Back-compat aliases used inline in pages */
+  --bg: #f8fafc;
+  --surface-2: #f0f2f5;
+  --accent: #006400;
+  --accent-soft: #e6f0e6;
+  --violet: #1b61c9;
+  --violet-soft: #e8effa;
+  --primary-hover: #0d1218;
+  --primary-dark: #181d26;
 
   /* Radii */
   --radius: 14px;
