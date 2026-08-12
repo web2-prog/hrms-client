@@ -281,12 +281,19 @@ export function EmployeeDashboard() {
         <div className="emp-dash-status-main">
           <span className="label">Today’s status</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <StatusBadge status={att.status} />
+            <StatusBadge
+              status={
+                live.onBreak && !live.checkedOut
+                  ? 'OnBreak'
+                  : live.checkedIn && !live.checkedOut
+                    ? 'Working'
+                    : att.status
+              }
+            />
             {live.checkedOut && hoursBadge(att.surplus_shortfall, att.status)}
             {ecr?.status === 'Pending' && <span className="badge badge-info">Early checkout pending</span>}
             {ecr?.status === 'Approved' && !live.checkedOut && <span className="badge badge-success">Early checkout approved</span>}
-            {live.isEarly && !live.checkedOut && <span className="badge badge-warn">Before shift end</span>}
-            {live.onBreak && !live.checkedOut && <span className="badge badge-warn">On break</span>}
+            {live.isEarly && !live.checkedOut && !live.onBreak && <span className="badge badge-warn">Before shift end</span>}
           </div>
         </div>
         <div className="emp-dash-timeline">

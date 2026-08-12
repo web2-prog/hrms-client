@@ -20,11 +20,18 @@ type Att = {
   check_in?: string;
   check_out?: string;
   break_total?: number;
+  break_started_at?: string | null;
   working_hours?: number;
   status?: string;
   surplus_shortfall?: number;
   employee_id?: { _id: string; name: string; department_id?: { name: string } };
 };
+
+/** Prefer live break flag when an open break is in progress. */
+function displayStatus(r: Att) {
+  if (!r.check_out && (r.status === 'OnBreak' || r.break_started_at)) return 'OnBreak';
+  return r.status;
+}
 
 type EditState = Att & { break_display?: string };
 
@@ -111,9 +118,20 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
             <select className="select" style={{ width: 100 }} value={year} onChange={(e) => list.setFilter('year', e.target.value)}>
               {[2026, 2027, 2028].map((y) => <option key={y} value={y}>{y}</option>)}
             </select>
-            <select className="select" style={{ width: 120 }} value={list.get('status')} onChange={(e) => list.setFilter('status', e.target.value)}>
+            <select className="select" style={{ width: 140 }} value={list.get('status')} onChange={(e) => list.setFilter('status', e.target.value)}>
               <option value="">Status</option>
-              {['Extra', 'Low', 'OnTime', 'Working', 'OnBreak', 'Absent'].map((s) => <option key={s} value={s}>{s}</option>)}
+              {(
+                [
+                  ['Extra', 'Extra'],
+                  ['Low', 'Low'],
+                  ['OnTime', 'On time'],
+                  ['Working', 'Working'],
+                  ['OnBreak', 'On break'],
+                  ['Absent', 'Absent'],
+                ] as const
+              ).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
             </select>
           </>
         }
@@ -141,7 +159,7 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
                   <td>{displayClock(r.check_out)}</td>
                   <td>{formatBreakMinutes(r.break_total ?? 0)}</td>
                   <td>{formatHours(r.working_hours)}</td>
-                  <td>{hoursBadge(r.surplus_shortfall, r.status)}</td>
+                  <td>{hoursBadge(r.surplus_shortfall, displayStatus(r))}</td>
                   {(user?.role === 'admin' || user?.role === 'hr') && (
                     <td><Button variant="outline" onClick={() => openEdit(r)}>Manage</Button></td>
                   )}

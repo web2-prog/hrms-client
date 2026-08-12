@@ -42,10 +42,19 @@ export function statusVariant(status?: string): string {
   return 'secondary';
 }
 
+/** Human-readable label for attendance / workflow statuses. */
+export function statusLabel(status?: string) {
+  if (!status) return '';
+  if (status === 'OnBreak') return 'On break';
+  if (status === 'OnTime') return 'On time';
+  if (status === 'Working') return 'Working';
+  return status;
+}
+
 export function StatusBadge({ status }: { status?: string }) {
   if (!status) return null;
   return (
-    <Badge variant={statusVariant(status) as 'secondary'}>{status}</Badge>
+    <Badge variant={statusVariant(status) as 'secondary'}>{statusLabel(status)}</Badge>
   );
 }
 
@@ -54,6 +63,13 @@ export function formatHours(n?: number) {
 }
 
 export function hoursBadge(surplus?: number, status?: string) {
+  // Live day states take priority over OT/shortfall badges
+  if (status === 'OnBreak') {
+    return <Badge variant="warning">{statusLabel(status)}</Badge>;
+  }
+  if (status === 'Working') {
+    return <Badge variant="info">{statusLabel(status)}</Badge>;
+  }
   if (status === 'Extra' || status === 'General OT' || (surplus != null && surplus > 0)) {
     return (
       <Badge variant="success">
