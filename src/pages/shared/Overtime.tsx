@@ -84,12 +84,30 @@ export function OvertimePage() {
         onRefresh={load}
         filters={
           <>
-            <select className="select" style={{ width: 160 }} value={source} onChange={(e) => list.setFilter('source', e.target.value === 'all' ? '' : e.target.value)}>
+            <select className="select select-month" value={month} onChange={(e) => list.setFilter('month', e.target.value)}>
+              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                <option key={m} value={m}>
+                  {MONTH_NAMES[m - 1]}
+                </option>
+              ))}
+            </select>
+            <select className="select select-year" value={year} onChange={(e) => list.setFilter('year', e.target.value)}>
+              {[2026, 2027, 2028].map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          </>
+        }
+        typeFilters={
+          <>
+            <select className="select" value={source} onChange={(e) => list.setFilter('source', e.target.value === 'all' ? '' : e.target.value)}>
               <option value="all">All OT</option>
               <option value="attendance">Attendance Extra</option>
               <option value="requests">OT Requests</option>
             </select>
-            <select className="select" style={{ width: 130 }} value={list.get('status')} onChange={(e) => list.setFilter('status', e.target.value)}>
+            <select className="select" value={list.get('status')} onChange={(e) => list.setFilter('status', e.target.value)}>
               <option value="">Status</option>
               <option value="Extra">Extra (attendance)</option>
               <option value="Pending">Pending</option>
@@ -97,27 +115,13 @@ export function OvertimePage() {
               <option value="Rejected">Rejected</option>
             </select>
             {isManager && (
-              <select className="select" style={{ width: 150 }} value={list.get('ot_type')} onChange={(e) => list.setFilter('ot_type', e.target.value)}>
+              <select className="select" value={list.get('ot_type')} onChange={(e) => list.setFilter('ot_type', e.target.value)}>
                 <option value="">OT Type</option>
                 <option value="Attendance">Attendance OT</option>
                 <option value="General">General OT</option>
                 <option value="Management">Management OT</option>
               </select>
             )}
-            <select className="select" style={{ width: 110 }} value={month} onChange={(e) => list.setFilter('month', e.target.value)}>
-              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                <option key={m} value={m}>
-                  {MONTH_NAMES[m - 1]}
-                </option>
-              ))}
-            </select>
-            <select className="select" style={{ width: 100 }} value={year} onChange={(e) => list.setFilter('year', e.target.value)}>
-              {[2026, 2027, 2028].map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
-              ))}
-            </select>
           </>
         }
         actions={

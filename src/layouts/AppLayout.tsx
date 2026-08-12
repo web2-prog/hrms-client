@@ -21,6 +21,7 @@ import {
   BarChart3,
   BookOpen,
   Headphones,
+  Sun,
 } from 'lucide-react';
 
 type NavItem = { to: string; end?: boolean; label: string; icon: typeof LayoutDashboard };
@@ -43,6 +44,7 @@ const adminGroups: NavGroup[] = [
     title: 'Time & Work',
     items: [
       { to: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
+      { to: '/admin/today', label: 'Today', icon: Sun },
       { to: '/admin/attendance', label: 'Attendance', icon: Clock },
       { to: '/admin/performance', label: 'Performance', icon: TrendingUp },
       { to: '/admin/overtime', label: 'Overtime', icon: Timer },
@@ -80,6 +82,7 @@ const hrGroups: NavGroup[] = [
   {
     title: 'People',
     items: [
+      { to: '/hr/departments', label: 'Departments', icon: Building2 },
       { to: '/hr/employees', label: 'Employees', icon: Users },
       { to: '/hr/summary', label: 'Emp. Summary', icon: ClipboardList },
     ],
@@ -88,6 +91,7 @@ const hrGroups: NavGroup[] = [
     title: 'Time & Work',
     items: [
       { to: '/hr/analytics', label: 'Analytics', icon: BarChart3 },
+      { to: '/hr/today', label: 'Today', icon: Sun },
       { to: '/hr/attendance', label: 'Attendance', icon: Clock },
       { to: '/hr/performance', label: 'Performance', icon: TrendingUp },
       { to: '/hr/overtime', label: 'Overtime', icon: Timer },

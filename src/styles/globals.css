@@ -4,74 +4,65 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ═══════════════════════════════════════════════════════════════════
-   HRMS — shadcn/ui theme built from frontend/DESIGN.md
-   Airtable-style: near-black ink primary · white canvas · hairline
-   borders · link blue accents · Inter type (Haas substitute).
+   HRMS — Design DNA (refined enterprise)
+   Indigo primary · teal accent · warm neutral canvas · soft elevation
    ═══════════════════════════════════════════════════════════════════ */
 
 :root {
-  --radius: 0.75rem; /* rounded-lg 12px (CTAs), rounded-md 10px (cards), rounded-sm 8px */
+  --radius: 0.875rem; /* 14px — cards & CTAs */
 
-  /* Canvas & ink */
-  --background: #ffffff; /* colors.canvas */
-  --foreground: #181d26; /* colors.ink */
+  --background: #f4f6fb;
+  --foreground: #0f172a;
 
   --card: #ffffff;
-  --card-foreground: #181d26;
+  --card-foreground: #0f172a;
 
   --popover: #ffffff;
-  --popover-foreground: #181d26;
+  --popover-foreground: #0f172a;
 
-  /* Primary — near-black ink CTA (colors.primary #181d26) */
-  --primary: #181d26;
+  --primary: #4f46e5;
   --primary-foreground: #ffffff;
-  --primary-active: #0d1218;
+  --primary-active: #4338ca;
 
-  /* Secondary — surface-soft #f8fafc */
-  --secondary: #f8fafc;
-  --secondary-foreground: #181d26;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #334155;
 
-  --muted: #f8fafc;
-  --muted-foreground: #41454d; /* colors.muted */
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
 
-  /* Accent — surface-strong #e0e2e6 */
-  --accent: #e0e2e6;
-  --accent-foreground: #181d26;
+  --accent: #ecfdf5;
+  --accent-foreground: #0f766e;
 
-  /* Destructive — signature coral #aa2d00 */
-  --destructive: #aa2d00;
+  --destructive: #dc2626;
   --destructive-foreground: #ffffff;
 
-  /* Hairline borders */
-  --border: #dddddd; /* colors.hairline */
-  --input: #dddddd;
-  --ring: #1b61c9; /* colors.link — focus ring */
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #4f46e5;
 
-  /* Status */
-  --success: #006400;
+  --success: #059669;
   --success-foreground: #ffffff;
-  --info: #254fad;
-  --info-border: #458fff;
+  --info: #4f46e5;
+  --info-border: #818cf8;
 
-  /* Sidebar — surface-dark #181d26 */
-  --sidebar: #181d26;
-  --sidebar-foreground: #ffffff;
-  --sidebar-primary: #181d26;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #334155;
+  --sidebar-primary: #4f46e5;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: rgba(255, 255, 255, 0.08);
-  --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: rgba(255, 255, 255, 0.12);
-  --sidebar-ring: #1b61c9;
+  --sidebar-accent: #eef2ff;
+  --sidebar-accent-foreground: #4338ca;
+  --sidebar-border: #e2e8f0;
+  --sidebar-ring: #4f46e5;
 
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --font-display: 'Inter Display', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
 
-  --chart-1: #181d26;
-  --chart-2: #1b61c9;
-  --chart-3: #006400;
-  --chart-4: #d9a441;
-  --chart-5: #aa2d00;
+  --chart-1: #4f46e5;
+  --chart-2: #0d9488;
+  --chart-3: #059669;
+  --chart-4: #d97706;
+  --chart-5: #dc2626;
 }
 
 @theme inline {
@@ -120,5 +111,9 @@
   }
   body {
     @apply bg-background text-foreground font-sans antialiased;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(79, 70, 229, 0.08), transparent),
+      radial-gradient(ellipse 60% 40% at 100% 0%, rgba(13, 148, 136, 0.05), transparent);
+    background-attachment: fixed;
   }
 }

@@ -3,7 +3,7 @@ import { api, buildQuery, type ListResult } from '../../services/api';
 import { ListingPage, useListParams } from '../../components/ListingPage';
 import { StatusBadge, hoursBadge, formatHours } from '../../components/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
-import { displayClock, formatBreakMinutes, parseBreakMinutes } from '../../utils/timeFormat';
+import { displayClock, formatBreakMinutes, formatClockInput, parseBreakMinutes, to24HourClock } from '../../utils/timeFormat';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -77,6 +77,8 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
   const openEdit = (r: Att) => {
     setEdit({
       ...r,
+      check_in: formatClockInput(r.check_in),
+      check_out: formatClockInput(r.check_out),
       break_display: String(Math.floor(r.break_total ?? 0)),
     });
   };
@@ -93,29 +95,31 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
         onRefresh={load}
         filters={
           <>
+            <select className="select select-month" value={month} onChange={(e) => list.setFilter('month', e.target.value)}>
+              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => <option key={m} value={m}>{m}</option>)}
+            </select>
+            <select className="select select-year" value={year} onChange={(e) => list.setFilter('year', e.target.value)}>
+              {[2026, 2027, 2028].map((y) => <option key={y} value={y}>{y}</option>)}
+            </select>
             {user?.role !== 'employee' && (
               <>
-                <select className="select" style={{ width: 140 }} value={list.get('department_id')} onChange={(e) => list.setFilter('department_id', e.target.value)}>
+                <select className="select" value={list.get('department_id')} onChange={(e) => list.setFilter('department_id', e.target.value)}>
                   <option value="">Department</option>
                   {depts.map((d) => <option key={d._id} value={d._id}>{d.name}</option>)}
                 </select>
-                <select className="select" style={{ width: 160 }} value={list.get('employee_id')} onChange={(e) => list.setFilter('employee_id', e.target.value)}>
+                <select className="select" value={list.get('employee_id')} onChange={(e) => list.setFilter('employee_id', e.target.value)}>
                   <option value="">Employee</option>
                   {emps.map((e) => <option key={e._id} value={e._id}>{e.name}</option>)}
                 </select>
               </>
             )}
-            <select className="select" style={{ width: 100 }} value={month} onChange={(e) => list.setFilter('month', e.target.value)}>
-              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => <option key={m} value={m}>{m}</option>)}
-            </select>
-            <select className="select" style={{ width: 100 }} value={year} onChange={(e) => list.setFilter('year', e.target.value)}>
-              {[2026, 2027, 2028].map((y) => <option key={y} value={y}>{y}</option>)}
-            </select>
-            <select className="select" style={{ width: 120 }} value={list.get('status')} onChange={(e) => list.setFilter('status', e.target.value)}>
-              <option value="">Status</option>
-              {['Extra', 'Low', 'OnTime', 'Working', 'OnBreak', 'Absent'].map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
           </>
+        }
+        typeFilters={
+          <select className="select" value={list.get('status')} onChange={(e) => list.setFilter('status', e.target.value)}>
+            <option value="">Status</option>
+            {['Extra', 'Low', 'OnTime', 'Working', 'OnBreak', 'Absent'].map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
         }
       >
         <div className="table-wrap">
@@ -141,7 +145,7 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
                   <td>{displayClock(r.check_out)}</td>
                   <td>{formatBreakMinutes(r.break_total ?? 0)}</td>
                   <td>{formatHours(r.working_hours)}</td>
-                  <td>{hoursBadge(r.surplus_shortfall, r.status)}</td>
+                  <td>{hoursBadge(r.surplus_shortfall, r.status === 'OnBreak' ? 'Working' : r.status)}</td>
                   {(user?.role === 'admin' || user?.role === 'hr') && (
                     <td><Button variant="outline" onClick={() => openEdit(r)}>Manage</Button></td>
                   )}
@@ -160,19 +164,19 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
             <>
             <div className="form-grid">
               <div>
-                <label className="label">Check-in (HH:MM:SS)</label>
+                <label className="label">Check-in (e.g. 9:15:00 AM)</label>
                 <input
                   className="input"
-                  placeholder="09:00:00"
+                  placeholder="9:15:00 AM"
                   value={edit.check_in || ''}
                   onChange={(e) => setEdit({ ...edit, check_in: e.target.value })}
                 />
               </div>
               <div>
-                <label className="label">Check-out (HH:MM:SS)</label>
+                <label className="label">Check-out (e.g. 5:30:00 PM)</label>
                 <input
                   className="input"
-                  placeholder="18:00:00"
+                  placeholder="5:30:00 PM"
                   value={edit.check_out || ''}
                   onChange={(e) => setEdit({ ...edit, check_out: e.target.value })}
                 />
@@ -191,7 +195,7 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
               </div>
             </div>
             <p className="emp-action-help" style={{ marginTop: 8 }}>
-              Times use seconds (HH:MM:SS). Break is shown in whole minutes (e.g. 24m). Hours and OT recalculate on save.
+              Times use 12-hour clock with AM/PM (e.g. 9:15:00 AM). Break is shown in whole minutes (e.g. 24m). Hours and OT recalculate on save.
             </p>
             <DialogFooter>
               <Button variant="outline" onClick={() => setEdit(null)}>Cancel</Button>
@@ -201,8 +205,8 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
                   await api(`/attendance/${edit._id}`, {
                     method: 'PUT',
                     body: {
-                      check_in: edit.check_in,
-                      check_out: edit.check_out,
+                      check_in: to24HourClock(edit.check_in),
+                      check_out: to24HourClock(edit.check_out),
                       break_total: breakMins,
                     },
                   });
