@@ -66,6 +66,13 @@ export function formatHours(n?: number) {
 }
 
 export function hoursBadge(surplus?: number, status?: string) {
+  // Live day states take priority over OT/shortfall badges
+  if (status === 'OnBreak') {
+    return <Badge variant="warning">{statusLabel(status)}</Badge>;
+  }
+  if (status === 'Working') {
+    return <Badge variant="info">{statusLabel(status)}</Badge>;
+  }
   if (status === 'Extra' || status === 'General OT' || (surplus != null && surplus > 0)) {
     return (
       <Badge variant="success">
