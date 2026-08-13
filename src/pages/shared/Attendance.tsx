@@ -21,11 +21,18 @@ type Att = {
   check_out?: string;
   auto_checkout?: boolean;
   break_total?: number;
+  break_started_at?: string | null;
   working_hours?: number;
   status?: string;
   surplus_shortfall?: number;
   employee_id?: { _id: string; name: string; department_id?: { name: string } };
 };
+
+/** Prefer live break flag when an open break is in progress. */
+function displayStatus(r: Att) {
+  if (!r.check_out && (r.status === 'OnBreak' || r.break_started_at)) return 'OnBreak';
+  return r.status;
+}
 
 type EditState = Att & { break_display?: string };
 
