@@ -1,5 +1,12 @@
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
+let onUnauthorized: (() => void) | null = null;
+
+/** Register handler for expired/invalid tokens (called from AuthProvider). */
+export function setUnauthorizedHandler(handler: (() => void) | null) {
+  onUnauthorized = handler;
+}
+
 export async function api<T = unknown>(
   path: string,
   options: {
@@ -29,6 +36,10 @@ export async function api<T = unknown>(
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: res.statusText }));
+    if (res.status === 401 && token) {
+      localStorage.removeItem('hrms_token');
+      onUnauthorized?.();
+    }
     throw new Error(err.message || 'Request failed');
   }
   const ct = res.headers.get('content-type') || '';
@@ -50,7 +61,12 @@ export async function api<T = unknown>(
 }
 
 export function apiUrl(path: string) {
-  return `${API_BASE.replace(/\/api$/, '')}${path}`;
+  const base = `${API_BASE.replace(/\/api$/, '')}${path}`;
+  if (path.startsWith('/uploads/')) {
+    const token = localStorage.getItem('hrms_token');
+    if (token) return `${base}?access_token=${encodeURIComponent(token)}`;
+  }
+  return base;
 }
 
 export type ListResult<T> = { data: T[]; total: number; page: number; limit: number; pages: number };

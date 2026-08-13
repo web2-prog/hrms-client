@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { api } from '../services/api';
+import { api, setUnauthorizedHandler } from '../services/api';
 
 export type User = {
   _id: string;
@@ -47,6 +47,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     refresh();
+  }, []);
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      setUser(null);
+      if (window.location.pathname !== '/login') {
+        window.location.assign('/login');
+      }
+    });
+    return () => setUnauthorizedHandler(null);
   }, []);
 
   const login = async (email: string, password: string) => {

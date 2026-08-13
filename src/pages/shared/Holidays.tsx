@@ -62,18 +62,18 @@ export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
         total={total}
         onRefresh={load}
         filters={
-          <>
-            <select className="select" style={{ width: 100 }} value={year} onChange={(e) => list.setFilter('year', e.target.value)}>
-              {[2026, 2027, 2028].map((y) => <option key={y} value={y}>{y}</option>)}
-            </select>
-            <select className="select" style={{ width: 140 }} value={list.get('type')} onChange={(e) => list.setFilter('type', e.target.value)}>
-              <option value="">All types</option>
-              <option value="Saturday">Saturday</option>
-              <option value="Festival">Festival</option>
-              <option value="Vacation">Vacation</option>
-              <option value="Manual">Manual</option>
-            </select>
-          </>
+          <select className="select select-year" value={year} onChange={(e) => list.setFilter('year', e.target.value)}>
+            {[2026, 2027, 2028].map((y) => <option key={y} value={y}>{y}</option>)}
+          </select>
+        }
+        typeFilters={
+          <select className="select" value={list.get('type')} onChange={(e) => list.setFilter('type', e.target.value)}>
+            <option value="">All types</option>
+            <option value="Saturday">Saturday</option>
+            <option value="Festival">Festival</option>
+            <option value="Vacation">Vacation</option>
+            <option value="Manual">Manual</option>
+          </select>
         }
         actions={
           manage ? (

@@ -1,12 +1,14 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { AuthProvider } from './context/AuthContext';
 import { AppLayout } from './layouts/AppLayout';
+import { RouteGuard, GuestGuard, RootRedirect } from './components/RouteGuard';
 import LoginPage from './pages/auth/Login';
 import DepartmentsPage from './pages/shared/Departments';
 import { EmployeesPage, EmployeeManagePage } from './pages/shared/Employees';
 import EmployeeSummaryPage from './pages/shared/EmployeeSummary';
 import AnalyticsPage from './pages/shared/Analytics';
 import { AttendancePage } from './pages/shared/Attendance';
+import { TodayAttendancePage } from './pages/shared/Today';
 import { LeavesPage } from './pages/shared/Leaves';
 import { HolidaysPage } from './pages/shared/Holidays';
 import { PoliciesPage } from './pages/shared/Policies';
@@ -23,28 +25,24 @@ import {
   AuditPage,
 } from './pages/shared/Dashboards';
 
-function Guard({ roles, children }: { roles: string[]; children: React.ReactNode }) {
-  const { user, loading } = useAuth();
-  if (loading) return <div className="state-box">Loading…</div>;
-  if (!user) return <Navigate to="/login" replace />;
-  if (!roles.includes(user.role)) {
-    if (user.role === 'admin') return <Navigate to="/admin" replace />;
-    if (user.role === 'hr') return <Navigate to="/hr" replace />;
-    return <Navigate to="/app" replace />;
-  }
-  return <>{children}</>;
-}
-
 function AppRoutes() {
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
+      <Route path="/" element={<RootRedirect />} />
+      <Route
+        path="/login"
+        element={
+          <GuestGuard>
+            <LoginPage />
+          </GuestGuard>
+        }
+      />
       <Route
         path="/admin"
         element={
-          <Guard roles={['admin']}>
+          <RouteGuard roles={['admin']}>
             <AppLayout variant="admin" />
-          </Guard>
+          </RouteGuard>
         }
       >
         <Route index element={<AdminDashboard />} />
@@ -54,6 +52,7 @@ function AppRoutes() {
         <Route path="summary" element={<EmployeeSummaryPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="attendance" element={<AttendancePage allowBulk />} />
+        <Route path="today" element={<TodayAttendancePage />} />
         <Route path="performance" element={<PerformancePage />} />
         <Route path="overtime" element={<OvertimePage />} />
         <Route path="leaves" element={<LeavesPage />} />
@@ -67,17 +66,19 @@ function AppRoutes() {
       <Route
         path="/hr"
         element={
-          <Guard roles={['hr']}>
+          <RouteGuard roles={['hr']}>
             <AppLayout variant="hr" />
-          </Guard>
+          </RouteGuard>
         }
       >
         <Route index element={<HrDashboard />} />
+        <Route path="departments" element={<DepartmentsPage />} />
         <Route path="employees" element={<EmployeesPage basePath="/hr" />} />
         <Route path="employees/:id" element={<EmployeeManagePage basePath="/hr" />} />
         <Route path="summary" element={<EmployeeSummaryPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="attendance" element={<AttendancePage />} />
+        <Route path="today" element={<TodayAttendancePage />} />
         <Route path="performance" element={<PerformancePage />} />
         <Route path="overtime" element={<OvertimePage />} />
         <Route path="leaves" element={<LeavesPage />} />
@@ -89,9 +90,9 @@ function AppRoutes() {
       <Route
         path="/app"
         element={
-          <Guard roles={['employee', 'admin', 'hr']}>
+          <RouteGuard roles={['employee']}>
             <AppLayout variant="employee" />
-          </Guard>
+          </RouteGuard>
         }
       >
         <Route index element={<EmployeeDashboard />} />
@@ -103,7 +104,7 @@ function AppRoutes() {
         <Route path="policies" element={<PoliciesPage canManage={false} />} />
         <Route path="helpdesk" element={<HelpdeskPage />} />
       </Route>
-      <Route path="*" element={<Navigate to="/login" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

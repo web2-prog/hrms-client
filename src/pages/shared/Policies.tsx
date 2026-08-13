@@ -4,6 +4,7 @@ import { api, buildQuery, type ListResult } from '../../services/api';
 import { ListingPage, useListParams } from '../../components/ListingPage';
 import { StatusBadge } from '../../components/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
+import { displayDateTime } from '../../utils/timeFormat';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -127,12 +128,11 @@ export function PoliciesPage({ canManage = true }: { canManage?: boolean }) {
         empty={!data.length}
         total={total}
         onRefresh={load}
-        filters={
+        typeFilters={
           <>
             {manage && (
               <select
                 className="select"
-                style={{ width: 140 }}
                 value={list.get('status')}
                 onChange={(e) => list.setFilter('status', e.target.value)}
               >
@@ -143,7 +143,6 @@ export function PoliciesPage({ canManage = true }: { canManage?: boolean }) {
             )}
             <select
               className="select"
-              style={{ width: 160 }}
               value={list.get('category')}
               onChange={(e) => list.setFilter('category', e.target.value)}
             >
@@ -340,7 +339,7 @@ export function PoliciesPage({ canManage = true }: { canManage?: boolean }) {
               <p style={{ color: 'var(--muted)', fontSize: 12, marginTop: 12 }}>
                 Last updated
                 {viewing.updated_by?.name ? ` by ${viewing.updated_by.name}` : ''}
-                {viewing.updatedAt ? ` on ${new Date(viewing.updatedAt).toLocaleString()}` : ''}
+                {viewing.updatedAt ? ` on ${displayDateTime(viewing.updatedAt)}` : ''}
               </p>
             )}
             <DialogFooter>

@@ -4,6 +4,7 @@ import { api, buildQuery, type ListResult } from '../../services/api';
 import { ListingPage, useListParams } from '../../components/ListingPage';
 import { StatusBadge } from '../../components/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
+import { displayDateTime } from '../../utils/timeFormat';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -75,14 +76,14 @@ export function HelpdeskPage() {
         empty={!data.length}
         total={total}
         onRefresh={load}
-        filters={
+        typeFilters={
           <>
-            <select className="select" style={{ width: 150 }} value={list.get('type')} onChange={(e) => list.setFilter('type', e.target.value)}>
+            <select className="select" value={list.get('type')} onChange={(e) => list.setFilter('type', e.target.value)}>
               <option value="">All types</option>
               <option value="Complaint">Complaint</option>
               <option value="HR Request">HR Request</option>
             </select>
-            <select className="select" style={{ width: 140 }} value={list.get('status')} onChange={(e) => list.setFilter('status', e.target.value)}>
+            <select className="select" value={list.get('status')} onChange={(e) => list.setFilter('status', e.target.value)}>
               <option value="">Status</option>
               {STATUSES.map((s) => (
                 <option key={s} value={s}>
@@ -90,7 +91,7 @@ export function HelpdeskPage() {
                 </option>
               ))}
             </select>
-            <select className="select" style={{ width: 130 }} value={list.get('priority')} onChange={(e) => list.setFilter('priority', e.target.value)}>
+            <select className="select" value={list.get('priority')} onChange={(e) => list.setFilter('priority', e.target.value)}>
               <option value="">Priority</option>
               <option value="Low">Low</option>
               <option value="Medium">Medium</option>
@@ -265,7 +266,7 @@ function TicketDetailModal({
         <p style={{ color: 'var(--muted)', margin: '0 0 12px', fontSize: 13 }}>
           {ticket.type} · {ticket.priority} priority · <StatusBadge status={ticket.status} />
           {isStaff && ticket.employee_id?.name ? ` · ${ticket.employee_id.name}` : ''}
-          {ticket.createdAt ? ` · ${new Date(ticket.createdAt).toLocaleString()}` : ''}
+          {ticket.createdAt ? ` · ${displayDateTime(ticket.createdAt)}` : ''}
         </p>
 
         <div
@@ -290,7 +291,7 @@ function TicketDetailModal({
             {ticket.handled_by?.name && (
               <p style={{ color: 'var(--muted)', fontSize: 12, margin: '8px 0 0' }}>
                 By {ticket.handled_by.name}
-                {ticket.handled_on ? ` on ${new Date(ticket.handled_on).toLocaleString()}` : ''}
+                {ticket.handled_on ? ` on ${displayDateTime(ticket.handled_on)}` : ''}
               </p>
             )}
           </div>

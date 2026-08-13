@@ -241,24 +241,8 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
         onRefresh={load}
         filters={
           <>
-            {user?.role !== 'employee' && (
-              <select
-                className="select"
-                style={{ width: 160 }}
-                value={list.get('employee_id')}
-                onChange={(e) => list.setFilter('employee_id', e.target.value)}
-              >
-                <option value="">Employee</option>
-                {emps.map((e) => (
-                  <option key={e._id} value={e._id}>
-                    {e.name}
-                  </option>
-                ))}
-              </select>
-            )}
             <select
-              className="select"
-              style={{ width: 90 }}
+              className="select select-month"
               value={list.get('month')}
               onChange={(e) => list.setFilter('month', e.target.value)}
             >
@@ -270,8 +254,7 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
               ))}
             </select>
             <select
-              className="select"
-              style={{ width: 100 }}
+              className="select select-year"
               value={list.get('year')}
               onChange={(e) => list.setFilter('year', e.target.value)}
             >
@@ -282,9 +265,26 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
                 </option>
               ))}
             </select>
+            {user?.role !== 'employee' && (
+              <select
+                className="select"
+                value={list.get('employee_id')}
+                onChange={(e) => list.setFilter('employee_id', e.target.value)}
+              >
+                <option value="">Employee</option>
+                {emps.map((e) => (
+                  <option key={e._id} value={e._id}>
+                    {e.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </>
+        }
+        typeFilters={
+          <>
             <select
               className="select"
-              style={{ width: 120 }}
               value={list.get('payment_status')}
               onChange={(e) => list.setFilter('payment_status', e.target.value)}
             >
@@ -294,7 +294,6 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
             </select>
             <select
               className="select"
-              style={{ width: 120 }}
               value={list.get('company_key')}
               onChange={(e) => list.setFilter('company_key', e.target.value)}
             >
@@ -309,7 +308,6 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <select
                 className="select"
-                style={{ width: 120 }}
                 title="Salary format company"
                 value={gen.company_key}
                 onChange={(e) => setGen({ ...gen, company_key: e.target.value as SalaryCompanyKey })}
@@ -319,7 +317,6 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
               </select>
               <select
                 className="select"
-                style={{ width: 140 }}
                 value={gen.employee_id}
                 onChange={(e) => setGen({ ...gen, employee_id: e.target.value })}
               >
@@ -331,8 +328,7 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
                 ))}
               </select>
               <select
-                className="select"
-                style={{ width: 80 }}
+                className="select select-month"
                 value={gen.month}
                 onChange={(e) => setGen({ ...gen, month: e.target.value })}
               >
@@ -343,8 +339,7 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
                 ))}
               </select>
               <select
-                className="select"
-                style={{ width: 90 }}
+                className="select select-year"
                 value={gen.year}
                 onChange={(e) => setGen({ ...gen, year: e.target.value })}
               >

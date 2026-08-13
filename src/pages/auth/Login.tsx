@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { homeForRole } from '../../lib/authRoutes';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -52,8 +53,8 @@ export default function LoginPage() {
       <div className="login-side">
         <Card className="login-card p-0">
           <CardContent className="p-0">
-            <div className="login-brand">
-              <span className="login-brand-mark">H</span>
+            <div className="login-card-brand">
+              <span className="brand-mark">H</span>
               <h1>Sign in</h1>
             </div>
             <p className="login-sub">Sign in to continue to your workspace</p>
@@ -64,9 +65,7 @@ export default function LoginPage() {
                 setError('');
                 try {
                   const user = await login(email, password);
-                  if (user.role === 'admin') navigate('/admin');
-                  else if (user.role === 'hr') navigate('/hr');
-                  else navigate('/app');
+                  navigate(homeForRole(user.role));
                 } catch (err) {
                   setError(err instanceof Error ? err.message : 'Login failed');
                 } finally {

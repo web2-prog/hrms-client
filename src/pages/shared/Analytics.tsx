@@ -321,14 +321,25 @@ function AnalyticsInner() {
   return (
     <div className="an-page">
       <div className="page-header">
-        <div>
-          <h1>Analytics</h1>
-          <p className="page-header-sub">Workforce trends across hours, punctuality, and overtime</p>
+        <div className="an-header-left">
+          <div>
+            <h1>Analytics</h1>
+            <p className="page-header-sub">Workforce trends across hours, punctuality, and overtime</p>
+          </div>
+          <select
+            className="select select-year"
+            value={year}
+            onChange={(e) => setYear(Number(e.target.value))}
+            aria-label="Year"
+          >
+            {[2026, 2027, 2028, 2029].map((y) => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
         </div>
         <div className="an-toolbar-filters">
           <select
             className="select"
-            style={{ width: 160 }}
             value={departmentId}
             onChange={(e) => setDepartmentId(e.target.value)}
             aria-label="Department"
@@ -336,17 +347,6 @@ function AnalyticsInner() {
             <option value="">All departments</option>
             {depts.map((d) => (
               <option key={d._id} value={d._id}>{d.name}</option>
-            ))}
-          </select>
-          <select
-            className="select"
-            style={{ width: 110 }}
-            value={year}
-            onChange={(e) => setYear(Number(e.target.value))}
-            aria-label="Year"
-          >
-            {[2026, 2027, 2028, 2029].map((y) => (
-              <option key={y} value={y}>{y}</option>
             ))}
           </select>
         </div>

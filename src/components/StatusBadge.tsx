@@ -10,6 +10,7 @@ export function statusVariant(status?: string): string {
   if (
     status === 'Extra' ||
     status === 'General OT' ||
+    status === 'OnOvertime' ||
     status === 'Success' ||
     status === 'Approved' ||
     status === 'Paid' ||
@@ -42,10 +43,21 @@ export function statusVariant(status?: string): string {
   return 'secondary';
 }
 
+/** Human-readable label for attendance / workflow statuses. */
+export function statusLabel(status?: string) {
+  if (!status) return '';
+  if (status === 'OnBreak') return 'On break';
+  if (status === 'OnOvertime') return 'On overtime';
+  if (status === 'OnTime') return 'On time';
+  if (status === 'Working') return 'Working';
+  if (status === 'Absent') return 'Absent';
+  return status;
+}
+
 export function StatusBadge({ status }: { status?: string }) {
   if (!status) return null;
   return (
-    <Badge variant={statusVariant(status) as 'secondary'}>{status}</Badge>
+    <Badge variant={statusVariant(status) as 'secondary'}>{statusLabel(status)}</Badge>
   );
 }
 

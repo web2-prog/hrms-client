@@ -130,26 +130,17 @@ export function PerformancePage() {
         filters={
           <>
             <select
-              className="select"
-              style={{ width: 140 }}
-              value={list.get('department_id')}
-              onChange={(e) => list.setFilter('department_id', e.target.value)}
+              className="select select-month"
+              value={month}
+              onChange={(e) => list.setFilter('month', e.target.value)}
             >
-              <option value="">Department</option>
-              {depts.map((d) => (
-                <option key={d._id} value={d._id}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
-            <select className="select" style={{ width: 110 }} value={month} onChange={(e) => list.setFilter('month', e.target.value)}>
               {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
                 <option key={m} value={m}>
                   {MONTH_NAMES[m - 1]}
                 </option>
               ))}
             </select>
-            <select className="select" style={{ width: 100 }} value={year} onChange={(e) => list.setFilter('year', e.target.value)}>
+            <select className="select select-year" value={year} onChange={(e) => list.setFilter('year', e.target.value)}>
               {[2026, 2027, 2028].map((y) => (
                 <option key={y} value={y}>
                   {y}
@@ -157,6 +148,20 @@ export function PerformancePage() {
               ))}
             </select>
           </>
+        }
+        typeFilters={
+          <select
+            className="select"
+            value={list.get('department_id')}
+            onChange={(e) => list.setFilter('department_id', e.target.value)}
+          >
+            <option value="">Department</option>
+            {depts.map((d) => (
+              <option key={d._id} value={d._id}>
+                {d.name}
+              </option>
+            ))}
+          </select>
         }
       >
         <div className="table-wrap">

@@ -327,6 +327,33 @@ function EmployeeSummaryInner() {
           </select>
         </div>
 
+        {(period === 'month' || period === 'year') && (
+          <div className="esum-date-picks">
+            {period === 'month' && (
+              <select
+                className="select select-month"
+                value={month}
+                onChange={(e) => setFilter('month', e.target.value)}
+                aria-label="Month"
+              >
+                {MONTHS.map((name, i) => (
+                  <option key={name} value={i + 1}>{name}</option>
+                ))}
+              </select>
+            )}
+            <select
+              className="select select-year"
+              value={year}
+              onChange={(e) => setFilter('year', e.target.value)}
+              aria-label="Year"
+            >
+              {[2026, 2027, 2028, 2029].map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <div className="esum-filters">
           <div className="esum-period" role="group" aria-label="Duration filter">
             {(
@@ -347,35 +374,6 @@ function EmployeeSummaryInner() {
               </button>
             ))}
           </div>
-
-          {(period === 'month' || period === 'year') && (
-            <div className="esum-date-picks">
-              {period === 'month' && (
-                <select
-                  className="select"
-                  style={{ width: 140 }}
-                  value={month}
-                  onChange={(e) => setFilter('month', e.target.value)}
-                  aria-label="Month"
-                >
-                  {MONTHS.map((name, i) => (
-                    <option key={name} value={i + 1}>{name}</option>
-                  ))}
-                </select>
-              )}
-              <select
-                className="select"
-                style={{ width: 100 }}
-                value={year}
-                onChange={(e) => setFilter('year', e.target.value)}
-                aria-label="Year"
-              >
-                {[2026, 2027, 2028, 2029].map((y) => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
-              </select>
-            </div>
-          )}
         </div>
       </div>
 
