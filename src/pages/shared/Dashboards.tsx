@@ -36,9 +36,6 @@ import {
   minutesBetween,
   pad2,
   timeToSeconds,
-  effectiveWorkStart,
-  LATE_CHECKIN_PENALTY_MINUTES,
-  displayDateTime,
 } from '../../utils/timeFormat';
 
 function nowHMS(d = new Date()) {
