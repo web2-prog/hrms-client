@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { api, buildQuery, type ListResult } from '../../services/api';
+import { api, apiUrl, buildQuery, type ListResult } from '../../services/api';
 import { ListingPage, useListParams } from '../../components/ListingPage';
 import { StatusBadge } from '../../components/StatusBadge';
 import { ConfirmClearData } from '../../components/ConfirmClearData';
@@ -232,6 +232,8 @@ export function EmployeeManagePage({ basePath }: { basePath: string }) {
   const [offerMsg, setOfferMsg] = useState('');
   const [offerErr, setOfferErr] = useState('');
   const [uploadingOffer, setUploadingOffer] = useState(false);
+  const [depts, setDepts] = useState<Dept[]>([]);
+  const [photoBusy, setPhotoBusy] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
   const [pw, setPw] = useState({ next: '', confirm: '' });
   const [pwErr, setPwErr] = useState('');
@@ -299,6 +301,10 @@ export function EmployeeManagePage({ basePath }: { basePath: string }) {
     setUseDefault(!(e.custom_shift_start || e.custom_shift_end || e.custom_working_hours_per_day != null));
   });
 
+  useEffect(() => {
+    api<ListResult<Dept>>('/departments?limit=50').then((r) => setDepts(r.data)).catch(() => {});
+  }, []);
+
   useEffect(() => { load(); }, [id]);
 
   if (!emp) return <div className="state-box">Loading…</div>;
@@ -337,9 +343,90 @@ export function EmployeeManagePage({ basePath }: { basePath: string }) {
       </div>
       <div className="card" style={{ marginBottom: 16 }}>
         <h3>Basic</h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
+          {emp.photo_url ? (
+            <img
+              src={apiUrl(emp.photo_url)}
+              alt="Profile"
+              style={{ width: 56, height: 56, borderRadius: 'var(--radius-sm)', objectFit: 'cover', border: '1px solid var(--hairline)' }}
+            />
+          ) : (
+            <div
+              style={{
+                width: 56, height: 56, borderRadius: 'var(--radius-sm)', display: 'grid', placeItems: 'center',
+                background: 'var(--primary-soft)', color: 'var(--primary-deep)', fontWeight: 700, fontSize: '1.1rem',
+                border: '1px solid var(--hairline)',
+              }}
+            >
+              {(emp.name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((p: string) => p[0]?.toUpperCase() || '').join('')}
+            </div>
+          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label className="btn" style={{ cursor: photoBusy ? 'wait' : 'pointer', margin: 0, fontSize: '0.82rem' }}>
+              {photoBusy ? 'Uploading…' : emp.photo_url ? 'Change photo' : 'Upload photo'}
+              <input
+                type="file"
+                accept="image/*"
+                hidden
+                disabled={photoBusy}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = '';
+                  if (!file) return;
+                  setPhotoBusy(true);
+                  try {
+                    const fd = new FormData();
+                    fd.append('photo', file);
+                    const updated = await api<any>(`/employees/${id}`, { method: 'PUT', formData: fd });
+                    setEmp((prev: any) => ({ ...prev, photo_url: updated.photo_url }));
+                    setMsg('Photo updated');
+                  } catch (err) {
+                    setMsg('');
+                    setOfferErr(err instanceof Error ? err.message : 'Upload failed');
+                  } finally {
+                    setPhotoBusy(false);
+                  }
+                }}
+              />
+            </label>
+            {emp.photo_url && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={async () => {
+                  try {
+                    await api(`/employees/${id}`, { method: 'PUT', body: { photo_url: '' } });
+                    setEmp((prev: any) => ({ ...prev, photo_url: '' }));
+                    setMsg('Photo removed');
+                  } catch (err) {
+                    setMsg('');
+                    setOfferErr(err instanceof Error ? err.message : 'Remove failed');
+                  }
+                }}
+              >
+                Remove
+              </Button>
+            )}
+          </div>
+        </div>
         <div className="form-grid">
           <div><label className="label">Name</label><input className="input" value={emp.name || ''} onChange={(e) => set('name', e.target.value)} /></div>
+          <div><label className="label">Work email</label><input className="input" type="email" value={emp.email || ''} onChange={(e) => set('email', e.target.value)} /></div>
           <div><label className="label">Phone</label><input className="input" value={emp.phone || ''} onChange={(e) => set('phone', e.target.value)} /></div>
+          <div>
+            <label className="label">Department</label>
+            <select className="select" value={emp.department_id?._id || emp.department_id || ''} onChange={(e) => set('department_id', e.target.value)}>
+              <option value="">Select</option>
+              {depts.map((d) => (
+                <option key={d._id} value={d._id}>{d.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label">Joining date</label>
+            <input className="input" type="date" value={(emp.joining_date || '').toString().slice(0, 10)} onChange={(e) => set('joining_date', e.target.value || null)} />
+          </div>
           <div><label className="label">Status</label>
             <select className="select" value={emp.status} onChange={(e) => set('status', e.target.value)}>
               <option value="active">active</option>
@@ -379,6 +466,19 @@ export function EmployeeManagePage({ basePath }: { basePath: string }) {
           <div>
             <label className="label">Date of birth</label>
             <input className="input" type="date" value={(emp.profile_details?.dob || '').toString().slice(0, 10)} onChange={(e) => set('profile_details.dob', e.target.value || null)} />
+          </div>
+          <div>
+            <label className="label">Gender</label>
+            <select className="select" value={emp.profile_details?.gender || ''} onChange={(e) => set('profile_details.gender', e.target.value)}>
+              <option value="">Select</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div>
+            <label className="label">Blood group</label>
+            <input className="input" value={emp.profile_details?.blood_group || ''} onChange={(e) => set('profile_details.blood_group', e.target.value)} placeholder="e.g. O+" />
           </div>
           <div>
             <label className="label">Marital status</label>
@@ -536,7 +636,10 @@ export function EmployeeManagePage({ basePath }: { basePath: string }) {
         onClick={async () => {
           const body: any = {
             name: emp.name,
+            email: emp.email,
             phone: emp.phone,
+            department_id: emp.department_id?._id || emp.department_id || '',
+            joining_date: emp.joining_date || null,
             status: emp.status,
             base_salary: emp.base_salary,
             profile_details: emp.profile_details,

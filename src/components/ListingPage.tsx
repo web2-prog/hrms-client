@@ -18,6 +18,8 @@ type Props = {
   prepend?: React.ReactNode;
   searchPlaceholder?: string;
   hideSearch?: boolean;
+  /** Hides the pagination row (used by calendar-style views that show everything). */
+  hidePagination?: boolean;
   filters?: React.ReactNode;
   typeFilters?: React.ReactNode;
   actions?: React.ReactNode;
@@ -35,6 +37,7 @@ export function ListingPage({
   prepend,
   searchPlaceholder = 'Search…',
   hideSearch,
+  hidePagination,
   filters,
   typeFilters,
   actions,
@@ -114,7 +117,7 @@ export function ListingPage({
         {error && !loading && <div className="state-box" style={{ color: 'var(--error)' }}>{error}</div>}
         {!loading && !error && empty && <div className="state-box">No records found</div>}
         {!loading && !error && !empty && children}
-        <div className="pagination">
+        {!hidePagination && <div className="pagination">
           <span>Total: {total}</span>
           <Select value={String(limit >= 10000 ? 10000 : limit)} onValueChange={(v) => setLimit(Number(v))}>
             <SelectTrigger className="w-[90px]">
@@ -136,7 +139,7 @@ export function ListingPage({
           <Button variant="outline" disabled={page >= pages} onClick={() => setPage(page + 1)}>
             Next
           </Button>
-        </div>
+        </div>}
       </div>
     </div>
   );

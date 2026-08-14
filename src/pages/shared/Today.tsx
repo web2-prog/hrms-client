@@ -177,7 +177,7 @@ export function TodayAttendancePage() {
               minWidth: 120,
               cursor: 'pointer',
               border:
-                list.get('live_status') === s.key ? '1px solid var(--color-primary, #1a3866)' : undefined,
+                list.get('live_status') === s.key ? '1px solid var(--primary)' : undefined,
             }}
             onClick={() =>
               list.setFilter('live_status', list.get('live_status') === s.key ? '' : s.key)

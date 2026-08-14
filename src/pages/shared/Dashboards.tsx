@@ -900,6 +900,8 @@ export function ProfilePage() {
           <h3>Personal details</h3>
           <div className="form-grid profile-grid">
             <ProfileField label="Date of birth">{displayValue(formatDate(pd.dob))}</ProfileField>
+            <ProfileField label="Gender">{displayValue(pd.gender)}</ProfileField>
+            <ProfileField label="Blood group">{displayValue(pd.blood_group)}</ProfileField>
             <ProfileField label="Marital status">{displayValue(pd.marital_status)}</ProfileField>
             <ProfileField label="Personal email">
               {pd.personal_email ? (

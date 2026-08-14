@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, CalendarOff, Plane, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { CalendarDays, CalendarOff, Check, Plane, Plus, Sparkles, Trash2 } from 'lucide-react';
 import { api, buildQuery, type ListResult } from '../../services/api';
 import { ListingPage, useListParams } from '../../components/ListingPage';
 import { useAuth } from '../../context/AuthContext';
@@ -67,7 +67,8 @@ export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
     setLoading(true);
     setError(null);
     try {
-      const q = buildQuery({ page: list.page, limit: list.limit, search: list.search, year, type: list.get('type') });
+      // Calendar view: fetch the whole year at once so month groups stay intact.
+      const q = buildQuery({ page: 1, limit: 400, search: list.search, year, type: list.get('type') });
       const res = await api<ListResult<Holiday>>(`/holidays${q}`);
       setData(res.data);
       setTotal(res.total);
@@ -87,7 +88,40 @@ export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
     }
   };
 
-  useEffect(() => { load(); }, [list.page, list.limit, list.search, list.params]);
+  useEffect(() => { load(); }, [list.search, list.params]);
+
+  // Local today (YYYY-MM-DD) — holidays that ended before this are "completed".
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+  const isPast = (h: Holiday) => {
+    const end = h.end_date || h.date;
+    return !!end && end < todayStr;
+  };
+
+  // Reverse-chronological month groups (newest month first; within a month,
+  // newest date first). Vacations group under their start month.
+  const groups = useMemo(() => {
+    const sorted = [...data].sort((a, b) => {
+      const da = a.date || a.start_date || '';
+      const db = b.date || b.start_date || '';
+      return da < db ? 1 : da > db ? -1 : 0;
+    });
+    const map = new Map<string, Holiday[]>();
+    for (const h of sorted) {
+      const p = dateParts(h.date || h.start_date);
+      if (!p) continue;
+      const key = `${p.y}-${String(p.m).padStart(2, '0')}`;
+      const arr = map.get(key) || [];
+      arr.push(h);
+      map.set(key, arr);
+    }
+    return [...map.entries()].map(([key, items]) => ({
+      key,
+      label: `${MONTHS[Number(key.split('-')[1]) - 1]} ${key.split('-')[0]}`,
+      items,
+    }));
+  }, [data]);
 
   useEffect(() => { loadWd(); }, [year]);
 
@@ -133,6 +167,7 @@ export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
         error={error}
         empty={!data.length}
         total={total}
+        hidePagination
         onRefresh={load}
         filters={
           <select className="select select-year" value={year} onChange={(e) => list.setFilter('year', e.target.value)}>
@@ -203,60 +238,72 @@ export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
           )
         }
       >
-        <div className="hol-grid">
-          {data.map((h) => {
-            const start = dateParts(h.date || h.start_date);
-            const end = dateParts(h.end_date);
-            const typeClass = h.type.toLowerCase();
-            const isRange = h.type === 'Vacation';
-            return (
-              <div className="hol-card" key={h._id}>
-                <div className={`hol-date is-${typeClass}`}>
-                  {start && (
-                    <>
-                      <strong>
-                        {isRange && end && end.day !== start.day
-                          ? `${start.day}–${end.day}`
-                          : start.day}
-                      </strong>
-                      <span>{MONTHS[start.m - 1].toUpperCase()}</span>
-                    </>
-                  )}
-                </div>
-                <div className="hol-body">
-                  <h3 className="hol-title">{h.name || 'Alternate Saturday'}</h3>
-                  <p className="hol-sub">
-                    {isRange
-                      ? `${MONTHS[start!.m - 1]} ${start!.day} – ${MONTHS[end!.m - 1]} ${end!.day} · ${h.year}`
-                      : `${h.type === 'Saturday' ? 'Saturday' : h.day || '—'} · ${h.year}`}
-                  </p>
-                  <div className="hol-chips">
-                    <span className={`hol-chip is-${typeClass}`}>{h.type}</span>
-                    {isRange && (
-                      <span className="hol-chip is-neutral">{rangeDays(h.start_date, h.end_date)} days</span>
+        {groups.map((g) => (
+          <section className="hol-month" key={g.key}>
+            <div className="hol-month-head">
+              <h3>{g.label}</h3>
+              <span>{g.items.length} {g.items.length === 1 ? 'holiday' : 'holidays'}</span>
+            </div>
+            <div className="hol-grid">
+              {g.items.map((h) => {
+                const start = dateParts(h.date || h.start_date);
+                const end = dateParts(h.end_date);
+                const typeClass = h.type.toLowerCase();
+                const isRange = h.type === 'Vacation';
+                const past = isPast(h);
+                return (
+                  <div className={`hol-card${past ? ' is-past' : ''}`} key={h._id}>
+                    <div className={`hol-date is-${typeClass}`}>
+                      {start && (
+                        <>
+                          <strong>
+                            {isRange && end && end.day !== start.day
+                              ? `${start.day}–${end.day}`
+                              : start.day}
+                          </strong>
+                          <span>{MONTHS[start.m - 1].toUpperCase()}</span>
+                        </>
+                      )}
+                    </div>
+                    <div className="hol-body">
+                      <h3 className="hol-title">{h.name || 'Alternate Saturday'}</h3>
+                      <p className="hol-sub">
+                        {isRange
+                          ? `${MONTHS[start!.m - 1]} ${start!.day} – ${MONTHS[end!.m - 1]} ${end!.day} · ${h.year}`
+                          : `${h.type === 'Saturday' ? 'Saturday' : h.day || '—'} · ${h.year}`}
+                      </p>
+                      <div className="hol-chips">
+                        <span className={`hol-chip is-${typeClass}`}>{h.type}</span>
+                        {isRange && (
+                          <span className="hol-chip is-neutral">{rangeDays(h.start_date, h.end_date)} days</span>
+                        )}
+                        {past && (
+                          <span className="hol-chip is-past"><Check size={12} /> Completed</span>
+                        )}
+                      </div>
+                    </div>
+                    {manage && (
+                      <div className="hol-actions">
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="dept-card-action danger"
+                          title="Delete holiday"
+                          onClick={() => {
+                            setDeleteErr('');
+                            setDeleting(h);
+                          }}
+                        >
+                          <Trash2 size={15} />
+                        </Button>
+                      </div>
                     )}
                   </div>
-                </div>
-                {manage && (
-                  <div className="hol-actions">
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      className="dept-card-action danger"
-                      title="Delete holiday"
-                      onClick={() => {
-                        setDeleteErr('');
-                        setDeleting(h);
-                      }}
-                    >
-                      <Trash2 size={15} />
-                    </Button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+                );
+              })}
+            </div>
+          </section>
+        ))}
       </ListingPage>
 
       {showAdd && (

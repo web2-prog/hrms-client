@@ -30,8 +30,9 @@
   --muted: #f1f5f9;
   --muted-foreground: #64748b;
 
-  --accent: #ecfdf5;
-  --accent-foreground: #0f766e;
+  /* Canonical palette lives in theme/index.css :root — these must stay in sync. */
+  --accent: #0d9488;
+  --accent-foreground: #ffffff;
 
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
