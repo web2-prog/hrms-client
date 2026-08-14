@@ -241,7 +241,6 @@ function PersonalAttendanceBody({ title }: { title: string }) {
           <div className="att-times-head">
             <div>
               <h3>Today’s attendance</h3>
-              <p className="emp-action-help">Check-in, check-out, and break time for {att.date}</p>
             </div>
             <div className="att-status-pills">
               <StatusBadge
@@ -318,7 +317,6 @@ function PersonalAttendanceBody({ title }: { title: string }) {
           <div className="att-times-head">
             <div>
               <h3>Clock actions</h3>
-              <p className="emp-action-help">Break, checkout, overtime, and early leave</p>
             </div>
           </div>
           {err && <p className="att-controls-error">{err}</p>}
@@ -497,13 +495,6 @@ function PersonalAttendanceBody({ title }: { title: string }) {
       <div className="emp-dash-month card card-accent violet">
         <div className="emp-dash-month-head">
           <h3 style={{ margin: 0 }}>Working hours this month</h3>
-          <div className="emp-dash-clock">
-            <div className="emp-dash-clock-time">{displayClock(live.clock)}</div>
-            <div className="emp-dash-clock-meta">
-              Shift {displayClock(shift.shift_start)} – {displayClock(shift.shift_end)}
-              {shift.has_custom ? ' · Custom' : ''}
-            </div>
-          </div>
         </div>
         <p className="emp-dash-month-hours">
           {formatHours(monthCounted)} <span>/ {formatHours(monthTarget)}</span>
@@ -723,7 +714,9 @@ export function AdminDashboard() {
           </div>
 
           <p className="dash-hero-value">{wd?.working_days ?? '…'}</p>
-          <p className="dash-hero-caption">Counted working days for {year}</p>
+          <p className="dash-hero-caption">
+            {wd ? `${wd.working_days} of ${wd.total_days} days · ${year}` : `Counted working days for ${year}`}
+          </p>
 
           <div className="dash-wd-chips">
             <span className="dash-chip">
@@ -747,7 +740,10 @@ export function AdminDashboard() {
               <li>Festivals: {wd.breakdown.festivals}</li>
               <li>Manual holidays: {wd.breakdown.manual_holidays}</li>
               <li>Vacation days: {wd.breakdown.vacation_days}</li>
-              <li>Non-working (union): {wd.non_working_days}</li>
+              <li className="dash-breakdown-total">
+                Total off days: {wd.breakdown.sundays + wd.breakdown.alternate_saturdays + wd.breakdown.festivals + wd.breakdown.manual_holidays + wd.breakdown.vacation_days}
+              </li>
+              <li className="dash-breakdown-note">{wd.breakdown.note}</li>
             </ul>
           )}
         </div>

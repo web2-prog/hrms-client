@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
+import { CalendarDays, CheckCircle2, Clock3, TrendingUp, Timer } from 'lucide-react';
 import { api, buildQuery, type ListResult } from '../../services/api';
 import { ListingPage, useListParams } from '../../components/ListingPage';
 import { StatusBadge, hoursBadge, formatHours } from '../../components/StatusBadge';
+import { EmpCell } from '../../components/EmpCell';
 import { useAuth } from '../../context/AuthContext';
 import { displayClock, formatBreakMinutes, formatClockInput, parseBreakMinutes, to24HourClock } from '../../utils/timeFormat';
 import { Button } from '@/components/ui/button';
@@ -29,9 +31,23 @@ type Att = {
 
 type EditState = Att & { break_display?: string };
 
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function fmtDate(d?: string) {
+  if (!d) return { main: '—', sub: '' };
+  const [y, m, day] = d.split('-').map(Number);
+  if (!y || !m || !day) return { main: d, sub: '' };
+  const dt = new Date(y, m - 1, day);
+  return {
+    main: dt.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }),
+    sub: dt.toLocaleDateString(undefined, { weekday: 'short' }),
+  };
+}
+
 export function AttendancePage(_props: { allowBulk?: boolean }) {
   const list = useListParams();
   const { user } = useAuth();
+  const isStaff = user?.role === 'admin' || user?.role === 'hr';
   const [data, setData] = useState<Att[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -39,6 +55,8 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
   const [edit, setEdit] = useState<EditState | null>(null);
   const [depts, setDepts] = useState<{ _id: string; name: string }[]>([]);
   const [emps, setEmps] = useState<{ _id: string; name: string }[]>([]);
+
+  const [summary, setSummary] = useState<{ total: number; onTime: number; extra: number; low: number } | null>(null);
 
   const year = list.get('year') || String(new Date().getFullYear());
   const month = list.get('month') || String(new Date().getMonth() + 1);
@@ -67,13 +85,34 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
     }
   };
 
-  useEffect(() => { load(); }, [list.page, list.limit, list.search, list.params]);
-  useEffect(() => {
-    if (user?.role !== 'employee') {
-      api<ListResult<any>>('/departments?limit=50').then((r) => setDepts(r.data));
-      api<ListResult<any>>('/employees?limit=100').then((r) => setEmps(r.data)).catch(() => {});
+  const loadSummary = async () => {
+    try {
+      const res = await Promise.all([
+        api<ListResult<Att>>(`/attendance${buildQuery({ limit: 1, month, year })}`),
+        api<ListResult<Att>>(`/attendance${buildQuery({ limit: 1, month, year, status: 'OnTime' })}`),
+        api<ListResult<Att>>(`/attendance${buildQuery({ limit: 1, month, year, status: 'Extra' })}`),
+        api<ListResult<Att>>(`/attendance${buildQuery({ limit: 1, month, year, status: 'Low' })}`),
+      ]).catch(() => null);
+      if (!res) return setSummary(null);
+      const [totalRes, onTime, extra, low] = res;
+      setSummary({
+        total: totalRes.total ?? 0,
+        onTime: onTime?.total ?? 0,
+        extra: extra?.total ?? 0,
+        low: low?.total ?? 0,
+      });
+    } catch {
+      setSummary(null);
     }
-  }, [user]);
+  };
+
+  useEffect(() => { load(); }, [list.page, list.limit, list.search, list.params]);
+  useEffect(() => { loadSummary(); }, [month, year]);
+  useEffect(() => {
+    if (!isStaff) return;
+    api<ListResult<any>>('/departments?limit=50').then((r) => setDepts(r.data));
+    api<ListResult<any>>('/employees?limit=100').then((r) => setEmps(r.data)).catch(() => {});
+  }, [isStaff]);
 
   const openEdit = (r: Att) => {
     setEdit({
@@ -84,25 +123,28 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
     });
   };
 
+  const periodLabel = `${MONTH_NAMES[Number(month) - 1]} ${year}`;
+
   return (
     <>
-      {user?.role !== 'employee' && <EarlyCheckoutRequestsCard />}
+      {isStaff && <EarlyCheckoutRequestsCard />}
       <ListingPage
         title="Attendance"
+        subtitle="Daily check-in, check-out and hours across the team"
         loading={loading}
         error={error}
         empty={!data.length}
         total={total}
-        onRefresh={load}
+        onRefresh={() => { load(); loadSummary(); }}
         filters={
           <>
             <select className="select select-month" value={month} onChange={(e) => list.setFilter('month', e.target.value)}>
-              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => <option key={m} value={m}>{m}</option>)}
+              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => <option key={m} value={m}>{MONTH_NAMES[m - 1]}</option>)}
             </select>
             <select className="select select-year" value={year} onChange={(e) => list.setFilter('year', e.target.value)}>
               {[2026, 2027, 2028].map((y) => <option key={y} value={y}>{y}</option>)}
             </select>
-            {user?.role !== 'employee' && (
+            {isStaff && (
               <>
                 <select className="select" value={list.get('department_id')} onChange={(e) => list.setFilter('department_id', e.target.value)}>
                   <option value="">Department</option>
@@ -122,39 +164,97 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
             {['Extra', 'Low', 'OnTime', 'Working', 'OnBreak', 'Absent'].map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         }
+        prepend={
+          summary && (
+            <div className="page-stats">
+              <div className="card emp-stat card-accent">
+                <div className="stat-card">
+                  <span className="stat-icon blue"><CalendarDays size={20} /></span>
+                  <div>
+                    <span className="label">Records</span>
+                    <div className="emp-stat-value">{summary.total}</div>
+                    <span className="emp-stat-hint">{periodLabel}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="card emp-stat card-accent violet">
+                <div className="stat-card">
+                  <span className="stat-icon violet"><CheckCircle2 size={20} /></span>
+                  <div>
+                    <span className="label">On time</span>
+                    <div className="emp-stat-value">{summary.onTime}</div>
+                    <span className="emp-stat-hint">No late penalties</span>
+                  </div>
+                </div>
+              </div>
+              <div className="card emp-stat card-accent teal">
+                <div className="stat-card">
+                  <span className="stat-icon teal"><TrendingUp size={20} /></span>
+                  <div>
+                    <span className="label">Extra / OT</span>
+                    <div className="emp-stat-value">{summary.extra}</div>
+                    <span className="emp-stat-hint">Beyond shift target</span>
+                  </div>
+                </div>
+              </div>
+              <div className="card emp-stat card-accent amber">
+                <div className="stat-card">
+                  <span className="stat-icon amber"><Timer size={20} /></span>
+                  <div>
+                    <span className="label">Low</span>
+                    <div className="emp-stat-value">{summary.low}</div>
+                    <span className="emp-stat-hint">Below daily target</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )
+        }
       >
         <div className="table-wrap">
           <table className="data">
             <thead>
               <tr>
                 <th>Date</th>
-                <th>Employee</th>
+                {isStaff && <th>Employee</th>}
                 <th>In</th>
                 <th>Out</th>
                 <th>Break</th>
                 <th>Hours</th>
                 <th>Status / OT</th>
-                {(user?.role === 'admin' || user?.role === 'hr') && <th></th>}
+                {isStaff && <th></th>}
               </tr>
             </thead>
             <tbody>
-              {data.map((r) => (
-                <tr key={r._id}>
-                  <td>{r.date}</td>
-                  <td>{r.employee_id?.name || '—'}</td>
-                  <td>{displayClock(r.check_in)}</td>
-                  <td>
-                    {displayClock(r.check_out)}
-                    {r.auto_checkout ? <div className="label">Auto 11:55 PM</div> : null}
-                  </td>
-                  <td>{formatBreakMinutes(r.break_total ?? 0)}</td>
-                  <td>{formatHours(r.working_hours)}</td>
-                  <td>{hoursBadge(r.surplus_shortfall, r.status === 'OnBreak' ? 'Working' : r.status)}</td>
-                  {(user?.role === 'admin' || user?.role === 'hr') && (
-                    <td><Button variant="outline" onClick={() => openEdit(r)}>Manage</Button></td>
-                  )}
-                </tr>
-              ))}
+              {data.map((r) => {
+                const d = fmtDate(r.date);
+                return (
+                  <tr key={r._id}>
+                    <td>
+                      <div className="date-cell">
+                        <span>{d.main}</span>
+                        {d.sub && <em>{d.sub}</em>}
+                      </div>
+                    </td>
+                    {isStaff && (
+                      <td>
+                        <EmpCell name={r.employee_id?.name} dept={r.employee_id?.department_id?.name} />
+                      </td>
+                    )}
+                    <td>{displayClock(r.check_in)}</td>
+                    <td>
+                      {displayClock(r.check_out)}
+                      {r.auto_checkout ? <div className="label">Auto 11:55 PM</div> : null}
+                    </td>
+                    <td>{formatBreakMinutes(r.break_total ?? 0)}</td>
+                    <td className="num-cell">{formatHours(r.working_hours)}</td>
+                    <td>{hoursBadge(r.surplus_shortfall, r.status === 'OnBreak' ? 'Working' : r.status)}</td>
+                    {isStaff && (
+                      <td><Button variant="outline" onClick={() => openEdit(r)}>Manage</Button></td>
+                    )}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -216,6 +316,7 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
                   });
                   setEdit(null);
                   load();
+                  loadSummary();
                 }}
               >
                 Save
@@ -334,10 +435,7 @@ function EarlyCheckoutRequestsCard() {
               {pending.map((r) => (
                 <tr key={r._id}>
                   <td>
-                    <div>{r.employee_id?.name || '—'}</div>
-                    {r.employee_id?.department_id?.name && (
-                      <div style={{ color: 'var(--muted)', fontSize: 12 }}>{r.employee_id.department_id.name}</div>
-                    )}
+                    <EmpCell name={r.employee_id?.name} dept={r.employee_id?.department_id?.name} />
                   </td>
                   <td>{displayClock(r.requested_time)}</td>
                   <td>{r.date}</td>

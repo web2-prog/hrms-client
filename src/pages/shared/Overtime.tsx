@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
+import { CheckCircle2, Clock3, Timer, XCircle } from 'lucide-react';
 import { api, buildQuery, type ListResult } from '../../services/api';
 import { ListingPage, useListParams } from '../../components/ListingPage';
 import { StatusBadge, formatHours } from '../../components/StatusBadge';
+import { EmpCell } from '../../components/EmpCell';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '@/components/ui/button';
 import {
@@ -29,6 +31,13 @@ type OtRequest = {
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+function otTypeChip(row: OtRequest) {
+  if (row.ot_type === 'General') return <span className="hol-chip is-vacation">General OT</span>;
+  if (row.ot_type === 'Management') return <span className="hol-chip is-festival">Management OT</span>;
+  if (row.ot_type === 'Attendance' || row.source === 'attendance') return <span className="hol-chip is-neutral">Attendance OT</span>;
+  return '—';
+}
+
 export function OvertimePage() {
   const list = useListParams();
   const { user } = useAuth();
@@ -39,6 +48,8 @@ export function OvertimePage() {
   const [error, setError] = useState<string | null>(null);
   const [showApply, setShowApply] = useState(false);
   const [decideRow, setDecideRow] = useState<OtRequest | null>(null);
+
+  const [summary, setSummary] = useState<{ total: number; pending: number; approved: number; rejected: number } | null>(null);
 
   const year = list.get('year') || String(new Date().getFullYear());
   const month = list.get('month') || String(new Date().getMonth() + 1);
@@ -68,20 +79,43 @@ export function OvertimePage() {
     }
   };
 
-  useEffect(() => {
-    load();
-  }, [list.page, list.limit, list.search, list.params]);
+  const loadSummary = async () => {
+    try {
+      const res = await Promise.all([
+        api<ListResult<OtRequest>>(`/overtime${buildQuery({ limit: 1, month, year })}`),
+        api<ListResult<OtRequest>>(`/overtime${buildQuery({ limit: 1, month, year, status: 'Pending' })}`),
+        api<ListResult<OtRequest>>(`/overtime${buildQuery({ limit: 1, month, year, status: 'Approved' })}`),
+        api<ListResult<OtRequest>>(`/overtime${buildQuery({ limit: 1, month, year, status: 'Rejected' })}`),
+      ]).catch(() => null);
+      if (!res) return setSummary(null);
+      const [totalRes, pending, approved, rejected] = res;
+      setSummary({
+        total: totalRes.total ?? 0,
+        pending: pending?.total ?? 0,
+        approved: approved?.total ?? 0,
+        rejected: rejected?.total ?? 0,
+      });
+    } catch {
+      setSummary(null);
+    }
+  };
+
+  useEffect(() => { load(); }, [list.page, list.limit, list.search, list.params]);
+  useEffect(() => { loadSummary(); }, [month, year]);
+
+  const periodLabel = `${MONTH_NAMES[Number(month) - 1]} ${year}`;
 
   return (
     <>
       <ListingPage
         title="Overtime"
+        subtitle="Overtime from attendance extras and submitted requests"
         searchPlaceholder="Search employee…"
         loading={loading}
         error={error}
         empty={!data.length}
         total={total}
-        onRefresh={load}
+        onRefresh={() => { load(); loadSummary(); }}
         filters={
           <>
             <select className="select select-month" value={month} onChange={(e) => list.setFilter('month', e.target.value)}>
@@ -129,8 +163,54 @@ export function OvertimePage() {
             Request Overtime
           </Button>
         }
+        prepend={
+          summary && (
+            <div className="page-stats">
+              <div className="card emp-stat card-accent">
+                <div className="stat-card">
+                  <span className="stat-icon blue"><Timer size={20} /></span>
+                  <div>
+                    <span className="label">OT records</span>
+                    <div className="emp-stat-value">{summary.total}</div>
+                    <span className="emp-stat-hint">{periodLabel}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="card emp-stat card-accent amber">
+                <div className="stat-card">
+                  <span className="stat-icon amber"><Clock3 size={20} /></span>
+                  <div>
+                    <span className="label">Pending</span>
+                    <div className="emp-stat-value">{summary.pending}</div>
+                    <span className="emp-stat-hint">Awaiting decision</span>
+                  </div>
+                </div>
+              </div>
+              <div className="card emp-stat card-accent teal">
+                <div className="stat-card">
+                  <span className="stat-icon teal"><CheckCircle2 size={20} /></span>
+                  <div>
+                    <span className="label">Approved</span>
+                    <div className="emp-stat-value">{summary.approved}</div>
+                    <span className="emp-stat-hint">Counted to salary</span>
+                  </div>
+                </div>
+              </div>
+              <div className="card emp-stat card-accent coral">
+                <div className="stat-card">
+                  <span className="stat-icon coral"><XCircle size={20} /></span>
+                  <div>
+                    <span className="label">Rejected</span>
+                    <div className="emp-stat-value">{summary.rejected}</div>
+                    <span className="emp-stat-hint">Not counted</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )
+        }
       >
-        <p style={{ color: 'var(--muted)', fontSize: 13, margin: '0 0 12px' }}>
+        <p className="listing-note">
           Attendance Extra = hours worked beyond shift (auto from attendance). OT Requests = submitted General / Management OT.
         </p>
         <div className="table-wrap">
@@ -149,24 +229,18 @@ export function OvertimePage() {
             <tbody>
               {data.map((row) => (
                 <tr key={row._id}>
-                  {isManager && <td>{row.employee_id?.name || '—'}</td>}
+                  {isManager && (
+                    <td>
+                      <EmpCell name={row.employee_id?.name} dept={row.employee_id?.department_id?.name} />
+                    </td>
+                  )}
                   <td>{row.date}</td>
-                  <td>{formatHours(row.hours)}</td>
+                  <td className="num-cell"><strong>{formatHours(row.hours)}</strong></td>
                   <td style={{ maxWidth: 280 }}>{row.reason}</td>
                   <td>
                     <StatusBadge status={row.status} />
                   </td>
-                  <td>
-                    {row.ot_type === 'General' ? (
-                      <span className="badge badge-success">General OT</span>
-                    ) : row.ot_type === 'Management' ? (
-                      <span className="badge badge-info">Management OT</span>
-                    ) : row.ot_type === 'Attendance' || row.source === 'attendance' ? (
-                      <span className="badge badge-success">Attendance OT</span>
-                    ) : (
-                      '—'
-                    )}
-                  </td>
+                  <td>{otTypeChip(row)}</td>
                   {isManager && row.source !== 'attendance' && row.status === 'Pending' && (
                     <td className="row-actions">
                       <Button onClick={() => setDecideRow(row)}>
@@ -188,6 +262,7 @@ export function OvertimePage() {
           onSaved={() => {
             setShowApply(false);
             load();
+            loadSummary();
           }}
         />
       )}
@@ -198,6 +273,7 @@ export function OvertimePage() {
           onSaved={() => {
             setDecideRow(null);
             load();
+            loadSummary();
           }}
         />
       )}

@@ -13,6 +13,9 @@ import {
 
 type Props = {
   title?: string;
+  subtitle?: string;
+  /** Rendered between the page header and the list card. */
+  prepend?: React.ReactNode;
   searchPlaceholder?: string;
   hideSearch?: boolean;
   filters?: React.ReactNode;
@@ -28,6 +31,8 @@ type Props = {
 
 export function ListingPage({
   title,
+  subtitle,
+  prepend,
   searchPlaceholder = 'Search…',
   hideSearch,
   filters,
@@ -79,10 +84,14 @@ export function ListingPage({
     <div>
       {title ? (
       <div className="page-header">
-        <h1>{title}</h1>
+        <div>
+          <h1>{title}</h1>
+          {subtitle ? <p className="page-header-sub">{subtitle}</p> : null}
+        </div>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>{actions}</div>
       </div>
       ) : null}
+      {prepend}
       <div className="card card-accent">
         <div className="listing-toolbar">
           {filters}

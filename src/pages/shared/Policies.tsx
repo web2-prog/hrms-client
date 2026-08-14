@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Pencil, Trash2, Eye, FileText } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { ArrowUpRight, CalendarDays, CheckCircle2, CircleSlash2, FileText, Pencil, Tags, Trash2 } from 'lucide-react';
 import { api, buildQuery, type ListResult } from '../../services/api';
 import { ListingPage, useListParams } from '../../components/ListingPage';
 import { StatusBadge } from '../../components/StatusBadge';
@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -46,6 +47,15 @@ const emptyForm = (): PolicyForm => ({
   effective_date: '',
 });
 
+/** Deterministic tint for the policy tile (reuses dept tone palette). */
+const TONES = ['dept-tone-0', 'dept-tone-1', 'dept-tone-2', 'dept-tone-3', 'dept-tone-4', 'dept-tone-5'] as const;
+
+function toneFor(name: string) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return TONES[h % TONES.length];
+}
+
 export function PoliciesPage({ canManage = true }: { canManage?: boolean }) {
   const list = useListParams();
   const { user } = useAuth();
@@ -56,7 +66,13 @@ export function PoliciesPage({ canManage = true }: { canManage?: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<PolicyForm | null>(null);
   const [viewing, setViewing] = useState<Policy | null>(null);
+  const [deleting, setDeleting] = useState<Policy | null>(null);
   const [saveErr, setSaveErr] = useState('');
+  const [deleteErr, setDeleteErr] = useState('');
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const [snapshot, setSnapshot] = useState<Policy[] | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -79,9 +95,28 @@ export function PoliciesPage({ canManage = true }: { canManage?: boolean }) {
     }
   };
 
-  useEffect(() => {
-    load();
-  }, [list.page, list.limit, list.search, list.params]);
+  const loadSnapshot = async () => {
+    try {
+      const res = await api<ListResult<Policy>>('/policies?limit=100');
+      setSnapshot(res.data);
+    } catch {
+      setSnapshot(null);
+    }
+  };
+
+  useEffect(() => { load(); }, [list.page, list.limit, list.search, list.params]);
+
+  useEffect(() => { loadSnapshot(); }, []);
+
+  const counts = useMemo(() => {
+    const c = { total: snapshot?.length ?? 0, active: 0, inactive: 0, categories: new Set<string>() };
+    for (const p of snapshot || []) {
+      if (p.status === 'active') c.active += 1;
+      else c.inactive += 1;
+      if (p.category) c.categories.add(p.category);
+    }
+    return c;
+  }, [snapshot]);
 
   const openEdit = (p?: Policy) => {
     setSaveErr('');
@@ -100,11 +135,12 @@ export function PoliciesPage({ canManage = true }: { canManage?: boolean }) {
   };
 
   const save = async () => {
-    if (!editing) return;
+    if (!editing || !editing.title.trim()) return;
+    setSaving(true);
     setSaveErr('');
     try {
       const body = {
-        title: editing.title,
+        title: editing.title.trim(),
         content: editing.content,
         category: editing.category,
         status: editing.status,
@@ -114,8 +150,27 @@ export function PoliciesPage({ canManage = true }: { canManage?: boolean }) {
       else await api('/policies', { method: 'POST', body });
       setEditing(null);
       load();
+      loadSnapshot();
     } catch (e) {
       setSaveErr(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    setDeleteErr('');
+    try {
+      await api(`/policies/${deleting._id}`, { method: 'DELETE' });
+      setDeleting(null);
+      load();
+      loadSnapshot();
+    } catch (e) {
+      setDeleteErr(e instanceof Error ? e.message : 'Failed to delete');
+    } finally {
+      setDeleteBusy(false);
     }
   };
 
@@ -123,6 +178,7 @@ export function PoliciesPage({ canManage = true }: { canManage?: boolean }) {
     <>
       <ListingPage
         title="Company Policies"
+        subtitle="Company-wide policies, guidelines and code of conduct"
         loading={loading}
         error={error}
         empty={!data.length}
@@ -155,147 +211,179 @@ export function PoliciesPage({ canManage = true }: { canManage?: boolean }) {
             </select>
           </>
         }
-        actions={
-          manage ? (
-            <Button onClick={() => openEdit()}>
-              Add Policy
-            </Button>
-          ) : undefined
+        actions={manage ? <Button onClick={() => openEdit()}>Add Policy</Button> : undefined}
+        prepend={
+          snapshot && (
+            <div className="page-stats">
+              <div className="card emp-stat card-accent">
+                <div className="stat-card">
+                  <span className="stat-icon blue"><FileText size={20} /></span>
+                  <div>
+                    <span className="label">Policies</span>
+                    <div className="emp-stat-value">{counts.total}</div>
+                    <span className="emp-stat-hint">On record</span>
+                  </div>
+                </div>
+              </div>
+              <div className="card emp-stat card-accent teal">
+                <div className="stat-card">
+                  <span className="stat-icon teal"><CheckCircle2 size={20} /></span>
+                  <div>
+                    <span className="label">In effect</span>
+                    <div className="emp-stat-value">{counts.active}</div>
+                    <span className="emp-stat-hint">Active policies</span>
+                  </div>
+                </div>
+              </div>
+              <div className="card emp-stat card-accent amber">
+                <div className="stat-card">
+                  <span className="stat-icon amber"><CircleSlash2 size={20} /></span>
+                  <div>
+                    <span className="label">Inactive</span>
+                    <div className="emp-stat-value">{counts.inactive}</div>
+                    <span className="emp-stat-hint">Archived or paused</span>
+                  </div>
+                </div>
+              </div>
+              <div className="card emp-stat card-accent violet">
+                <div className="stat-card">
+                  <span className="stat-icon violet"><Tags size={20} /></span>
+                  <div>
+                    <span className="label">Categories</span>
+                    <div className="emp-stat-value">{counts.categories.size}</div>
+                    <span className="emp-stat-hint">Policy areas</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )
         }
       >
-        <div className="table-wrap">
-          <table className="data">
-            <thead>
-              <tr>
-                <th>Title</th>
-                <th>Category</th>
-                {manage && <th>Status</th>}
-                <th>Effective</th>
-                <th>Updated</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.map((p) => (
-                <tr key={p._id}>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <FileText size={16} style={{ color: 'var(--muted)', flexShrink: 0 }} />
-                      <span>{p.title}</span>
-                    </div>
-                  </td>
-                  <td>{p.category}</td>
-                  {manage && (
-                    <td>
-                      <StatusBadge status={p.status} />
-                    </td>
-                  )}
-                  <td>{p.effective_date || '—'}</td>
-                  <td>{p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : '—'}</td>
-                  <td>
-                    <div className="row-actions">
-                      <Button variant="ghost" size="icon" title="View" onClick={() => setViewing(p)}>
-                        <Eye size={16} />
-                      </Button>
-                      {manage && (
-                        <>
-                          <Button variant="ghost" size="icon" title="Edit" onClick={() => openEdit(p)}>
-                            <Pencil size={16} />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            title="Delete"
-                            onClick={async () => {
-                              if (!confirm(`Delete policy "${p.title}"?`)) return;
-                              await api(`/policies/${p._id}`, { method: 'DELETE' });
-                              load();
-                            }}
-                          >
-                            <Trash2 size={16} />
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="pol-grid">
+          {data.map((p) => (
+            <div className="pol-card" key={p._id}>
+              <div className="pol-card-head">
+                <span className={`pol-tile ${toneFor(p.title)}`}><FileText size={18} /></span>
+                <div className="pol-card-title">
+                  <h3>{p.title}</h3>
+                  {manage ? <StatusBadge status={p.status} /> : <span className="hol-chip is-neutral">{p.category}</span>}
+                </div>
+                {manage && (
+                  <div className="pol-card-actions">
+                    <Button variant="ghost" size="icon-sm" className="dept-card-action" title="Edit policy" onClick={() => openEdit(p)}>
+                      <Pencil size={15} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="dept-card-action danger"
+                      title="Delete policy"
+                      onClick={() => {
+                        setDeleteErr('');
+                        setDeleting(p);
+                      }}
+                    >
+                      <Trash2 size={15} />
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              <p className="pol-excerpt">{p.content}</p>
+
+              <div className="pol-meta">
+                {manage && <span className="hol-chip is-neutral">{p.category}</span>}
+                <span className="pol-meta-item">
+                  <CalendarDays size={13} />
+                  Effective {p.effective_date || '—'}
+                </span>
+                <span className="pol-meta-item">
+                  Updated {p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : '—'}
+                </span>
+              </div>
+
+              <div className="pol-card-foot">
+                <button type="button" onClick={() => setViewing(p)}>
+                  Read policy
+                  <ArrowUpRight size={14} />
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       </ListingPage>
 
-      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+      <Dialog open={!!editing} onOpenChange={(o) => !o && !saving && setEditing(null)}>
         <DialogContent className="sm:max-w-[640px]">
           <DialogHeader>
             <DialogTitle>{editing?._id ? 'Edit' : 'Add'} Policy</DialogTitle>
+            <DialogDescription>
+              Policies define the rules every employee is expected to follow.
+            </DialogDescription>
           </DialogHeader>
           {editing && (
             <>
-            <div className="form-grid">
-              <div style={{ gridColumn: '1 / -1' }}>
-                <label className="label">Title</label>
-                <input
-                  className="input"
-                  value={editing.title}
-                  onChange={(e) => setEditing({ ...editing, title: e.target.value })}
-                  placeholder="e.g. Leave Policy 2026"
-                />
+              <div className="form-grid">
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label className="label">Title</label>
+                  <input
+                    className="input"
+                    value={editing.title}
+                    onChange={(e) => setEditing({ ...editing, title: e.target.value })}
+                    placeholder="e.g. Leave Policy 2026"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="label">Category</label>
+                  <select
+                    className="select"
+                    value={editing.category}
+                    onChange={(e) => setEditing({ ...editing, category: e.target.value })}
+                  >
+                    {CATEGORIES.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Status</label>
+                  <select
+                    className="select"
+                    value={editing.status}
+                    onChange={(e) => setEditing({ ...editing, status: e.target.value })}
+                  >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Effective date</label>
+                  <input
+                    className="input"
+                    type="date"
+                    value={editing.effective_date}
+                    onChange={(e) => setEditing({ ...editing, effective_date: e.target.value })}
+                  />
+                </div>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label className="label">Policy details</label>
+                  <textarea
+                    className="textarea"
+                    rows={10}
+                    value={editing.content}
+                    onChange={(e) => setEditing({ ...editing, content: e.target.value })}
+                    placeholder="Write the full company policy details here…"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="label">Category</label>
-                <select
-                  className="select"
-                  value={editing.category}
-                  onChange={(e) => setEditing({ ...editing, category: e.target.value })}
-                >
-                  {CATEGORIES.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="label">Status</label>
-                <select
-                  className="select"
-                  value={editing.status}
-                  onChange={(e) => setEditing({ ...editing, status: e.target.value })}
-                >
-                  <option value="active">active</option>
-                  <option value="inactive">inactive</option>
-                </select>
-              </div>
-              <div>
-                <label className="label">Effective date</label>
-                <input
-                  className="input"
-                  type="date"
-                  value={editing.effective_date}
-                  onChange={(e) => setEditing({ ...editing, effective_date: e.target.value })}
-                />
-              </div>
-              <div style={{ gridColumn: '1 / -1' }}>
-                <label className="label">Policy details</label>
-                <textarea
-                  className="textarea"
-                  rows={10}
-                  value={editing.content}
-                  onChange={(e) => setEditing({ ...editing, content: e.target.value })}
-                  placeholder="Write the full company policy details here…"
-                />
-              </div>
-            </div>
-            {saveErr && <p style={{ color: 'var(--error)' }}>{saveErr}</p>}
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setEditing(null)}>
-                Cancel
-              </Button>
-              <Button onClick={save}>
-                Save
-              </Button>
-            </DialogFooter>
+              {saveErr && <p className="form-error">{saveErr}</p>}
+              <DialogFooter>
+                <Button variant="outline" disabled={saving} onClick={() => setEditing(null)}>Cancel</Button>
+                <Button disabled={saving || !editing.title.trim()} onClick={save}>
+                  {saving ? 'Saving…' : editing._id ? 'Save changes' : 'Create policy'}
+                </Button>
+              </DialogFooter>
             </>
           )}
         </DialogContent>
@@ -305,61 +393,56 @@ export function PoliciesPage({ canManage = true }: { canManage?: boolean }) {
         <DialogContent className="sm:max-w-[680px]">
           <DialogHeader>
             <DialogTitle>{viewing?.title}</DialogTitle>
+            <DialogDescription>
+              <span className="hol-chip is-neutral">{viewing?.category}</span>{' '}
+              {manage && <StatusBadge status={viewing?.status} />}
+              {viewing?.effective_date ? ` · Effective ${viewing.effective_date}` : ''}
+            </DialogDescription>
           </DialogHeader>
           {viewing && (
             <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-              <div>
-                <p style={{ color: 'var(--muted)', margin: 0, fontSize: 13 }}>
-                  {viewing.category}
-                  {viewing.effective_date ? ` · Effective ${viewing.effective_date}` : ''}
-                  {manage ? (
-                    <>
-                      {' · '}
-                      <StatusBadge status={viewing.status} />
-                    </>
-                  ) : null}
+              <div className="pol-doc">{viewing.content}</div>
+              {(viewing.updated_by?.name || viewing.updatedAt) && (
+                <p className="pol-meta-item" style={{ margin: '0.6rem 0 0' }}>
+                  Last updated
+                  {viewing.updated_by?.name ? ` by ${viewing.updated_by.name}` : ''}
+                  {viewing.updatedAt ? ` on ${displayDateTime(viewing.updatedAt)}` : ''}
                 </p>
-              </div>
-            </div>
-            <div
-              style={{
-                marginTop: 16,
-                whiteSpace: 'pre-wrap',
-                lineHeight: 1.6,
-                maxHeight: '55vh',
-                overflow: 'auto',
-                padding: '12px 0',
-                borderTop: '1px solid var(--border)',
-              }}
-            >
-              {viewing.content}
-            </div>
-            {(viewing.updated_by?.name || viewing.updatedAt) && (
-              <p style={{ color: 'var(--muted)', fontSize: 12, marginTop: 12 }}>
-                Last updated
-                {viewing.updated_by?.name ? ` by ${viewing.updated_by.name}` : ''}
-                {viewing.updatedAt ? ` on ${displayDateTime(viewing.updatedAt)}` : ''}
-              </p>
-            )}
-            <DialogFooter>
-              {manage && (
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setViewing(null);
-                    openEdit(viewing);
-                  }}
-                >
-                  Edit
-                </Button>
               )}
-              <Button onClick={() => setViewing(null)}>
-                Close
-              </Button>
-            </DialogFooter>
+              <DialogFooter>
+                {manage && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setViewing(null);
+                      openEdit(viewing);
+                    }}
+                  >
+                    Edit
+                  </Button>
+                )}
+                <Button onClick={() => setViewing(null)}>Close</Button>
+              </DialogFooter>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!deleting} onOpenChange={(o) => !o && !deleteBusy && setDeleting(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete policy?</DialogTitle>
+            <DialogDescription>
+              <strong>{deleting?.title}</strong> will be removed permanently. Employees will no longer be able to view it.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteErr && <p className="form-error">{deleteErr}</p>}
+          <DialogFooter>
+            <Button variant="outline" disabled={deleteBusy} onClick={() => setDeleting(null)}>Cancel</Button>
+            <Button variant="destructive" disabled={deleteBusy} onClick={confirmDelete}>
+              {deleteBusy ? 'Deleting…' : 'Delete'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

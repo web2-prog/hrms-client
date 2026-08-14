@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
+import { CalendarDays, CheckCircle2, Clock3, XCircle } from 'lucide-react';
 import { api, buildQuery, type ListResult } from '../../services/api';
 import { ListingPage, useListParams } from '../../components/ListingPage';
 import { StatusBadge } from '../../components/StatusBadge';
+import { EmpCell } from '../../components/EmpCell';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '@/components/ui/button';
 import {
@@ -36,6 +38,27 @@ function leaveTiming(from: string, to: string, today: string) {
   return 'past';
 }
 
+function addDays(ymd: string, n: number) {
+  const [y, m, d] = ymd.split('-').map(Number);
+  const dt = new Date(y, m - 1, d + n);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+}
+
+/**
+ * Urgency chip for the approval queue, reusing the priority-chip colour
+ * language: ongoing leaves need a decision now (red), imminent ones soon
+ * (amber), everything else is a routine upcoming leave (neutral).
+ */
+function urgencyChip(l: Leave, today: string) {
+  if (l.from_date <= today && l.to_date >= today) {
+    return <span className="priority-chip is-high">Ongoing</span>;
+  }
+  if (l.from_date <= addDays(today, 1)) {
+    return <span className="priority-chip is-medium">Starts soon</span>;
+  }
+  return <span className="priority-chip is-low">Upcoming</span>;
+}
+
 export function LeavesPage() {
   const list = useListParams();
   const { user } = useAuth();
@@ -45,6 +68,8 @@ export function LeavesPage() {
   const [error, setError] = useState<string | null>(null);
   const [showApply, setShowApply] = useState(false);
   const [upcoming, setUpcoming] = useState<Leave[]>([]);
+
+  const [summary, setSummary] = useState<{ total: number; pending: number; approved: number; rejected: number } | null>(null);
 
   const year = list.get('year');
   const month = list.get('month');
@@ -93,10 +118,33 @@ export function LeavesPage() {
     }
   };
 
+  const loadSummary = async () => {
+    try {
+      const res = await Promise.all([
+        api<ListResult<Leave>>(`/leaves${buildQuery({ limit: 1, month: month || undefined, year: year || undefined })}`),
+        api<ListResult<Leave>>(`/leaves${buildQuery({ limit: 1, month: month || undefined, year: year || undefined, status: 'Pending' })}`),
+        api<ListResult<Leave>>(`/leaves${buildQuery({ limit: 1, month: month || undefined, year: year || undefined, status: 'Approved' })}`),
+        api<ListResult<Leave>>(`/leaves${buildQuery({ limit: 1, month: month || undefined, year: year || undefined, status: 'Rejected' })}`),
+      ]).catch(() => null);
+      if (!res) return setSummary(null);
+      const [totalRes, pending, approved, rejected] = res;
+      setSummary({
+        total: totalRes.total ?? 0,
+        pending: pending?.total ?? 0,
+        approved: approved?.total ?? 0,
+        rejected: rejected?.total ?? 0,
+      });
+    } catch {
+      setSummary(null);
+    }
+  };
+
   useEffect(() => {
     load();
     loadUpcoming();
   }, [list.page, list.limit, list.search, list.params, user?._id]);
+
+  useEffect(() => { loadSummary(); }, [month, year]);
 
   const afterApply = () => {
     // Clear Approved/Rejected filter so the new Pending leave is visible
@@ -107,6 +155,8 @@ export function LeavesPage() {
     list.setParams(next);
     setShowApply(false);
   };
+
+  const periodLabel = month && year ? `${MONTH_NAMES[Number(month) - 1]} ${year}` : 'All time';
 
   return (
     <>
@@ -132,17 +182,23 @@ export function LeavesPage() {
               </thead>
               <tbody>
                 {upcoming.map((l) => {
-                  const timing = leaveTiming(l.from_date, l.to_date, today);
                   return (
                     <tr key={`up-${l._id}`}>
-                      {isStaff && <td>{l.employee_id?.name || '—'}</td>}
+                      {isStaff && (
+                        <td>
+                          <EmpCell name={l.employee_id?.name} dept={l.employee_id?.department_id?.name} />
+                        </td>
+                      )}
                       <td>
                         {l.from_date}{' '}
-                        {timing === 'future' && <span className="badge badge-info">Upcoming</span>}
-                        {timing === 'ongoing' && <span className="badge badge-warn">Ongoing</span>}
+                        {urgencyChip(l, today)}
                       </td>
                       <td>{l.to_date}</td>
-                      <td>{l.day_type || 'Full Day'}</td>
+                      <td>
+                        <span className={`hol-chip ${l.day_type === 'Half Day' ? 'is-saturday' : 'is-neutral'}`}>
+                          {l.day_type || 'Full Day'}
+                        </span>
+                      </td>
                       <td>{l.reason || '—'}</td>
                       <td>
                         <StatusBadge status={l.status} />
@@ -158,6 +214,7 @@ export function LeavesPage() {
 
       <ListingPage
         title="Leaves"
+        subtitle="Leave applications and approvals across the organisation"
         loading={loading}
         error={error}
         empty={!data.length}
@@ -165,6 +222,7 @@ export function LeavesPage() {
         onRefresh={() => {
           load();
           loadUpcoming();
+          loadSummary();
         }}
         filters={
           <>
@@ -212,12 +270,58 @@ export function LeavesPage() {
             Apply Leave
           </Button>
         }
+        prepend={
+          summary && (
+            <div className="page-stats">
+              <div className="card emp-stat card-accent">
+                <div className="stat-card">
+                  <span className="stat-icon blue"><CalendarDays size={20} /></span>
+                  <div>
+                    <span className="label">Applications</span>
+                    <div className="emp-stat-value">{summary.total}</div>
+                    <span className="emp-stat-hint">{periodLabel}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="card emp-stat card-accent amber">
+                <div className="stat-card">
+                  <span className="stat-icon amber"><Clock3 size={20} /></span>
+                  <div>
+                    <span className="label">Pending</span>
+                    <div className="emp-stat-value">{summary.pending}</div>
+                    <span className="emp-stat-hint">Awaiting approval</span>
+                  </div>
+                </div>
+              </div>
+              <div className="card emp-stat card-accent teal">
+                <div className="stat-card">
+                  <span className="stat-icon teal"><CheckCircle2 size={20} /></span>
+                  <div>
+                    <span className="label">Approved</span>
+                    <div className="emp-stat-value">{summary.approved}</div>
+                    <span className="emp-stat-hint">Granted leave</span>
+                  </div>
+                </div>
+              </div>
+              <div className="card emp-stat card-accent coral">
+                <div className="stat-card">
+                  <span className="stat-icon coral"><XCircle size={20} /></span>
+                  <div>
+                    <span className="label">Rejected</span>
+                    <div className="emp-stat-value">{summary.rejected}</div>
+                    <span className="emp-stat-hint">Not granted</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )
+        }
       >
         <div className="table-wrap">
           <table className="data">
             <thead>
               <tr>
-                <th>Employee</th>
+                {isStaff && <th>Employee</th>}
                 <th>From</th>
                 <th>To</th>
                 <th>Day Type</th>
@@ -231,37 +335,54 @@ export function LeavesPage() {
                 const timing = leaveTiming(l.from_date, l.to_date, today);
                 return (
                   <tr key={l._id}>
-                    <td>{l.employee_id?.name || '—'}</td>
+                    {isStaff && (
+                      <td>
+                        <EmpCell name={l.employee_id?.name} dept={l.employee_id?.department_id?.name} />
+                      </td>
+                    )}
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                         <span>{l.from_date}</span>
-                        {timing === 'future' && <span className="badge badge-info">Upcoming</span>}
-                        {timing === 'ongoing' && <span className="badge badge-warn">Ongoing</span>}
+                        {l.status === 'Pending'
+                          ? urgencyChip(l, today)
+                          : timing === 'future'
+                            ? <span className="badge badge-info">Upcoming</span>
+                            : timing === 'ongoing'
+                              ? <span className="badge badge-warn">Ongoing</span>
+                              : null}
                       </div>
                     </td>
                     <td>{l.to_date}</td>
-                    <td>{l.day_type || 'Full Day'}</td>
-                    <td>{l.reason}</td>
+                    <td>
+                      <span className={`hol-chip ${l.day_type === 'Half Day' ? 'is-saturday' : 'is-neutral'}`}>
+                        {l.day_type || 'Full Day'}
+                      </span>
+                    </td>
+                    <td style={{ maxWidth: 280 }}>{l.reason || '—'}</td>
                     <td>
                       <StatusBadge status={l.status} />
                     </td>
                     {isStaff && l.status === 'Pending' && (
                       <td className="row-actions">
                         <Button
+                          size="sm"
                           onClick={async () => {
                             await api(`/leaves/${l._id}/decide`, { method: 'PATCH', body: { status: 'Approved' } });
                             load();
                             loadUpcoming();
+                            loadSummary();
                           }}
                         >
                           Approve
                         </Button>
                         <Button
+                          size="sm"
                           variant="outline"
                           onClick={async () => {
                             await api(`/leaves/${l._id}/decide`, { method: 'PATCH', body: { status: 'Rejected' } });
                             load();
                             loadUpcoming();
+                            loadSummary();
                           }}
                         >
                           Reject
