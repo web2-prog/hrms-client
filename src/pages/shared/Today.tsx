@@ -131,7 +131,8 @@ export function TodayAttendancePage() {
       name: r.employee.name,
       check_in: formatClockInput(r.check_in),
       check_out: formatClockInput(r.check_out),
-      break_display: String(Math.floor(r.break_total ?? 0)),
+      // Keep fractional minutes — breaks are recorded with sub-minute precision.
+      break_display: String(r.break_total ?? 0),
       break_started_at: formatClockInput(r.break_started_at),
       penalty_waived: !!r.penalty_waived,
       end_break: false,
@@ -318,7 +319,7 @@ export function TodayAttendancePage() {
                     className="input"
                     type="number"
                     min={0}
-                    step={1}
+                    step={0.5}
                     value={edit.break_display}
                     onChange={(e) => setEdit({ ...edit, break_display: e.target.value })}
                   />

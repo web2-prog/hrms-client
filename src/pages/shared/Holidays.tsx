@@ -35,6 +35,15 @@ function dateParts(d?: string) {
   return { y, m, day };
 }
 
+/** Calendar days in an inclusive date range (handles ranges crossing months/years). */
+function rangeDays(s?: string, e?: string) {
+  if (!s || !e) return 0;
+  const a = new Date(s + 'T00:00:00').getTime();
+  const b = new Date(e + 'T00:00:00').getTime();
+  if (Number.isNaN(a) || Number.isNaN(b) || b < a) return 0;
+  return Math.round((b - a) / 86400000) + 1;
+}
+
 export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
   const list = useListParams();
   const { user } = useAuth();
@@ -50,8 +59,9 @@ export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
 
   const year = list.get('year') || '2026';
 
-  // Year snapshot for the summary strip (independent of search/pagination).
-  const [snapshot, setSnapshot] = useState<Holiday[] | null>(null);
+  // Year working-days summary (single source of truth for the strip — same
+  // numbers as the Admin dashboard: non-overlapping off-day counts).
+  const [wd, setWd] = useState<any>(null);
 
   const load = async () => {
     setLoading(true);
@@ -68,26 +78,30 @@ export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
     }
   };
 
-  const loadSnapshot = async () => {
+  const loadWd = async () => {
     try {
-      const res = await api<ListResult<Holiday>>(`/holidays?year=${year}&limit=100`);
-      setSnapshot(res.data);
+      const res = await api<any>(`/working-days?year=${year}`);
+      setWd(res);
     } catch {
-      setSnapshot(null);
+      setWd(null);
     }
   };
 
   useEffect(() => { load(); }, [list.page, list.limit, list.search, list.params]);
 
-  useEffect(() => { loadSnapshot(); }, [year]);
+  useEffect(() => { loadWd(); }, [year]);
 
+  // Non-overlapping day counts (vacations absorb weekends inside them), matching
+  // the Admin dashboard's working-days breakdown exactly.
   const counts = useMemo(() => {
-    const c = { total: snapshot?.length ?? 0, Festival: 0, Saturday: 0, Vacation: 0, Manual: 0 };
-    for (const h of snapshot || []) {
-      if (h.type in c) c[h.type as keyof typeof c] += 1;
-    }
-    return c;
-  }, [snapshot]);
+    const b = wd?.breakdown;
+    return {
+      total: wd?.non_working_days ?? 0,
+      Festival: b?.festivals ?? 0,
+      Saturday: b?.alternate_saturdays ?? 0,
+      Vacation: b?.vacation_days ?? 0,
+    };
+  }, [wd]);
 
   const confirmDelete = async () => {
     if (!deleting) return;
@@ -97,7 +111,7 @@ export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
       await api(`/holidays/${deleting._id}`, { method: 'DELETE' });
       setDeleting(null);
       load();
-      loadSnapshot();
+      loadWd();
     } catch (e) {
       setDeleteErr(e instanceof Error ? e.message : 'Failed to delete');
     } finally {
@@ -143,7 +157,7 @@ export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
           ) : undefined
         }
         prepend={
-          snapshot && (
+          wd && (
             <div className="page-stats">
               <div className="card emp-stat card-accent">
                 <div className="stat-card">
@@ -179,9 +193,9 @@ export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
                 <div className="stat-card">
                   <span className="stat-icon teal"><Plane size={20} /></span>
                   <div>
-                    <span className="label">Vacations</span>
+                    <span className="label">Vacation days</span>
                     <div className="emp-stat-value">{counts.Vacation}</div>
-                    <span className="emp-stat-hint">Planned off periods</span>
+                    <span className="emp-stat-hint">Off days in vacations</span>
                   </div>
                 </div>
               </div>
@@ -218,8 +232,8 @@ export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
                   </p>
                   <div className="hol-chips">
                     <span className={`hol-chip is-${typeClass}`}>{h.type}</span>
-                    {isRange && end && (
-                      <span className="hol-chip is-neutral">{end.day - start!.day + 1} days</span>
+                    {isRange && (
+                      <span className="hol-chip is-neutral">{rangeDays(h.start_date, h.end_date)} days</span>
                     )}
                   </div>
                 </div>
@@ -251,7 +265,7 @@ export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
           onSaved={() => {
             setShowAdd(false);
             load();
-            loadSnapshot();
+            loadWd();
           }}
         />
       )}

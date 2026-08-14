@@ -8,6 +8,7 @@ import { BondSalaryManager } from '../../components/BondSalaryManager';
 import { useAuth } from '../../context/AuthContext';
 import { formatClockInput, to24HourClock } from '../../utils/timeFormat';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   Dialog,
   DialogContent,
@@ -15,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { KeyRound } from 'lucide-react';
 
 type Dept = { _id: string; name: string };
 type Emp = {
@@ -230,6 +232,48 @@ export function EmployeeManagePage({ basePath }: { basePath: string }) {
   const [offerMsg, setOfferMsg] = useState('');
   const [offerErr, setOfferErr] = useState('');
   const [uploadingOffer, setUploadingOffer] = useState(false);
+  const [pwOpen, setPwOpen] = useState(false);
+  const [pw, setPw] = useState({ next: '', confirm: '' });
+  const [pwErr, setPwErr] = useState('');
+  const [pwOk, setPwOk] = useState('');
+  const [pwBusy, setPwBusy] = useState(false);
+
+  const openPasswordDialog = () => {
+    setPw({ next: '', confirm: '' });
+    setPwErr('');
+    setPwOk('');
+    setPwOpen(true);
+  };
+
+  const submitPassword = async () => {
+    setPwErr('');
+    setPwOk('');
+    if (!pw.next) {
+      setPwErr('Enter the new password.');
+      return;
+    }
+    if (pw.next.length < 6) {
+      setPwErr('New password must be at least 6 characters.');
+      return;
+    }
+    if (pw.next !== pw.confirm) {
+      setPwErr('New password and confirmation do not match.');
+      return;
+    }
+    setPwBusy(true);
+    try {
+      await api(`/employees/${id}/reset-password`, {
+        method: 'POST',
+        body: { new_password: pw.next },
+      });
+      setPwOk('Password updated for this employee.');
+      window.setTimeout(() => setPwOpen(false), 1200);
+    } catch (e) {
+      setPwErr(e instanceof Error ? e.message : 'Failed to update password');
+    } finally {
+      setPwBusy(false);
+    }
+  };
 
   const load = () => api(`/employees/${id}`).then((e: any) => {
     const bonds = Array.isArray(e.bonds) && e.bonds.length
@@ -281,9 +325,15 @@ export function EmployeeManagePage({ basePath }: { basePath: string }) {
           <h1>{emp.name}</h1>
           <div style={{ color: 'var(--muted)' }}>{emp.employee_id} · {emp.email}</div>
         </div>
-        {user?.role === 'admin' && (
-          <Button variant="destructive" style={{ flexShrink: 0, whiteSpace: 'nowrap' }} onClick={() => setClearOpen(true)}>Clear Data</Button>
-        )}
+        <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+          <Button variant="outline" onClick={openPasswordDialog} title="Set a new password for this employee">
+            <KeyRound size={16} />
+            Change Password
+          </Button>
+          {user?.role === 'admin' && (
+            <Button variant="destructive" style={{ whiteSpace: 'nowrap' }} onClick={() => setClearOpen(true)}>Clear Data</Button>
+          )}
+        </div>
       </div>
       <div className="card" style={{ marginBottom: 16 }}>
         <h3>Basic</h3>
@@ -515,6 +565,47 @@ export function EmployeeManagePage({ basePath }: { basePath: string }) {
           setMsg('Data cleared for range');
         }}
       />
+      <Dialog open={pwOpen} onOpenChange={(o) => !o && setPwOpen(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change Password</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-1.5">
+            <label className="label" htmlFor="pw-new">
+              New password
+            </label>
+            <Input
+              id="pw-new"
+              type="password"
+              autoComplete="new-password"
+              placeholder="At least 6 characters"
+              value={pw.next}
+              onChange={(e) => setPw((p) => ({ ...p, next: e.target.value }))}
+            />
+            <label className="label" htmlFor="pw-confirm">
+              Confirm new password
+            </label>
+            <Input
+              id="pw-confirm"
+              type="password"
+              autoComplete="new-password"
+              placeholder="Re-enter the new password"
+              value={pw.confirm}
+              onChange={(e) => setPw((p) => ({ ...p, confirm: e.target.value }))}
+            />
+            {pwErr && <p style={{ color: 'var(--error)', margin: 0 }}>{pwErr}</p>}
+            {pwOk && <p style={{ color: 'var(--success)', margin: 0 }}>{pwOk}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" disabled={pwBusy} onClick={() => setPwOpen(false)}>
+              Cancel
+            </Button>
+            <Button disabled={pwBusy || !pw.next || !pw.confirm} onClick={submitPassword}>
+              {pwBusy ? 'Updating…' : 'Update password'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -87,11 +87,20 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
 
   const loadSummary = async () => {
     try {
+      // Same filters as the table so the strip reflects the filtered view.
+      const base = {
+        limit: 1,
+        month,
+        year,
+        department_id: list.get('department_id'),
+        employee_id: list.get('employee_id'),
+      };
       const res = await Promise.all([
-        api<ListResult<Att>>(`/attendance${buildQuery({ limit: 1, month, year })}`),
-        api<ListResult<Att>>(`/attendance${buildQuery({ limit: 1, month, year, status: 'OnTime' })}`),
-        api<ListResult<Att>>(`/attendance${buildQuery({ limit: 1, month, year, status: 'Extra' })}`),
-        api<ListResult<Att>>(`/attendance${buildQuery({ limit: 1, month, year, status: 'Low' })}`),
+        api<ListResult<Att>>(`/attendance${buildQuery(base)}`),
+        api<ListResult<Att>>(`/attendance${buildQuery({ ...base, status: 'OnTime' })}`),
+        // Auto-checkout days don't earn OT — match the table's OT column.
+        api<ListResult<Att>>(`/attendance${buildQuery({ ...base, status: 'Extra', exclude_auto_checkout: '1' })}`),
+        api<ListResult<Att>>(`/attendance${buildQuery({ ...base, status: 'Low' })}`),
       ]).catch(() => null);
       if (!res) return setSummary(null);
       const [totalRes, onTime, extra, low] = res;
@@ -107,7 +116,7 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
   };
 
   useEffect(() => { load(); }, [list.page, list.limit, list.search, list.params]);
-  useEffect(() => { loadSummary(); }, [month, year]);
+  useEffect(() => { loadSummary(); }, [month, year, list.params]);
   useEffect(() => {
     if (!isStaff) return;
     api<ListResult<any>>('/departments?limit=50').then((r) => setDepts(r.data));
@@ -119,7 +128,8 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
       ...r,
       check_in: formatClockInput(r.check_in),
       check_out: formatClockInput(r.check_out),
-      break_display: String(Math.floor(r.break_total ?? 0)),
+      // Keep fractional minutes — breaks are recorded with sub-minute precision.
+      break_display: String(r.break_total ?? 0),
     });
   };
 
@@ -291,15 +301,15 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
                   className="input"
                   type="number"
                   min={0}
-                  step={1}
+                  step={0.5}
                   placeholder="24"
-                  value={edit.break_display ?? String(Math.floor(edit.break_total ?? 0))}
+                  value={edit.break_display ?? String(edit.break_total ?? 0)}
                   onChange={(e) => setEdit({ ...edit, break_display: e.target.value })}
                 />
               </div>
             </div>
             <p className="emp-action-help" style={{ marginTop: 8 }}>
-              Times use 12-hour clock with AM/PM (e.g. 9:15:00 AM). Break is shown in whole minutes (e.g. 24m). Hours and OT recalculate on save.
+              Times use 12-hour clock with AM/PM (e.g. 9:15:00 AM). Break is in minutes and can be fractional (e.g. 24.5). Hours and OT recalculate on save.
             </p>
             <DialogFooter>
               <Button variant="outline" onClick={() => setEdit(null)}>Cancel</Button>

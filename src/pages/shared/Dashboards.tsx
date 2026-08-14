@@ -9,7 +9,6 @@ import {
   Download,
   FileText,
   LogIn,
-  LogOut,
   Timer,
   TrendingUp,
   Users,
@@ -187,6 +186,12 @@ function PersonalAttendanceBody({ title }: { title: string }) {
   const monthTarget = Number(summary?.monthly_target_hours || 0);
   const monthCounted = Number(summary?.monthly_counted_hours || 0);
   const monthPct = monthTarget > 0 ? Math.min(100, Math.round((monthCounted / monthTarget) * 100)) : 0;
+  const workedSeconds = Math.max(0, Math.round(live.workMins * 60));
+  const workedClock = {
+    hours: pad2(Math.floor(workedSeconds / 3600)),
+    minutes: pad2(Math.floor((workedSeconds % 3600) / 60)),
+    seconds: pad2(workedSeconds % 60),
+  };
 
   const submitEarlyRequest = async () => {
     if (!earlyReason.trim()) {
@@ -236,204 +241,95 @@ function PersonalAttendanceBody({ title }: { title: string }) {
   return (
     <>
 
-      <div className="att-board">
-        <section className="card att-times-card">
-          <div className="att-times-head">
-            <div>
-              <h3>Today’s attendance</h3>
-            </div>
-            <div className="att-status-pills">
-              <StatusBadge
-                status={
-                  live.onBreak && !live.checkedOut
-                    ? 'OnBreak'
-                    : live.checkedIn && !live.checkedOut
-                      ? 'Working'
-                      : att.status
-                }
-              />
-              {live.checkedOut && hoursBadge(att.surplus_shortfall, att.status)}
-              {ecr?.status === 'Pending' && <span className="badge badge-info">Early checkout pending</span>}
-              {ecr?.status === 'Approved' && !live.checkedOut && (
-                <span className="badge badge-success">Early checkout approved</span>
-              )}
-              {live.isEarly && !live.checkedOut && !live.onBreak && (
-                <span className="badge badge-warn">Before shift end</span>
-              )}
+      <section className="card attendance-widget">
+        <header className="attendance-widget-head">
+          <h3>Today's Attendance</h3>
+          {live.checkedOut && hoursBadge(att.surplus_shortfall, att.status)}
+        </header>
+
+        <div className="attendance-widget-main">
+          <div className="attendance-work-timer">
+            <span className="attendance-eyebrow">Work Timer</span>
+            <div className="attendance-clock" aria-label={`${workedClock.hours} hours, ${workedClock.minutes} minutes, ${workedClock.seconds} seconds`}>
+              <div><strong>{workedClock.hours}</strong><span>hours</span></div>
+              <b>:</b>
+              <div><strong>{workedClock.minutes}</strong><span>minutes</span></div>
+              <b>:</b>
+              <div><strong>{workedClock.seconds}</strong><span>seconds</span></div>
             </div>
           </div>
 
-          <div className="att-times-grid">
-            <div className="att-time-cell">
-              <span className="label">Check in</span>
-              <strong>{displayClock(att.check_in)}</strong>
-              {live.penaltyMinutes > 0 && !live.penaltyWaived ? (
-                <span className="att-time-note is-penalty">
-                  Work from {displayClock(live.workStart)} · +{live.latePenaltyRule}m penalty
-                </span>
-              ) : live.checkedIn ? (
-                <span className="att-time-note">Work from {displayClock(live.workStart || att.check_in)}</span>
-              ) : (
-                <span className="att-time-note">Not checked in yet</span>
-              )}
-            </div>
-            <div className="att-time-cell">
-              <span className="label">Check out</span>
-              <strong>{displayClock(att.check_out)}</strong>
-              {att.auto_checkout ? (
-                <span className="att-time-note">Auto at 11:55 PM</span>
-              ) : live.checkedOut ? (
-                <span className="att-time-note">Day closed</span>
-              ) : live.checkedIn ? (
-                <span className="att-time-note">Still on shift · ends {displayClock(shift.shift_end)}</span>
-              ) : (
-                <span className="att-time-note">—</span>
-              )}
-            </div>
-            <div className={`att-time-cell ${live.onBreak && !live.checkedOut ? 'is-live' : ''}`}>
-              <span className="label">Current break</span>
-              <strong>
-                {live.onBreak && !live.checkedOut
-                  ? formatDurationMinutes(live.breakSessionMins)
-                  : '00:00:00'}
-              </strong>
-              <span className="att-time-note">
-                {live.onBreak && !live.checkedOut
-                  ? `Live · started ${displayClock(att.break_started_at)}`
-                  : 'No active break'}
-              </span>
-            </div>
-            <div className="att-time-cell">
-              <span className="label">Break today</span>
-              <strong>{formatDurationMinutes(live.breakMins)}</strong>
-              <span className="att-time-note">
-                {live.breakMins > 0 ? 'Total for current day' : 'No break taken today'}
-              </span>
-            </div>
-          </div>
-        </section>
-
-        <section className="card att-controls-card">
-          <div className="att-times-head">
-            <div>
-              <h3>Clock actions</h3>
-            </div>
-          </div>
-          {err && <p className="att-controls-error">{err}</p>}
-
-          <div className="att-controls-body">
+          <div className="attendance-actions">
+            {err && <p className="att-controls-error">{err}</p>}
             {!live.checkedIn && (
-              <Button
-                size="lg"
-                className="att-btn att-btn-checkin"
-                disabled={busy}
-                onClick={() => action('/attendance/me/check-in')}
-              >
-                <LogIn size={18} />
-                Check In
+              <Button className="attendance-action attendance-action-primary" disabled={busy} onClick={() => action('/attendance/me/check-in')}>
+                <LogIn size={16} /> Check In
               </Button>
             )}
-
             {live.checkedIn && !live.checkedOut && (
               <>
-                <div className="att-controls-row">
-                  {live.onBreak ? (
-                    <Button
-                      size="lg"
-                      className="att-btn att-btn-break is-active"
-                      disabled={busy}
-                      onClick={() => action('/attendance/me/end-break')}
-                    >
-                      <Coffee size={18} />
-                      End Break
-                    </Button>
-                  ) : (
-                    <Button
-                      size="lg"
-                      variant="outline"
-                      className="att-btn att-btn-break"
-                      disabled={busy}
-                      onClick={() => action('/attendance/me/start-break')}
-                    >
-                      <Coffee size={18} />
-                      Break
-                    </Button>
-                  )}
-                  <Button
-                    size="lg"
-                    className="att-btn att-btn-checkout"
-                    variant={live.isEarly ? 'outline' : 'default'}
-                    disabled={busy || live.isEarly || ecr?.status === 'Pending'}
-                    onClick={() => action('/attendance/me/check-out')}
-                  >
-                    <LogOut size={18} />
-                    Check Out
-                  </Button>
-                </div>
-
-                <div className="att-controls-row">
-                    <Button
-                      size="lg"
-                      variant="outline"
-                      className="att-btn"
-                      disabled={busy || !live.isEarly || ecr?.status === 'Pending'}
-                      onClick={requestCheckout}
-                    >
-                      <LogOut size={18} />
-                      {ecr?.status === 'Pending' ? 'Early Checkout Pending' : 'Early Checkout'}
-                    </Button>
-                    <Button size="lg" variant="outline" className="att-btn" disabled>
-                      <Timer size={18} />
-                      Overtime
-                    </Button>
-                  </div>
-
+                <Button
+                  variant="outline"
+                  className={`attendance-action attendance-action-break ${live.onBreak ? 'is-active' : ''}`}
+                  disabled={busy}
+                  onClick={() => action(live.onBreak ? '/attendance/me/end-break' : '/attendance/me/start-break')}
+                >
+                  <Coffee size={16} /> {live.onBreak ? 'End Break' : 'Break'}
+                </Button>
+                <Button
+                  className="attendance-action attendance-action-primary"
+                  disabled={busy || ecr?.status === 'Pending'}
+                  onClick={live.isEarly ? requestCheckout : () => action('/attendance/me/check-out')}
+                >
+                  {ecr?.status === 'Pending'
+                    ? 'Early Checkout Pending'
+                    : live.isEarly
+                      ? 'Early Checkout Request'
+                      : 'Check Out'}
+                </Button>
                 {ecr?.status === 'Pending' && (
-                  <Button variant="outline" className="att-btn" disabled={busy} onClick={cancelEarlyRequest}>
-                    Cancel early checkout request
-                  </Button>
+                  <button className="attendance-cancel" disabled={busy} onClick={cancelEarlyRequest}>
+                    Cancel request
+                  </button>
                 )}
               </>
             )}
-
             {live.checkedOut && (
-              <div className="att-controls-closed">
-                <p className="emp-action-help" style={{ margin: 0 }}>
-                  Day closed{att.auto_checkout ? ' (auto-checkout 11:55 PM)' : ''} · worked{' '}
-                  {formatHours(att.working_hours)} · break {formatDurationMinutes(att.break_total || 0)}
-                </p>
+              <div className="attendance-day-closed">
+                Day closed{att.auto_checkout ? ' · Auto checkout' : ''}
               </div>
             )}
-
-            {!live.checkedIn && (
-              <p className="emp-action-help att-controls-caption">
-                Start your workday. Current time: {displayClock(live.now)}
-              </p>
-            )}
-
-            {live.checkedIn && !live.checkedOut && (
-              <p className="emp-action-help att-controls-caption">
-                {live.onBreak
-                  ? 'Break is running — end break to resume work.'
-                  : ecr?.status === 'Pending'
-                    ? `Request sent at ${displayClock(ecr.requested_time)} — waiting for HR/Admin approval.`
-                    : live.isEarly
-                      ? `Regular checkout opens at ${displayClock(shift.shift_end)}. Early checkout needs HR/Admin approval.`
-                      : 'Ready to end the day? Check out to lock today’s hours.'}
-              </p>
-            )}
           </div>
+        </div>
 
-          {ecr?.status === 'Rejected' && (
-            <div className="emp-early-confirm">
-              <p style={{ margin: 0 }}>
-                <strong>Early checkout request declined.</strong>{' '}
-                {ecr.decision_note || 'HR/Admin did not approve your early checkout.'}
-              </p>
-            </div>
-          )}
-        </section>
-      </div>
+        <div className="attendance-widget-meta">
+          <div><span>Check In</span><strong>{displayClock(att.check_in)}</strong></div>
+          <div><span>Check Out</span><strong>{displayClock(att.check_out)}</strong></div>
+          <div><span>Break Time</span><strong>{formatDurationMinutes(live.breakMins)}</strong></div>
+          <div>
+            <span>Status</span>
+            <strong className={live.onBreak && !live.checkedOut ? 'is-on-break' : ''}>
+              {live.onBreak && !live.checkedOut
+                ? 'On Break'
+                : live.checkedIn && !live.checkedOut
+                  ? 'Active'
+                  : live.checkedOut
+                    ? 'Completed'
+                    : 'Not Started'}
+            </strong>
+          </div>
+        </div>
+
+        {ecr?.status === 'Rejected' && (
+          <div className="attendance-notice is-error">
+            <strong>Early checkout request declined.</strong>{' '}
+            {ecr.decision_note || 'HR/Admin did not approve your early checkout.'}
+          </div>
+        )}
+        {ecr?.status === 'Approved' && !live.checkedOut && (
+          <div className="attendance-notice is-success">Your early checkout request has been approved.</div>
+        )}
+      </section>
 
       <div className="emp-dash-stats">
         <div className="card emp-stat card-accent">

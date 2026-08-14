@@ -81,11 +81,13 @@ export function OvertimePage() {
 
   const loadSummary = async () => {
     try {
+      // Match the table's source filter so the strip reflects the filtered view.
+      const base = { limit: 1, month, year, source };
       const res = await Promise.all([
-        api<ListResult<OtRequest>>(`/overtime${buildQuery({ limit: 1, month, year })}`),
-        api<ListResult<OtRequest>>(`/overtime${buildQuery({ limit: 1, month, year, status: 'Pending' })}`),
-        api<ListResult<OtRequest>>(`/overtime${buildQuery({ limit: 1, month, year, status: 'Approved' })}`),
-        api<ListResult<OtRequest>>(`/overtime${buildQuery({ limit: 1, month, year, status: 'Rejected' })}`),
+        api<ListResult<OtRequest>>(`/overtime${buildQuery(base)}`),
+        api<ListResult<OtRequest>>(`/overtime${buildQuery({ ...base, status: 'Pending' })}`),
+        api<ListResult<OtRequest>>(`/overtime${buildQuery({ ...base, status: 'Approved' })}`),
+        api<ListResult<OtRequest>>(`/overtime${buildQuery({ ...base, status: 'Rejected' })}`),
       ]).catch(() => null);
       if (!res) return setSummary(null);
       const [totalRes, pending, approved, rejected] = res;
@@ -101,7 +103,7 @@ export function OvertimePage() {
   };
 
   useEffect(() => { load(); }, [list.page, list.limit, list.search, list.params]);
-  useEffect(() => { loadSummary(); }, [month, year]);
+  useEffect(() => { loadSummary(); }, [month, year, source, list.params]);
 
   const periodLabel = `${MONTH_NAMES[Number(month) - 1]} ${year}`;
 

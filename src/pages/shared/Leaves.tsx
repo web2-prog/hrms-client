@@ -120,11 +120,19 @@ export function LeavesPage() {
 
   const loadSummary = async () => {
     try {
+      // Same filters as the table so the strip reflects the filtered view.
+      const base = {
+        limit: 1,
+        month: month || undefined,
+        year: year || undefined,
+        department_id: list.get('department_id'),
+        employee_id: list.get('employee_id'),
+      };
       const res = await Promise.all([
-        api<ListResult<Leave>>(`/leaves${buildQuery({ limit: 1, month: month || undefined, year: year || undefined })}`),
-        api<ListResult<Leave>>(`/leaves${buildQuery({ limit: 1, month: month || undefined, year: year || undefined, status: 'Pending' })}`),
-        api<ListResult<Leave>>(`/leaves${buildQuery({ limit: 1, month: month || undefined, year: year || undefined, status: 'Approved' })}`),
-        api<ListResult<Leave>>(`/leaves${buildQuery({ limit: 1, month: month || undefined, year: year || undefined, status: 'Rejected' })}`),
+        api<ListResult<Leave>>(`/leaves${buildQuery(base)}`),
+        api<ListResult<Leave>>(`/leaves${buildQuery({ ...base, status: 'Pending' })}`),
+        api<ListResult<Leave>>(`/leaves${buildQuery({ ...base, status: 'Approved' })}`),
+        api<ListResult<Leave>>(`/leaves${buildQuery({ ...base, status: 'Rejected' })}`),
       ]).catch(() => null);
       if (!res) return setSummary(null);
       const [totalRes, pending, approved, rejected] = res;
@@ -144,7 +152,7 @@ export function LeavesPage() {
     loadUpcoming();
   }, [list.page, list.limit, list.search, list.params, user?._id]);
 
-  useEffect(() => { loadSummary(); }, [month, year]);
+  useEffect(() => { loadSummary(); }, [month, year, list.params]);
 
   const afterApply = () => {
     // Clear Approved/Rejected filter so the new Pending leave is visible
