@@ -24,6 +24,7 @@ type TodayRow = {
   attendance_id?: string | null;
   check_in?: string | null;
   check_out?: string | null;
+  auto_checkout?: boolean;
   work_start?: string | null;
   break_total?: number;
   break_started_at?: string | null;
@@ -248,7 +249,10 @@ export function TodayAttendancePage() {
                   <td>{r.employee.department_id?.name || '—'}</td>
                   <td>{displayClock(r.check_in)}</td>
                   <td>{displayClock(r.work_start || r.check_in)}</td>
-                  <td>{displayClock(r.check_out)}</td>
+                  <td>
+                    {displayClock(r.check_out)}
+                    {r.auto_checkout ? <div className="label">Auto 11:55 PM</div> : null}
+                  </td>
                   <td>
                     {formatBreakMinutes(r.live_break_minutes ?? r.break_total ?? 0)}
                     {r.break_started_at ? (

@@ -1468,16 +1468,188 @@ table.data tbody tr:last-child td {
   min-width: 140px;
 }
 
-.emp-action-help {
+.emp-action-row .emp-action-help {
   flex: 1 1 220px;
+}
+
+.emp-action-help {
   margin: 0;
   color: var(--graphite);
   font-size: 0.9rem;
 }
 
+/* Attendance clock board — times + actions */
+.att-board {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(280px, 0.9fr);
+  column-gap: 1.5rem;
+  row-gap: 1.5rem;
+  align-items: stretch;
+}
+
+.att-times-card,
+.att-controls-card {
+  margin: 0;
+  height: 100%;
+  min-height: 0;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+}
+
+.att-times-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.att-times-head h3,
+.att-controls-card h3 {
+  margin: 0 0 0.25rem;
+}
+
+.att-status-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.att-times-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  flex: 1;
+  min-height: 0;
+}
+
+.att-time-cell {
+  background: var(--cloud);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  padding: 0.85rem 1rem;
+  min-height: 0;
+}
+
+.att-time-cell.is-live {
+  background: var(--warn-soft);
+  border-color: #fcd34d;
+}
+
+.att-time-cell strong {
+  display: block;
+  font-family: var(--font-heading);
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin-top: 0.2rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+.att-time-note {
+  display: block;
+  margin-top: 0.28rem;
+  color: var(--graphite);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.att-time-note.is-penalty {
+  color: var(--error-ink);
+  font-weight: 600;
+}
+
+.att-controls-card {
+  gap: 0;
+}
+
+.att-controls-error {
+  color: var(--error);
+  margin: 0 0 0.65rem;
+  font-size: 0.88rem;
+}
+
+.att-controls-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-height: 0;
+  padding: 0.85rem;
+  background: var(--cloud);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+}
+
+.att-controls-card .emp-action-help,
+.att-controls-caption {
+  flex: none;
+  width: 100%;
+}
+
+.att-controls-caption {
+  margin: auto 0 0;
+  line-height: 1.4;
+}
+
+.att-controls-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  flex: 0 0 auto;
+}
+
+.att-controls-row .att-btn,
+.att-controls-body > .att-btn,
+.att-controls-card button.att-btn[data-slot="button"] {
+  height: 48px;
+  min-height: 48px;
+}
+
+.att-controls-body > .att-btn {
+  flex: 0 0 auto;
+}
+
+.att-controls-closed {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  padding: 0.15rem 0.1rem;
+}
+
+.att-btn {
+  width: 100%;
+  min-height: 48px;
+}
+
+.att-btn-checkin {
+  min-height: 48px;
+}
+
+.att-btn-break.is-active {
+  background: var(--warn);
+  color: #fff;
+  border-color: var(--warn);
+}
+
+.att-btn-break.is-active:hover {
+  background: var(--warn-ink);
+  color: #fff;
+}
+
+button.att-btn-break.is-active[data-slot="button"] {
+  background: var(--warn);
+  color: #fff;
+  border-color: var(--warn);
+}
+
 .emp-early-confirm {
-  margin-top: 1rem;
-  padding: 0.95rem 1.05rem;
+  margin-top: 0.75rem;
+  padding: 0.85rem 1rem;
   border: 1px solid var(--error-soft);
   background: var(--error-soft);
   border-radius: var(--radius-sm);
@@ -1491,10 +1663,22 @@ table.data tbody tr:last-child td {
 .emp-dash-month-head {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  gap: 0.75rem;
+  align-items: flex-start;
+  gap: 1rem;
   flex-wrap: wrap;
   margin-bottom: 0.5rem;
+}
+
+.emp-dash-month .emp-dash-clock {
+  text-align: right;
+  padding: 0.55rem 0.9rem;
+  box-shadow: none;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.emp-dash-month .emp-dash-clock-time {
+  font-size: 1.45rem;
 }
 
 .emp-dash-month-hours {
@@ -1727,6 +1911,11 @@ table.data tbody tr:last-child td {
 }
 
 @media (max-width: 960px) {
+  .att-board {
+    grid-template-columns: 1fr;
+    row-gap: 1.25rem;
+  }
+
   .emp-dash-stats,
   .emp-dash-month-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1782,7 +1971,9 @@ table.data tbody tr:last-child td {
 @media (max-width: 560px) {
   .emp-dash-stats,
   .emp-dash-month-grid,
-  .emp-dash-timeline {
+  .emp-dash-timeline,
+  .att-times-grid,
+  .att-controls-row {
     grid-template-columns: 1fr;
   }
 
@@ -1792,6 +1983,11 @@ table.data tbody tr:last-child td {
 
   .dash-shortcut-list {
     grid-template-columns: 1fr;
+  }
+
+  .emp-dash-month .emp-dash-clock {
+    text-align: right;
+    width: auto;
   }
 
   .emp-dash-clock {

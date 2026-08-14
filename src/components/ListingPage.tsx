@@ -12,8 +12,9 @@ import {
 } from '@/components/ui/select';
 
 type Props = {
-  title: string;
+  title?: string;
   searchPlaceholder?: string;
+  hideSearch?: boolean;
   filters?: React.ReactNode;
   typeFilters?: React.ReactNode;
   actions?: React.ReactNode;
@@ -28,6 +29,7 @@ type Props = {
 export function ListingPage({
   title,
   searchPlaceholder = 'Search…',
+  hideSearch,
   filters,
   typeFilters,
   actions,
@@ -47,6 +49,7 @@ export function ListingPage({
   useEffect(() => setLocalSearch(search), [search]);
 
   useEffect(() => {
+    if (hideSearch) return;
     const t = setTimeout(() => {
       const next = new URLSearchParams(params);
       if (localSearch) next.set('search', localSearch);
@@ -55,7 +58,7 @@ export function ListingPage({
       if (localSearch !== search) setParams(next);
     }, 300);
     return () => clearTimeout(t);
-  }, [localSearch]);
+  }, [localSearch, hideSearch]);
 
   const setPage = (p: number) => {
     const next = new URLSearchParams(params);
@@ -74,19 +77,23 @@ export function ListingPage({
 
   return (
     <div>
+      {title ? (
       <div className="page-header">
         <h1>{title}</h1>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>{actions}</div>
       </div>
+      ) : null}
       <div className="card card-accent">
         <div className="listing-toolbar">
           {filters}
-          <Input
-            className="search"
-            placeholder={searchPlaceholder}
-            value={localSearch}
-            onChange={(e) => setLocalSearch(e.target.value)}
-          />
+          {!hideSearch && (
+            <Input
+              className="search"
+              placeholder={searchPlaceholder}
+              value={localSearch}
+              onChange={(e) => setLocalSearch(e.target.value)}
+            />
+          )}
           <div className="right">
             {typeFilters}
             <Button type="button" variant="outline" size="icon" title="Refresh" onClick={onRefresh}>

@@ -22,6 +22,7 @@ import {
   BookOpen,
   Headphones,
   Sun,
+  History,
 } from 'lucide-react';
 
 type NavItem = { to: string; end?: boolean; label: string; icon: typeof LayoutDashboard };
@@ -116,6 +117,7 @@ const hrGroups: NavGroup[] = [
 
 const empLinks: NavItem[] = [
   { to: '/app', end: true, label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/app/attendance', label: 'Attendance History', icon: History },
   { to: '/app/profile', label: 'Profile', icon: Users },
   { to: '/app/salary', label: 'Salary Slip', icon: Wallet },
   { to: '/app/overtime', label: 'Overtime', icon: Timer },

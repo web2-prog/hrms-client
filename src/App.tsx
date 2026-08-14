@@ -8,6 +8,7 @@ import { EmployeesPage, EmployeeManagePage } from './pages/shared/Employees';
 import EmployeeSummaryPage from './pages/shared/EmployeeSummary';
 import AnalyticsPage from './pages/shared/Analytics';
 import { AttendancePage } from './pages/shared/Attendance';
+import { AttendanceHistoryPage } from './pages/shared/AttendanceHistory';
 import { TodayAttendancePage } from './pages/shared/Today';
 import { LeavesPage } from './pages/shared/Leaves';
 import { HolidaysPage } from './pages/shared/Holidays';
@@ -97,6 +98,7 @@ function AppRoutes() {
       >
         <Route index element={<EmployeeDashboard />} />
         <Route path="profile" element={<ProfilePage />} />
+        <Route path="attendance" element={<AttendanceHistoryPage />} />
         <Route path="salary" element={<SalaryPage />} />
         <Route path="overtime" element={<OvertimePage />} />
         <Route path="leaves" element={<LeavesPage />} />
