@@ -135,11 +135,17 @@ export const slipDailyRate = (form: Pick<SalarySlipFormData, 'basic' | 'workingD
   return days > 0 ? Number(form.basic) / days : 0;
 };
 
-/** Leave count → leave deduction amount (per-day rate × days). */
-export const applyLeaveCount = (form: SalarySlipFormData, leaveDays: number): SalarySlipFormData => {
-  const days = Math.max(0, Number(leaveDays) || 0);
-  const amount = Math.round(days * slipDailyRate(form) * 100) / 100;
-  return { ...patchYtd(form, 'leaveDeduction', 'ytdLeaveDeduction', amount), leaveDays: days };
+/** LOP days → leave deduction amount (per-day rate × unpaid days). Approved leave is display-only. */
+export const applyLopDays = (form: SalarySlipFormData, lopDays: number): SalarySlipFormData => {
+  const days = Math.max(0, Number(lopDays) || 0);
+  const workingDays = Number(form.workingDays) || Number(form.paidDays) + Number(form.lopDays) || 0;
+  const amount = Math.round(days * slipDailyRate({ ...form, lopDays: days, workingDays }) * 100) / 100;
+  const next = patchYtd({ ...form, workingDays }, 'leaveDeduction', 'ytdLeaveDeduction', amount);
+  return {
+    ...next,
+    lopDays: days,
+    paidDays: workingDays > 0 ? Math.max(0, Math.round((workingDays - days) * 100) / 100) : form.paidDays,
+  };
 };
 
 function patchYtd(

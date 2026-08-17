@@ -123,9 +123,10 @@ function DepartmentsInner() {
   // Overall snapshot for the summary strip (independent of search/pagination).
   const [snapshot, setSnapshot] = useState<Dept[] | null>(null);
 
-  // Per-department attendance analytics for the current year.
-  const year = new Date().getFullYear();
+  // Per-department attendance analytics for the current business year (2026+).
+  const year = Math.max(2026, new Date().getFullYear());
   const [analytics, setAnalytics] = useState<Map<string, DeptAnalytics> | null>(null);
+  const [analyticsErr, setAnalyticsErr] = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -152,11 +153,14 @@ function DepartmentsInner() {
   };
 
   const loadAnalytics = async () => {
+    setAnalyticsErr('');
     try {
       const res = await api<{ year: number; departments: DeptAnalytics[] }>(`/departments/analytics?year=${year}`);
-      setAnalytics(new Map(res.departments.map((d) => [d.department_id, d])));
-    } catch {
+      const rows = Array.isArray(res.departments) ? res.departments : [];
+      setAnalytics(new Map(rows.map((d) => [String(d.department_id), d])));
+    } catch (e) {
       setAnalytics(null);
+      setAnalyticsErr(e instanceof Error ? e.message : 'Failed to load analytics');
     }
   };
 
@@ -296,7 +300,7 @@ function DepartmentsInner() {
           {data.map((d) => {
             const tone = toneFor(d.name);
             const members = memberLabel(d.members);
-            const an = analytics?.get(d._id);
+            const an = analytics?.get(String(d._id));
             return (
               <div className="dept-card" key={d._id}>
                 <div className="dept-card-head">
@@ -362,7 +366,12 @@ function DepartmentsInner() {
                   </div>
                 </div>
 
-                {analytics && (
+                {analyticsErr && (
+                  <div className="dept-analytics">
+                    <span className="dept-an-empty">{analyticsErr}</span>
+                  </div>
+                )}
+                {!analyticsErr && analytics && (
                   <div className="dept-analytics">
                     {an && an.attendance_days > 0 ? (
                       <>
@@ -378,7 +387,11 @@ function DepartmentsInner() {
                         </div>
                       </>
                     ) : (
-                      <span className="dept-an-empty">No tracked attendance for {year}</span>
+                      <span className="dept-an-empty">
+                        {(an?.employee_count || 0) > 0
+                          ? `No checked-in days yet for ${year}`
+                          : `No employee attendance for ${year}`}
+                      </span>
                     )}
                   </div>
                 )}
@@ -386,6 +399,10 @@ function DepartmentsInner() {
                 <div className="dept-card-foot">
                   <Link to={`${basePath}/employees?department_id=${d._id}`}>
                     View team
+                    <ArrowUpRight size={14} />
+                  </Link>
+                  <Link to={`${basePath}/analytics`}>
+                    Analytics
                     <ArrowUpRight size={14} />
                   </Link>
                 </div>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { api, type ListResult } from '../services/api';
 import { Button } from '@/components/ui/button';
 import {
   LayoutDashboard,
@@ -25,7 +26,13 @@ import {
   History,
 } from 'lucide-react';
 
-type NavItem = { to: string; end?: boolean; label: string; icon: typeof LayoutDashboard };
+type NavItem = {
+  to: string;
+  end?: boolean;
+  label: string;
+  icon: typeof LayoutDashboard;
+  badgeKey?: 'leaves';
+};
 type NavGroup = { title: string; items: NavItem[] };
 
 const adminGroups: NavGroup[] = [
@@ -54,7 +61,7 @@ const adminGroups: NavGroup[] = [
   {
     title: 'Calendar',
     items: [
-      { to: '/admin/leaves', label: 'Leaves', icon: CalendarDays },
+      { to: '/admin/leaves', label: 'Leaves', icon: CalendarDays, badgeKey: 'leaves' },
       { to: '/admin/holidays', label: 'Holidays', icon: Palmtree },
     ],
   },
@@ -78,7 +85,11 @@ const adminGroups: NavGroup[] = [
 const hrGroups: NavGroup[] = [
   {
     title: 'Overview',
-    items: [{ to: '/hr', end: true, label: 'Dashboard', icon: LayoutDashboard }],
+    items: [
+      { to: '/hr', end: true, label: 'Dashboard', icon: LayoutDashboard },
+      { to: '/hr/profile', label: 'My Profile', icon: Users },
+      { to: '/hr/my-attendance', label: 'My Attendance', icon: History },
+    ],
   },
   {
     title: 'People',
@@ -101,7 +112,7 @@ const hrGroups: NavGroup[] = [
   {
     title: 'Calendar',
     items: [
-      { to: '/hr/leaves', label: 'Leaves', icon: CalendarDays },
+      { to: '/hr/leaves', label: 'Leaves', icon: CalendarDays, badgeKey: 'leaves' },
       { to: '/hr/holidays', label: 'Holidays', icon: Palmtree },
     ],
   },
@@ -121,7 +132,7 @@ const empLinks: NavItem[] = [
   { to: '/app/profile', label: 'Profile', icon: Users },
   { to: '/app/salary', label: 'Salary Slip', icon: Wallet },
   { to: '/app/overtime', label: 'Overtime', icon: Timer },
-  { to: '/app/leaves', label: 'Leaves', icon: CalendarDays },
+  { to: '/app/leaves', label: 'Leaves', icon: CalendarDays, badgeKey: 'leaves' },
   { to: '/app/holidays', label: 'Holidays', icon: Palmtree },
   { to: '/app/policies', label: 'Policies', icon: BookOpen },
   { to: '/app/helpdesk', label: 'Helpdesk', icon: Headphones },
@@ -137,11 +148,17 @@ function initials(name?: string) {
     .join('');
 }
 
+function formatBadgeCount(n: number) {
+  if (n > 99) return '99+';
+  return String(n);
+}
+
 export function AppLayout({ variant }: { variant: 'admin' | 'hr' | 'employee' }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [navOpen, setNavOpen] = useState(false);
+  const [pendingLeaves, setPendingLeaves] = useState(0);
   const groups = variant === 'admin' ? adminGroups : variant === 'hr' ? hrGroups : null;
   // All links rendered flat together (no section-wise dropdowns)
   const links = groups ? groups.flatMap((g) => g.items) : empLinks;
@@ -159,17 +176,55 @@ export function AppLayout({ variant }: { variant: 'admin' | 'hr' | 'employee' })
     return () => window.removeEventListener('keydown', onKey);
   }, [navOpen]);
 
-  const renderLink = (l: NavItem) => (
-    <NavLink
-      key={l.to}
-      to={l.to}
-      end={'end' in l ? l.end : false}
-      className={({ isActive }) => (isActive ? 'active' : '')}
-    >
-      <l.icon size={18} />
-      {l.label}
-    </NavLink>
-  );
+  useEffect(() => {
+    let alive = true;
+    const loadPendingLeaves = async () => {
+      try {
+        const res = await api<ListResult<unknown>>('/leaves?limit=1&status=Pending');
+        if (alive) setPendingLeaves(Number(res.total || 0));
+      } catch {
+        if (alive) setPendingLeaves(0);
+      }
+    };
+    loadPendingLeaves();
+    const id = window.setInterval(loadPendingLeaves, 60_000);
+    const onFocus = () => loadPendingLeaves();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      alive = false;
+      window.clearInterval(id);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [location.pathname, variant]);
+
+  const badgeFor = (key?: NavItem['badgeKey']) => {
+    if (key === 'leaves' && pendingLeaves > 0) return pendingLeaves;
+    return 0;
+  };
+
+  const renderLink = (l: NavItem) => {
+    const count = badgeFor(l.badgeKey);
+    return (
+      <NavLink
+        key={l.to}
+        to={l.to}
+        end={'end' in l ? l.end : false}
+        className={({ isActive }) => (isActive ? 'active' : '')}
+      >
+        <l.icon size={18} />
+        <span className="sidebar-link-label">{l.label}</span>
+        {count > 0 && (
+          <span
+            className="sidebar-alert-badge"
+            title={`${count} pending leave${count === 1 ? '' : 's'}`}
+            aria-label={`${count} pending leaves`}
+          >
+            {formatBadgeCount(count)}
+          </span>
+        )}
+      </NavLink>
+    );
+  };
 
   return (
     <div className={`app-shell${navOpen ? ' nav-open' : ''}`}>

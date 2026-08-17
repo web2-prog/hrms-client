@@ -33,6 +33,9 @@ type Slip = {
   overtime_hours: number;
   shortfall_hours: number;
   deduction_amount: number;
+  leave_days?: number;
+  lop_days?: number;
+  early_checkout_minutes?: number;
   leave_deduction_amount?: number;
   early_checkout_deduction_amount?: number;
   overtime_amount: number;
@@ -183,11 +186,19 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
   }, [list.page, list.limit, list.search, list.params]);
 
   useEffect(() => {
-    if (user?.role !== 'employee') {
-      api<ListResult<{ _id: string; name: string }>>('/employees?limit=100&role=employee')
-        .then((r) => setEmps(r.data))
-        .catch(() => {});
-    }
+    if (user?.role === 'employee') return;
+    // Payroll people list + current HR/admin so they can open / generate their own slips.
+    api<ListResult<{ _id: string; name: string }>>('/employees?limit=200&role=employee')
+      .then((r) => {
+        const rows = [...(r.data || [])];
+        if (user?._id && !rows.some((e) => String(e._id) === String(user._id))) {
+          rows.unshift({ _id: user._id, name: `${user.name || 'Me'} (You)` });
+        }
+        setEmps(rows);
+      })
+      .catch(() => {
+        if (user?._id) setEmps([{ _id: user._id, name: `${user.name || 'Me'} (You)` }]);
+      });
   }, [user]);
 
   const openPreview = async (id: string) => {
@@ -313,18 +324,29 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
               ))}
             </select>
             {user?.role !== 'employee' && (
-              <select
-                className="select"
-                value={list.get('employee_id')}
-                onChange={(e) => list.setFilter('employee_id', e.target.value)}
-              >
-                <option value="">Employee</option>
-                {emps.map((e) => (
-                  <option key={e._id} value={e._id}>
-                    {e.name}
-                  </option>
-                ))}
-              </select>
+              <>
+                <select
+                  className="select"
+                  value={list.get('employee_id')}
+                  onChange={(e) => list.setFilter('employee_id', e.target.value)}
+                >
+                  <option value="">All employees</option>
+                  {emps.map((e) => (
+                    <option key={e._id} value={e._id}>
+                      {e.name}
+                    </option>
+                  ))}
+                </select>
+                {user?._id && (
+                  <Button
+                    type="button"
+                    variant={list.get('employee_id') === String(user._id) ? 'default' : 'outline'}
+                    onClick={() => list.setFilter('employee_id', String(user._id))}
+                  >
+                    My slips
+                  </Button>
+                )}
+              </>
             )}
           </>
         }
@@ -418,8 +440,8 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
                 <th>Target</th>
                 <th>Counted</th>
                 <th>Mgmt OT</th>
-                <th>Leave deduct</th>
-                <th>Early deduct</th>
+                <th>Total leave / deduct</th>
+                <th>Early checkout / deduct</th>
                 <th title="Held from salary when joining proof is salary deduction (until returned)">Bond hold</th>
                 <th>Net</th>
                 <th>Status</th>
@@ -441,14 +463,20 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
                   <td>{formatHours(s.monthly_counted_hours)}</td>
                   <td>{formatHours(s.overtime_hours)}</td>
                   <td>
-                    {s.leave_deduction_amount
-                      ? `₹${Number(s.leave_deduction_amount).toLocaleString('en-IN')}`
-                      : '—'}
+                    <div>{Number(s.leave_days || 0)} approved · {Number(s.lop_days || 0)} LOP</div>
+                    <span className="emp-stat-hint">
+                      {s.leave_deduction_amount
+                        ? `₹${Number(s.leave_deduction_amount).toLocaleString('en-IN')}`
+                        : 'No deduction'}
+                    </span>
                   </td>
                   <td>
-                    {s.early_checkout_deduction_amount
-                      ? `₹${Number(s.early_checkout_deduction_amount).toLocaleString('en-IN')}`
-                      : '—'}
+                    <div>{Math.round(Number(s.early_checkout_minutes || 0))} min</div>
+                    <span className="emp-stat-hint">
+                      {s.early_checkout_deduction_amount
+                        ? `₹${Number(s.early_checkout_deduction_amount).toLocaleString('en-IN')}`
+                        : 'No deduction'}
+                    </span>
                   </td>
                   <td>
                     {s.bond_security_deduction

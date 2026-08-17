@@ -385,7 +385,7 @@ function PersonalAttendanceBody({ title }: { title: string }) {
             <div>
               <span className="label">Month overtime</span>
               <div className="emp-stat-value is-extra">{formatHours(summary?.overtime_hours)}</div>
-              <span className="emp-stat-hint">Counted Extra this month</span>
+              <span className="emp-stat-hint">Attendance + approved General OT</span>
             </div>
           </div>
         </div>
@@ -415,7 +415,7 @@ function PersonalAttendanceBody({ title }: { title: string }) {
             <strong>{formatHours(summary?.overtime_hours)}</strong>
           </div>
           <div>
-            <span className="label">Low</span>
+            <span className="label">Balance</span>
             <strong>{formatHours(summary?.monthly_shortfall_or_surplus)}</strong>
           </div>
         </div>
@@ -462,6 +462,7 @@ type DashTotals = {
   departments: number | null;
   leavesPending: number | null;
   overtimePending: number | null;
+  attendanceToday: number | null;
 };
 
 function useDashTotals() {
@@ -470,15 +471,17 @@ function useDashTotals() {
     departments: null,
     leavesPending: null,
     overtimePending: null,
+    attendanceToday: null,
   });
 
   useEffect(() => {
     let alive = true;
     Promise.allSettled([
-      api<any>('/employees?limit=1'),
+      api<any>('/employees?limit=1&status=active'),
       api<any>('/departments?limit=1'),
       api<any>('/leaves?limit=1&status=Pending'),
       api<any>('/overtime?limit=1&status=Pending'),
+      api<any>('/attendance/today?limit=1'),
     ]).then((results) => {
       if (!alive) return;
       const num = (r: PromiseSettledResult<any>) =>
@@ -488,6 +491,10 @@ function useDashTotals() {
         departments: num(results[1]),
         leavesPending: num(results[2]),
         overtimePending: num(results[3]),
+        attendanceToday:
+          results[4].status === 'fulfilled'
+            ? Math.max(0, Number(results[4].value?.total ?? 0) - Number(results[4].value?.counts?.Absent ?? 0))
+            : null,
       });
     });
     return () => {
@@ -529,7 +536,7 @@ function DashMetric({
 }
 
 export function AdminDashboard() {
-  const [year, setYear] = useState(2026);
+  const [year, setYear] = useState(() => Math.max(2026, new Date().getFullYear()));
   const [wd, setWd] = useState<any>(null);
   const [open, setOpen] = useState(false);
   const totals = useDashTotals();
@@ -668,20 +675,40 @@ export function AdminDashboard() {
 export function HrDashboard() {
   const totals = useDashTotals();
   const fmt = (n: number | null) => (n == null ? '—' : n);
+  const { user } = useAuth();
+  const mySalaryTo = user?._id ? `/hr/salary?employee_id=${user._id}` : '/hr/salary';
 
   return (
     <div className="emp-dash">
       <PersonalAttendanceBody title="HR Dashboard" />
 
-      <div className="dash-metrics">
+      {/* <div className="dash-metrics">
         <DashMetric
-          to="/hr/employees"
+          to="/hr/profile"
           accent=""
           iconClass="blue"
           icon={<Users size={20} />}
-          label="Employees"
-          value={fmt(totals.employees)}
-          hint="Manage profiles"
+          label="My Profile"
+          value="View"
+          hint="Your personal details"
+        />
+        <DashMetric
+          to={mySalaryTo}
+          accent="teal"
+          iconClass="teal"
+          icon={<Wallet size={20} />}
+          label="My Salary"
+          value="Slips"
+          hint="Your salary slips"
+        />
+        <DashMetric
+          to="/hr/my-attendance"
+          accent="violet"
+          iconClass="violet"
+          icon={<Clock3 size={20} />}
+          label="My Attendance"
+          value="History"
+          hint="Your attendance records"
         />
         <DashMetric
           to="/hr/leaves"
@@ -691,6 +718,18 @@ export function HrDashboard() {
           label="Pending leaves"
           value={fmt(totals.leavesPending)}
           hint="Needs review"
+        />
+      </div> */}
+
+      <div className="dash-metrics" style={{ marginTop: '0.85rem' }}>
+        <DashMetric
+          to="/hr/employees"
+          accent=""
+          iconClass="blue"
+          icon={<Users size={20} />}
+          label="Employees"
+          value={fmt(totals.employees)}
+          hint="Manage profiles"
         />
         <DashMetric
           to="/hr/overtime"
@@ -706,23 +745,19 @@ export function HrDashboard() {
           accent="teal"
           iconClass="teal"
           icon={<Clock3 size={20} />}
-          label="Attendance"
-          value="Open"
-          hint="Daily tracking"
+          label="Present today"
+          value={fmt(totals.attendanceToday)}
+          hint="Checked in or completed"
         />
-      </div>
-
-      <div className="card card-accent dash-shortcuts">
-        <h3 style={{ marginTop: 0 }}>Quick links</h3>
-        <div className="dash-shortcut-list">
-          <Link to="/hr/summary"><Users size={16} /> Emp. Summary</Link>
-          <Link to="/hr/analytics"><TrendingUp size={16} /> Analytics</Link>
-          <Link to="/hr/employees"><Users size={16} /> Employees</Link>
-          <Link to="/hr/attendance"><Clock3 size={16} /> Attendance</Link>
-          <Link to="/hr/performance"><TrendingUp size={16} /> Performance</Link>
-          <Link to="/hr/salary"><Wallet size={16} /> Salary</Link>
-          <Link to="/hr/holidays"><CalendarDays size={16} /> Holidays</Link>
-        </div>
+        <DashMetric
+          to="/hr/salary"
+          accent=""
+          iconClass="blue"
+          icon={<Wallet size={20} />}
+          label="All salary"
+          value="Manage"
+          hint="Team salary slips"
+        />
       </div>
     </div>
   );

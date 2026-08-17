@@ -115,7 +115,7 @@ export function EmployeesPage({ basePath }: { basePath: string }) {
               <tr>
                 <th>ID</th>
                 <th>Name</th>
-                <th>Email</th>
+                <th>Login Email</th>
                 <th>Department</th>
                 <th>Role</th>
                 <th>Status</th>

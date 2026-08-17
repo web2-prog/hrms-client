@@ -87,6 +87,8 @@ function AppRoutes() {
         <Route path="policies" element={<PoliciesPage canManage={false} />} />
         <Route path="helpdesk" element={<HelpdeskPage />} />
         <Route path="salary" element={<SalaryPage />} />
+        <Route path="profile" element={<ProfilePage />} />
+        <Route path="my-attendance" element={<AttendanceHistoryPage />} />
       </Route>
       <Route
         path="/app"
