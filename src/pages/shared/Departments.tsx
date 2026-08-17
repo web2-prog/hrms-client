@@ -4,7 +4,7 @@ import { ArrowUpRight, Building2, Clock3, Pencil, Plus, Timer, Trash2, Users } f
 import { api, buildQuery, type ListResult } from '../../services/api';
 import { ListingPage, useListParams } from '../../components/ListingPage';
 import { StatusBadge, RequireRole } from '../../components/StatusBadge';
-import { displayClock, formatClockInput, to24HourClock } from '../../utils/timeFormat';
+import { displayClock, formatClockInput, to24HourClock, lateBufferUntil, lateBufferMinutesFromUntil, DEFAULT_LATE_BUFFER_MINUTES, DEFAULT_LATE_BUFFER_UNTIL } from '../../utils/timeFormat';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -179,6 +179,10 @@ function DepartmentsInner() {
         name: editing.name.trim(),
         shift_start: to24HourClock(editing.shift_start) || editing.shift_start,
         shift_end: to24HourClock(editing.shift_end) || editing.shift_end,
+        late_buffer_minutes: Math.max(
+          0,
+          Math.min(240, Math.floor(Number(editing.late_buffer_minutes ?? DEFAULT_LATE_BUFFER_MINUTES) || 0))
+        ),
       };
       if (editing._id) await api(`/departments/${editing._id}`, { method: 'PUT', body });
       else await api('/departments', { method: 'POST', body });
@@ -277,9 +281,9 @@ function DepartmentsInner() {
             setEditing({
               name: '',
               working_hours_per_day: 8.25,
-              shift_start: '9:15 AM',
+              shift_start: '8:45 AM',
               shift_end: '5:30 PM',
-              late_buffer_minutes: 5,
+              late_buffer_minutes: DEFAULT_LATE_BUFFER_MINUTES,
               status: 'active',
             });
           }}>
@@ -348,7 +352,13 @@ function DepartmentsInner() {
                   </div>
                   <div className="dept-meta-row">
                     <Clock3 size={15} />
-                    <span>{d.late_buffer_minutes ?? 5}m late buffer</span>
+                    <span>
+                      Late until{' '}
+                      {displayClock(
+                        lateBufferUntil(d.shift_start, d.late_buffer_minutes ?? DEFAULT_LATE_BUFFER_MINUTES)
+                      )}{' '}
+                      ({d.late_buffer_minutes ?? DEFAULT_LATE_BUFFER_MINUTES}m buffer)
+                    </span>
                   </div>
                 </div>
 
@@ -449,20 +459,47 @@ function DepartmentsInner() {
                   <p className="field-hint">12-hour format, e.g. 5:30 PM</p>
                 </div>
                 <div className="grid gap-1.5">
-                  <Label htmlFor="dept-late-buffer">Late buffer (minutes)</Label>
+                  <Label htmlFor="dept-late-until">Late check-in until</Label>
+                  <Input
+                    id="dept-late-until"
+                    value={formatClockInput(
+                      lateBufferUntil(
+                        to24HourClock(editing.shift_start) || editing.shift_start,
+                        editing.late_buffer_minutes ?? DEFAULT_LATE_BUFFER_MINUTES
+                      )
+                    )}
+                    onChange={(e) => {
+                      const shift24 =
+                        to24HourClock(editing.shift_start) || editing.shift_start || '08:45';
+                      const until24 = to24HourClock(e.target.value) || e.target.value;
+                      setEditing({
+                        ...editing,
+                        late_buffer_minutes: lateBufferMinutesFromUntil(shift24, until24),
+                      });
+                    }}
+                    placeholder="9:05 AM"
+                  />
+                  <p className="field-hint">
+                    Inclusive grace after shift start (default {formatClockInput(DEFAULT_LATE_BUFFER_UNTIL)}).
+                    Check-in through this minute has no penalty; the next minute applies +15m.
+                    Currently {editing.late_buffer_minutes ?? DEFAULT_LATE_BUFFER_MINUTES} minutes after shift start.
+                  </p>
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="dept-late-buffer">Buffer (minutes)</Label>
                   <Input
                     id="dept-late-buffer"
                     type="number"
                     min="0"
                     max="240"
                     step="1"
-                    value={editing.late_buffer_minutes ?? 5}
+                    value={editing.late_buffer_minutes ?? DEFAULT_LATE_BUFFER_MINUTES}
                     onChange={(e) => setEditing({
                       ...editing,
                       late_buffer_minutes: Math.max(0, Math.min(240, Math.floor(Number(e.target.value) || 0))),
                     })}
                   />
-                  <p className="field-hint">Inclusive: a 5m buffer permits check-in through 5 minutes after shift start.</p>
+                  <p className="field-hint">Same setting as minutes — HR/Admin can edit either field.</p>
                 </div>
               </div>
               {formErr && <p className="form-error">{formErr}</p>}

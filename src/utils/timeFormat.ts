@@ -100,7 +100,9 @@ export function addMinutesToTime(t: string, mins: number) {
 }
 
 export const LATE_CHECKIN_PENALTY_MINUTES = 15;
-export const DEFAULT_LATE_BUFFER_MINUTES = 5;
+/** Default grace after shift start (08:45 → late until 09:05 inclusive). */
+export const DEFAULT_LATE_BUFFER_MINUTES = 20;
+export const DEFAULT_LATE_BUFFER_UNTIL = '09:05';
 
 export function normalizeLateBufferMinutes(value?: number | null) {
   const minutes = Number(value);
@@ -108,7 +110,28 @@ export function normalizeLateBufferMinutes(value?: number | null) {
   return Math.max(0, Math.min(240, Math.floor(minutes)));
 }
 
-/** The buffer includes the full cutoff minute: 09:00 + 5m permits through 09:05:59. */
+/** Clock time when the late buffer ends (shift start + buffer minutes), HH:MM. */
+export function lateBufferUntil(
+  shiftStart?: string | null,
+  bufferMinutes = DEFAULT_LATE_BUFFER_MINUTES
+) {
+  if (!shiftStart) return DEFAULT_LATE_BUFFER_UNTIL;
+  const until = addMinutesToTime(shiftStart, normalizeLateBufferMinutes(bufferMinutes));
+  return until.slice(0, 5);
+}
+
+/** Minutes from shift start to a late-until clock (clamped 0–240). */
+export function lateBufferMinutesFromUntil(
+  shiftStart?: string | null,
+  untilClock?: string | null
+) {
+  if (!shiftStart || !untilClock) return DEFAULT_LATE_BUFFER_MINUTES;
+  const mins = Math.round(minutesBetween(shiftStart, untilClock));
+  if (!Number.isFinite(mins) || mins < 0) return 0;
+  return Math.max(0, Math.min(240, mins));
+}
+
+/** The buffer includes the full cutoff minute: 08:45 + 20m permits through 09:05:59. */
 export function isLateCheckIn(
   checkIn?: string | null,
   shiftStart?: string | null,

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { NumberInput } from './NumberInput';
 
 export type Bond = {
   _id?: string;
@@ -220,7 +221,7 @@ export function BondSalaryManager({ bonds, salarySchedule, baseSalary, onChange 
               </div>
               <div>
                 <label className="label">Bond amount</label>
-                <input className="input" type="number" value={bondForm.amount} onChange={(e) => setBondForm({ ...bondForm, amount: e.target.value })} />
+                <NumberInput className="input" min={0} value={bondForm.amount} onChange={(n) => setBondForm({ ...bondForm, amount: n ? String(n) : '' })} />
               </div>
               <div>
                 <label className="label">Joining proof</label>
@@ -270,7 +271,7 @@ export function BondSalaryManager({ bonds, salarySchedule, baseSalary, onChange 
               <div className="form-grid">
                 <div>
                   <label className="label">Starting monthly salary</label>
-                  <input className="input" type="number" value={bondForm.starting_salary} onChange={(e) => setBondForm({ ...bondForm, starting_salary: e.target.value })} />
+                  <NumberInput className="input" min={0} value={bondForm.starting_salary} onChange={(n) => setBondForm({ ...bondForm, starting_salary: n ? String(n) : '' })} />
                 </div>
                 <div>
                   <label className="label">Increment every (months)</label>
@@ -278,7 +279,7 @@ export function BondSalaryManager({ bonds, salarySchedule, baseSalary, onChange 
                 </div>
                 <div>
                   <label className="label">Increment amount (₹)</label>
-                  <input className="input" type="number" value={bondForm.increment_amount} onChange={(e) => setBondForm({ ...bondForm, increment_amount: e.target.value })} placeholder="e.g. 2000" />
+                  <NumberInput className="input" min={0} value={bondForm.increment_amount} placeholder="e.g. 2000" onChange={(n) => setBondForm({ ...bondForm, increment_amount: n ? String(n) : '' })} />
                 </div>
               </div>
             )}
@@ -535,13 +536,13 @@ export function BondSalaryManager({ bonds, salarySchedule, baseSalary, onChange 
                       />
                     </td>
                     <td>
-                      <input
+                      <NumberInput
                         className="input"
-                        type="number"
+                        min={0}
                         value={s.monthly_salary ?? 0}
-                        onChange={(e) => {
+                        onChange={(n) => {
                           const next = [...schedule];
-                          next[i] = { ...s, monthly_salary: Number(e.target.value) };
+                          next[i] = { ...s, monthly_salary: n };
                           setSchedule(next);
                         }}
                       />

@@ -950,6 +950,33 @@ textarea {
   gap: 1rem;
 }
 
+.slip-adjust {
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--cloud);
+  padding: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.slip-adjust-line {
+  display: grid;
+  grid-template-columns: 1fr 140px auto;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.slip-adjust-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 1.5rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--hairline);
+  font-size: 0.9rem;
+  color: var(--graphite);
+}
+
 /* ─── Tables ─── */
 .table-wrap {
   overflow-x: auto;
