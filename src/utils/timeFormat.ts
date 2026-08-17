@@ -100,20 +100,36 @@ export function addMinutesToTime(t: string, mins: number) {
 }
 
 export const LATE_CHECKIN_PENALTY_MINUTES = 15;
+export const DEFAULT_LATE_BUFFER_MINUTES = 5;
 
-export function isLateCheckIn(checkIn?: string | null, shiftStart?: string | null) {
+export function normalizeLateBufferMinutes(value?: number | null) {
+  const minutes = Number(value);
+  if (!Number.isFinite(minutes)) return DEFAULT_LATE_BUFFER_MINUTES;
+  return Math.max(0, Math.min(240, Math.floor(minutes)));
+}
+
+/** The buffer includes the full cutoff minute: 09:00 + 5m permits through 09:05:59. */
+export function isLateCheckIn(
+  checkIn?: string | null,
+  shiftStart?: string | null,
+  bufferMinutes = DEFAULT_LATE_BUFFER_MINUTES
+) {
   if (!checkIn || !shiftStart) return false;
-  return minutesBetween(shiftStart, checkIn) > 1 / 60;
+  const checkInSeconds = timeToSeconds(checkIn);
+  const shiftSeconds = timeToSeconds(shiftStart);
+  if (checkInSeconds == null || shiftSeconds == null) return false;
+  return checkInSeconds >= shiftSeconds + (normalizeLateBufferMinutes(bufferMinutes) + 1) * 60;
 }
 
 /** If late (and not waived), work counts from check_in + 15 minutes */
 export function effectiveWorkStart(
   checkIn?: string | null,
   shiftStart?: string | null,
-  penaltyWaived = false
+  penaltyWaived = false,
+  bufferMinutes = DEFAULT_LATE_BUFFER_MINUTES
 ) {
   if (!checkIn) return null;
-  if (!penaltyWaived && isLateCheckIn(checkIn, shiftStart)) {
+  if (!penaltyWaived && isLateCheckIn(checkIn, shiftStart, bufferMinutes)) {
     return addMinutesToTime(checkIn, LATE_CHECKIN_PENALTY_MINUTES);
   }
   return checkIn;

@@ -23,6 +23,7 @@ type Dept = {
   working_hours_per_day: number;
   shift_start: string;
   shift_end: string;
+  late_buffer_minutes: number;
   status: string;
   members?: number;
   active_members?: number;
@@ -273,7 +274,14 @@ function DepartmentsInner() {
         actions={
           <Button onClick={() => {
             setFormErr('');
-            setEditing({ name: '', working_hours_per_day: 8.25, shift_start: '9:15 AM', shift_end: '5:30 PM', status: 'active' });
+            setEditing({
+              name: '',
+              working_hours_per_day: 8.25,
+              shift_start: '9:15 AM',
+              shift_end: '5:30 PM',
+              late_buffer_minutes: 5,
+              status: 'active',
+            });
           }}>
             <Plus size={16} />
             Add Department
@@ -337,6 +345,10 @@ function DepartmentsInner() {
                   <div className="dept-meta-row">
                     <Timer size={15} />
                     <span>{fmtHours(d.working_hours_per_day)}</span>
+                  </div>
+                  <div className="dept-meta-row">
+                    <Clock3 size={15} />
+                    <span>{d.late_buffer_minutes ?? 5}m late buffer</span>
                   </div>
                 </div>
 
@@ -435,6 +447,22 @@ function DepartmentsInner() {
                     placeholder="5:30 PM"
                   />
                   <p className="field-hint">12-hour format, e.g. 5:30 PM</p>
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="dept-late-buffer">Late buffer (minutes)</Label>
+                  <Input
+                    id="dept-late-buffer"
+                    type="number"
+                    min="0"
+                    max="240"
+                    step="1"
+                    value={editing.late_buffer_minutes ?? 5}
+                    onChange={(e) => setEditing({
+                      ...editing,
+                      late_buffer_minutes: Math.max(0, Math.min(240, Math.floor(Number(e.target.value) || 0))),
+                    })}
+                  />
+                  <p className="field-hint">Inclusive: a 5m buffer permits check-in through 5 minutes after shift start.</p>
                 </div>
               </div>
               {formErr && <p className="form-error">{formErr}</p>}
