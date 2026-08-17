@@ -1,7 +1,36 @@
 /** Shared attendance / duration formatters (second precision). */
 
+export const APP_TIMEZONE = 'Asia/Kolkata';
+
 export function pad2(n: number) {
   return String(n).padStart(2, '0');
+}
+
+function zonedPart(d: Date, type: Intl.DateTimeFormatPartTypes, timeZone = APP_TIMEZONE) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(d);
+  const value = parts.find((p) => p.type === type)?.value || '0';
+  if (type === 'hour' && value === '24') return '00';
+  return value;
+}
+
+/** Current business clock HH:MM:SS in Asia/Kolkata (not the browser timezone). */
+export function nowHMS(d = new Date()) {
+  const hour = zonedPart(d, 'hour');
+  return `${pad2(Number(hour))}:${pad2(Number(zonedPart(d, 'minute')))}:${pad2(Number(zonedPart(d, 'second')))}`;
+}
+
+/** Current business date YYYY-MM-DD in Asia/Kolkata. */
+export function todayISO(d = new Date()) {
+  return `${zonedPart(d, 'year')}-${pad2(Number(zonedPart(d, 'month')))}-${pad2(Number(zonedPart(d, 'day')))}`;
 }
 
 type ClockParts = { h: number; m: number; s: number; hasSeconds: boolean };
@@ -53,16 +82,21 @@ export function minutesBetween(start?: string | null, end?: string | null) {
   return secondsBetween(start, end) / 60;
 }
 
-/** Add minutes to HH:MM / HH:MM:SS → HH:MM:SS */
-export function addMinutesToTime(t: string, mins: number) {
+/** Add seconds to HH:MM / HH:MM:SS → HH:MM:SS */
+export function addSecondsToTime(t: string, seconds: number) {
   const sec = timeToSeconds(t);
   if (sec == null) return t;
-  let total = Math.round(sec + Number(mins || 0) * 60);
+  let total = Math.round(sec + Number(seconds || 0));
   if (total < 0) total = 0;
   const h = Math.floor(total / 3600) % 24;
   const m = Math.floor((total % 3600) / 60);
   const s = total % 60;
   return `${pad2(h)}:${pad2(m)}:${pad2(s)}`;
+}
+
+/** Add minutes to HH:MM / HH:MM:SS → HH:MM:SS */
+export function addMinutesToTime(t: string, mins: number) {
+  return addSecondsToTime(t, Number(mins || 0) * 60);
 }
 
 export const LATE_CHECKIN_PENALTY_MINUTES = 15;

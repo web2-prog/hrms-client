@@ -28,19 +28,17 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import {
+  addSecondsToTime,
   displayClock,
   formatDurationMinutes,
   minutesBetween,
+  nowHMS,
   pad2,
   timeToSeconds,
   effectiveWorkStart,
   LATE_CHECKIN_PENALTY_MINUTES,
   displayDateTime,
 } from '../../utils/timeFormat';
-
-function nowHMS(d = new Date()) {
-  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
-}
 
 export function EmployeeDashboard() {
   return (
@@ -59,10 +57,14 @@ function PersonalAttendanceBody({ title }: { title: string }) {
   const [earlyErr, setEarlyErr] = useState('');
   const [earlyBusy, setEarlyBusy] = useState(false);
   const [tick, setTick] = useState(() => new Date());
+  const [dataLoadedAt, setDataLoadedAt] = useState(() => Date.now());
 
   const load = () =>
     api('/attendance/me/today')
-      .then(setData)
+      .then((res) => {
+        setData(res);
+        setDataLoadedAt(Date.now());
+      })
       .catch((e) => setErr(e instanceof Error ? e.message : 'Failed'));
 
   useEffect(() => {
@@ -95,14 +97,13 @@ function PersonalAttendanceBody({ title }: { title: string }) {
     const onFocus = () => load();
     window.addEventListener('focus', onFocus);
 
-    const now = new Date();
-    const cutoff = new Date();
-    cutoff.setHours(23, 55, 0, 0);
-    const ms = cutoff.getTime() - now.getTime();
-    const autoId =
-      ms > 0
-        ? window.setTimeout(() => load(), ms + 400)
-        : window.setTimeout(() => load(), 400);
+    const nowSec = timeToSeconds(nowHMS());
+    const cutoffSec = timeToSeconds('23:55:00');
+    const ms =
+      nowSec != null && cutoffSec != null && cutoffSec > nowSec
+        ? (cutoffSec - nowSec) * 1000
+        : 0;
+    const autoId = window.setTimeout(() => load(), Math.max(400, ms + 400));
 
     return () => {
       window.clearInterval(id);
@@ -116,7 +117,9 @@ function PersonalAttendanceBody({ title }: { title: string }) {
     if (!data) return null;
     const att = data.attendance;
     const shift = data.shift || {};
-    const now = nowHMS(tick);
+    // Prefer server clock (same TZ as stored check-in/break times) and advance locally.
+    const elapsedSec = Math.max(0, Math.round((tick.getTime() - dataLoadedAt) / 1000));
+    const now = data.now ? addSecondsToTime(data.now, elapsedSec) : nowHMS(tick);
     const checkedIn = !!att.check_in;
     const checkedOut = !!att.check_out;
     const onBreak = att.status === 'OnBreak' || !!att.break_started_at;
@@ -175,7 +178,7 @@ function PersonalAttendanceBody({ title }: { title: string }) {
       penaltyWaived: !!att.penalty_waived,
       latePenaltyRule: Number(data.late_penalty_rule_minutes || LATE_CHECKIN_PENALTY_MINUTES),
     };
-  }, [data, tick]);
+  }, [data, tick, dataLoadedAt]);
 
   if (!data || !live) return <div className="state-box">{err || 'Loading…'}</div>;
 

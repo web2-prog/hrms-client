@@ -20,6 +20,7 @@ import {
   formatHours as formatWorked,
   pad2,
   timeToSeconds,
+  todayISO,
 } from '../../utils/timeFormat';
 
 type EmpOption = {
@@ -82,11 +83,6 @@ const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
-
-function todayISO() {
-  const d = new Date();
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-}
 
 function deptName(emp?: EmpOption | null) {
   if (!emp?.department_id) return '';
