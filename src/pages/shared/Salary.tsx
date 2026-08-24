@@ -312,6 +312,11 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
     <>
       <ListingPage
         title="Salary Slips"
+        subtitle={
+          user?.role === 'employee'
+            ? 'Your salary slips appear here after HR/Admin sends them to you.'
+            : 'Generate a draft, adjust values, finalize, then send to the employee.'
+        }
         loading={loading}
         error={error}
         empty={!data.length}
@@ -516,6 +521,7 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
                     </div>
                   </td>
                   <td className="row-actions col-actions">
+                    {/* Draft: Adjust + Finalize only. Finalized: View + Send only. Employee: View only. */}
                     <Button variant="outline" size="sm" onClick={() => openPreview(s._id)} disabled={previewLoading}>
                       {(user?.role === 'admin' || user?.role === 'hr') && s.status === 'Draft' ? 'Adjust' : 'View'}
                     </Button>
@@ -528,23 +534,15 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
                             await api(`/salary/${s._id}/finalize`, { method: 'POST', body: {} });
                             load();
                           } catch (e) {
-                            setError(e instanceof Error ? e.message : 'Finalize failed');
+                            setError(
+                              e instanceof Error
+                                ? e.message
+                                : 'Cannot finalize this salary slip. Check Performance for pending hours.'
+                            );
                           }
                         }}
                       >
                         Finalize
-                      </Button>
-                    )}
-                    {user?.role === 'admin' && s.status === 'Finalized' && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={async () => {
-                          await api(`/salary/${s._id}/reverse`, { method: 'POST', body: { reason: 'reissue' } });
-                          load();
-                        }}
-                      >
-                        Reverse
                       </Button>
                     )}
                     {(user?.role === 'admin' || user?.role === 'hr') && s.status === 'Finalized' && (
@@ -554,29 +552,9 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
                         disabled={sendBusy === s._id}
                         onClick={() => sendSlip(s._id)}
                       >
-                        {sendBusy === s._id ? 'Sending…' : s.sent_on ? 'Resend' : 'Send salary'}
+                        {sendBusy === s._id ? 'Sending…' : s.sent_on ? 'Resend salary slip' : 'Send salary slip'}
                       </Button>
                     )}
-                    {(user?.role === 'admin' || user?.role === 'hr') &&
-                      s.status === 'Finalized' &&
-                      s.payment_status === 'Pending' && (
-                        <Button
-                          size="sm"
-                          onClick={async () => {
-                            await api(`/salary/${s._id}/payment`, {
-                              method: 'PATCH',
-                              body: {
-                                payment_status: 'Paid',
-                                paid_date: new Date().toISOString().slice(0, 10),
-                                payment_reference: 'MANUAL',
-                              },
-                            });
-                            load();
-                          }}
-                        >
-                          Mark paid
-                        </Button>
-                      )}
                   </td>
                 </tr>
               ))}
@@ -597,7 +575,7 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
               <DialogTitle>Salary Slip Preview</DialogTitle>
             </DialogHeader>
             <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              {(user?.role === 'admin' || user?.role === 'hr') && (
+              {canAdjust && showAdjust && (
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.9rem' }}>
                   Company
                   <select
@@ -629,7 +607,8 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
                   )}
                 </>
               )}
-              {!showAdjust && (
+              {/* Download PDF only in View mode (finalized / employee), not while adjusting a draft */}
+              {!showAdjust && previewStatus === 'Finalized' && (
                 <Button onClick={downloadPreviewPdf}>
                   Download PDF
                 </Button>

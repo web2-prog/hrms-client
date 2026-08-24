@@ -6,8 +6,6 @@ import {
   CalendarDays,
   Clock3,
   Coffee,
-  Download,
-  FileText,
   LogIn,
   Timer,
   TrendingUp,
@@ -829,8 +827,6 @@ export function ProfilePage() {
   const [emp, setEmp] = useState<any>(null);
   const [err, setErr] = useState('');
   const [revealAccount, setRevealAccount] = useState(false);
-  const [offerErr, setOfferErr] = useState('');
-  const [downloadingOffer, setDownloadingOffer] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -903,52 +899,6 @@ export function ProfilePage() {
       </div>
 
       <div className="profile-sections">
-        <div className="card">
-          <h3>Documents</h3>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <FileText size={18} style={{ color: 'var(--muted)' }} />
-              <div>
-                <div className="profile-value">Offer letter</div>
-                <div style={{ color: 'var(--muted)', fontSize: 13 }}>
-                  {emp.offer_letter_url
-                    ? emp.offer_letter_name || 'Available for download'
-                    : 'Not uploaded by admin yet'}
-                </div>
-              </div>
-            </div>
-            {emp.offer_letter_url ? (
-              <Button
-                type="button"
-                disabled={downloadingOffer}
-                onClick={async () => {
-                  setOfferErr('');
-                  setDownloadingOffer(true);
-                  try {
-                    const blob = await api<Blob>(`/employees/${emp._id}/offer-letter`);
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = emp.offer_letter_name || `Offer-Letter-${emp.employee_id || 'employee'}.pdf`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                  } catch (e) {
-                    setOfferErr(e instanceof Error ? e.message : 'Download failed');
-                  } finally {
-                    setDownloadingOffer(false);
-                  }
-                }}
-              >
-                <Download size={16} />
-                {downloadingOffer ? 'Downloading…' : 'Download'}
-              </Button>
-            ) : (
-              <span className="badge badge-neutral">Unavailable</span>
-            )}
-          </div>
-          {offerErr && <p style={{ color: 'var(--error)', marginTop: 8 }}>{offerErr}</p>}
-        </div>
-
         <div className="card">
           <h3>Personal details</h3>
           <div className="form-grid profile-grid">

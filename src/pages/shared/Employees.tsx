@@ -230,9 +230,6 @@ export function EmployeeManagePage({ basePath }: { basePath: string }) {
   const [clearOpen, setClearOpen] = useState(false);
   const [msg, setMsg] = useState('');
   const [useDefault, setUseDefault] = useState(true);
-  const [offerMsg, setOfferMsg] = useState('');
-  const [offerErr, setOfferErr] = useState('');
-  const [uploadingOffer, setUploadingOffer] = useState(false);
   const [depts, setDepts] = useState<Dept[]>([]);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
@@ -382,8 +379,7 @@ export function EmployeeManagePage({ basePath }: { basePath: string }) {
                     setEmp((prev: any) => ({ ...prev, photo_url: updated.photo_url }));
                     setMsg('Photo updated');
                   } catch (err) {
-                    setMsg('');
-                    setOfferErr(err instanceof Error ? err.message : 'Upload failed');
+                    setMsg(err instanceof Error ? err.message : 'Upload failed');
                   } finally {
                     setPhotoBusy(false);
                   }
@@ -401,8 +397,7 @@ export function EmployeeManagePage({ basePath }: { basePath: string }) {
                     setEmp((prev: any) => ({ ...prev, photo_url: '' }));
                     setMsg('Photo removed');
                   } catch (err) {
-                    setMsg('');
-                    setOfferErr(err instanceof Error ? err.message : 'Remove failed');
+                    setMsg(err instanceof Error ? err.message : 'Remove failed');
                   }
                 }}
               >
@@ -509,102 +504,6 @@ export function EmployeeManagePage({ basePath }: { basePath: string }) {
             </div>
           ))}
         </div>
-      </div>
-      <div className="card" style={{ marginBottom: 16 }}>
-        <h3>Offer Letter</h3>
-        {emp.offer_letter_url ? (
-          <p style={{ margin: '0 0 12px', color: 'var(--muted)' }}>
-            Current file: <strong style={{ color: 'var(--text)' }}>{emp.offer_letter_name || 'Offer letter'}</strong>
-          </p>
-        ) : (
-          <p style={{ margin: '0 0 12px', color: 'var(--muted)' }}>No offer letter uploaded yet.</p>
-        )}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-          {emp.offer_letter_url && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={async () => {
-                try {
-                  setOfferErr('');
-                  const blob = await api<Blob>(`/employees/${id}/offer-letter`);
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = emp.offer_letter_name || `Offer-Letter-${emp.employee_id || id}.pdf`;
-                  a.click();
-                  URL.revokeObjectURL(url);
-                } catch (e) {
-                  setOfferErr(e instanceof Error ? e.message : 'Download failed');
-                }
-              }}
-            >
-              Download
-            </Button>
-          )}
-          {user?.role === 'admin' && (
-            <>
-              <label className="btn" style={{ cursor: uploadingOffer ? 'wait' : 'pointer', margin: 0 }}>
-                {uploadingOffer ? 'Uploading…' : emp.offer_letter_url ? 'Replace file' : 'Upload offer letter'}
-                <input
-                  type="file"
-                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,application/pdf"
-                  hidden
-                  disabled={uploadingOffer}
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    e.target.value = '';
-                    if (!file) return;
-                    setUploadingOffer(true);
-                    setOfferErr('');
-                    setOfferMsg('');
-                    try {
-                      const fd = new FormData();
-                      fd.append('offer_letter', file);
-                      const updated = await api<any>(`/employees/${id}/offer-letter`, { method: 'POST', formData: fd });
-                      setEmp((prev: any) => ({
-                        ...prev,
-                        offer_letter_url: updated.offer_letter_url,
-                        offer_letter_name: updated.offer_letter_name,
-                      }));
-                      setOfferMsg('Offer letter uploaded');
-                    } catch (err) {
-                      setOfferErr(err instanceof Error ? err.message : 'Upload failed');
-                    } finally {
-                      setUploadingOffer(false);
-                    }
-                  }}
-                />
-              </label>
-              {emp.offer_letter_url && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={async () => {
-                    if (!confirm('Remove offer letter for this employee?')) return;
-                    try {
-                      setOfferErr('');
-                      await api(`/employees/${id}/offer-letter`, { method: 'DELETE' });
-                      setEmp((prev: any) => ({ ...prev, offer_letter_url: '', offer_letter_name: '' }));
-                      setOfferMsg('Offer letter removed');
-                    } catch (err) {
-                      setOfferErr(err instanceof Error ? err.message : 'Remove failed');
-                    }
-                  }}
-                >
-                  Remove
-                </Button>
-              )}
-            </>
-          )}
-        </div>
-        {offerMsg && <p style={{ color: 'var(--success)', marginTop: 8 }}>{offerMsg}</p>}
-        {offerErr && <p style={{ color: 'var(--error)', marginTop: 8 }}>{offerErr}</p>}
-        {user?.role === 'admin' && (
-          <p style={{ color: 'var(--muted)', fontSize: '0.82rem', margin: '8px 0 0' }}>
-            Allowed: PDF, Word, JPG, PNG (max 10 MB). Employees can download from their profile.
-          </p>
-        )}
       </div>
       <BondSalaryManager
         bonds={emp.bonds || []}

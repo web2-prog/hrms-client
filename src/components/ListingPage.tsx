@@ -126,9 +126,13 @@ export function ListingPage({
           </div>
         </div>
         {loading && <div className="state-box">Loading…</div>}
-        {error && !loading && <div className="state-box" style={{ color: 'var(--error)' }}>{error}</div>}
-        {!loading && !error && empty && <div className="state-box">No records found</div>}
-        {!loading && !error && !empty && children}
+        {error && !loading && (
+          <div className="state-box" style={{ color: 'var(--error)', whiteSpace: 'pre-wrap' }}>
+            {error}
+          </div>
+        )}
+        {!loading && empty && !error && <div className="state-box">No records found</div>}
+        {!loading && !empty && children}
         {!hidePagination && (
           <ListPagination total={total} page={page} onPageChange={setPage} />
         )}
