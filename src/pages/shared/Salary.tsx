@@ -451,7 +451,7 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
         }
       >
         <div className="table-wrap">
-          <table className="data">
+          <table className="data salary-table">
             <thead>
               <tr>
                 <th>Employee</th>
@@ -465,8 +465,7 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
                 <th title="Held from salary when joining proof is salary deduction (until returned)">Bond hold</th>
                 <th>Net</th>
                 <th>Status</th>
-                <th>Payment</th>
-                <th></th>
+                <th className="col-actions">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -505,19 +504,24 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
                         }`
                       : '—'}
                   </td>
-                  <td>₹{Number(s.net_pay).toLocaleString('en-IN')}</td>
-                  <td>
-                    <StatusBadge status={s.status} />
+                  <td className="salary-net">₹{Number(s.net_pay).toLocaleString('en-IN')}</td>
+                  <td className="salary-status-cell">
+                    <div className="salary-status-row">
+                      <span className="salary-status-label">Slip</span>
+                      <StatusBadge status={s.status} />
+                    </div>
+                    <div className="salary-status-row">
+                      <span className="salary-status-label">Pay</span>
+                      <StatusBadge status={s.payment_status} />
+                    </div>
                   </td>
-                  <td>
-                    <StatusBadge status={s.payment_status} />
-                  </td>
-                  <td className="row-actions">
-                    <Button variant="outline" onClick={() => openPreview(s._id)} disabled={previewLoading}>
+                  <td className="row-actions col-actions">
+                    <Button variant="outline" size="sm" onClick={() => openPreview(s._id)} disabled={previewLoading}>
                       {(user?.role === 'admin' || user?.role === 'hr') && s.status === 'Draft' ? 'Adjust' : 'View'}
                     </Button>
                     {(user?.role === 'admin' || user?.role === 'hr') && s.status === 'Draft' && (
                       <Button
+                        size="sm"
                         onClick={async () => {
                           try {
                             setError(null);
@@ -534,6 +538,7 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
                     {user?.role === 'admin' && s.status === 'Finalized' && (
                       <Button
                         variant="outline"
+                        size="sm"
                         onClick={async () => {
                           await api(`/salary/${s._id}/reverse`, { method: 'POST', body: { reason: 'reissue' } });
                           load();
@@ -545,6 +550,7 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
                     {(user?.role === 'admin' || user?.role === 'hr') && s.status === 'Finalized' && (
                       <Button
                         variant="outline"
+                        size="sm"
                         disabled={sendBusy === s._id}
                         onClick={() => sendSlip(s._id)}
                       >
@@ -555,6 +561,7 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
                       s.status === 'Finalized' &&
                       s.payment_status === 'Pending' && (
                         <Button
+                          size="sm"
                           onClick={async () => {
                             await api(`/salary/${s._id}/payment`, {
                               method: 'PATCH',
@@ -622,9 +629,11 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
                   )}
                 </>
               )}
-              <Button onClick={downloadPreviewPdf}>
-                Download PDF
-              </Button>
+              {!showAdjust && (
+                <Button onClick={downloadPreviewPdf}>
+                  Download PDF
+                </Button>
+              )}
               <Button variant="outline" onClick={closePreview}>
                 Close
               </Button>

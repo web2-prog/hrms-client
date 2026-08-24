@@ -401,7 +401,7 @@ export function TodayAttendancePage() {
                   />
                   <p className="label" style={{ marginTop: 6 }}>
                     {edit.useDefaultPenalty && !edit.penalty_waived
-                      ? `Using default rule (${edit.defaultPenalty}m).`
+                      ? `Using default rule (${edit.defaultPenalty}m): after buffer, at least 15m then +1m per minute past buffer.`
                       : 'Custom penalty for this day.'}{' '}
                     Allowed range 0–480 minutes.
                   </p>

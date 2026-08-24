@@ -548,11 +548,13 @@ function DepartmentsInner() {
                         late_buffer_minutes: lateBufferMinutesFromUntil(shift24, until24),
                       });
                     }}
-                    placeholder="9:05 AM"
+                    placeholder="9:00 AM"
                   />
                   <p className="field-hint">
                     Inclusive grace after shift start (default {formatClockInput(DEFAULT_LATE_BUFFER_UNTIL)}).
-                    Check-in through this minute has no penalty; the next minute applies +15m.
+                    Check-in through this minute has no penalty. After that, penalty is at least 15 minutes,
+                    then +1 minute for each extra minute past the buffer
+                    (e.g. 09:05 → 15m, 09:20 → 20m when buffer ends at 09:00).
                     Currently {editing.late_buffer_minutes ?? DEFAULT_LATE_BUFFER_MINUTES} minutes after shift start.
                   </p>
                 </div>

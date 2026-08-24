@@ -2075,7 +2075,80 @@ table.data tbody tr:last-child td {
 
 .row-actions {
   display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+/* Salary slips table — Status/Payment + actions were colliding */
+table.data.salary-table {
+  min-width: 1100px;
+}
+
+table.data.salary-table th,
+table.data.salary-table td {
+  vertical-align: middle;
+}
+
+table.data.salary-table .salary-net {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+table.data.salary-table .salary-status-cell {
+  min-width: 9rem;
+  white-space: nowrap;
+}
+
+table.data.salary-table .salary-status-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+table.data.salary-table .salary-status-row + .salary-status-row {
+  margin-top: 0.35rem;
+}
+
+table.data.salary-table .salary-status-label {
+  width: 2.25rem;
+  flex-shrink: 0;
+  color: var(--graphite);
+  font-size: 0.68rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+table.data.salary-table .col-actions {
+  min-width: 15rem;
+  width: 15rem;
+  white-space: normal;
+}
+
+table.data.salary-table thead th.col-actions,
+table.data.salary-table td.col-actions {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  background: var(--canvas);
+  box-shadow: -8px 0 12px -10px rgba(15, 23, 42, 0.28);
+}
+
+table.data.salary-table thead th.col-actions {
+  background: var(--cloud);
+  z-index: 2;
+}
+
+table.data.salary-table tbody tr:hover td.col-actions {
+  background: var(--fog);
+}
+
+table.data.salary-table td.col-actions.row-actions {
   gap: 0.35rem;
+  flex-wrap: wrap;
 }
 
 .bond-add-box {
