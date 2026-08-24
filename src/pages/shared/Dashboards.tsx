@@ -143,7 +143,13 @@ function PersonalAttendanceBody({ title }: { title: string }) {
       }
       const start =
         data.work_start ||
-        effectiveWorkStart(att.check_in, shift.shift_start, !!att.penalty_waived, shift.late_buffer_minutes) ||
+        effectiveWorkStart(
+          att.check_in,
+          shift.shift_start,
+          !!att.penalty_waived,
+          shift.late_buffer_minutes,
+          att.penalty_minutes_override ?? null
+        ) ||
         att.check_in;
       const span = minutesBetween(start, end);
       workMins = Math.max(0, span - breakMins);
@@ -173,7 +179,15 @@ function PersonalAttendanceBody({ title }: { title: string }) {
       onBreak,
       checkedIn,
       checkedOut,
-      workStart: data.work_start || effectiveWorkStart(att.check_in, shift.shift_start, !!att.penalty_waived, shift.late_buffer_minutes),
+      workStart:
+        data.work_start ||
+        effectiveWorkStart(
+          att.check_in,
+          shift.shift_start,
+          !!att.penalty_waived,
+          shift.late_buffer_minutes,
+          att.penalty_minutes_override ?? null
+        ),
       penaltyMinutes,
       lateMinutes,
       penaltyWaived: !!att.penalty_waived,

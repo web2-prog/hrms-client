@@ -2,7 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { api, buildQuery, type ListResult } from '../../services/api';
 import { ListingPage, useListParams } from '../../components/ListingPage';
 import { StatusBadge, formatHours } from '../../components/StatusBadge';
-import { displayClock, formatBreakMinutes, formatClockInput, parseBreakMinutes, to24HourClock } from '../../utils/timeFormat';
+import {
+  displayClock,
+  formatBreakMinutes,
+  formatClockInput,
+  parseBreakMinutes,
+  to24HourClock,
+  LATE_CHECKIN_PENALTY_MINUTES,
+} from '../../utils/timeFormat';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -34,8 +41,10 @@ type TodayRow = {
   live_status: string;
   status?: string;
   penalty_waived?: boolean;
+  penalty_minutes_override?: number | null;
   late_minutes?: number;
   penalty_minutes?: number;
+  late_penalty_rule_minutes?: number;
   shift?: { shift_start?: string; shift_end?: string; working_hours_per_day?: number };
 };
 
@@ -53,7 +62,13 @@ type EditState = {
   break_display: string;
   break_started_at: string;
   penalty_waived: boolean;
+  /** Whole minutes 0–480; ignored when useDefaultPenalty is true */
+  penalty_minutes: string;
+  /** When true, clear override and use the standard late rule */
+  useDefaultPenalty: boolean;
   end_break: boolean;
+  late: boolean;
+  defaultPenalty: number;
 };
 
 const LIVE_STATUSES = [
@@ -66,6 +81,14 @@ const LIVE_STATUSES = [
   { value: 'Extra', label: 'Extra' },
   { value: 'Low', label: 'Low' },
 ] as const;
+
+function penaltyLabel(r: TodayRow) {
+  if (!(r.late_minutes && r.late_minutes > 0)) return '—';
+  if (r.penalty_waived) return 'Waived';
+  const mins = Math.round(Number(r.penalty_minutes) || 0);
+  const custom = r.penalty_minutes_override != null;
+  return custom ? `${mins}m (custom)` : `${mins}m`;
+}
 
 export function TodayAttendancePage() {
   const list = useListParams();
@@ -126,16 +149,30 @@ export function TodayAttendancePage() {
   );
 
   const openEdit = (r: TodayRow) => {
+    const defaultPenalty = Number(r.late_penalty_rule_minutes) || LATE_CHECKIN_PENALTY_MINUTES;
+    const late = !!(r.late_minutes && r.late_minutes > 0);
+    const hasOverride = r.penalty_minutes_override != null;
+    let penaltyMinutes = String(defaultPenalty);
+    if (r.penalty_waived) {
+      penaltyMinutes = '0';
+    } else if (hasOverride) {
+      penaltyMinutes = String(Math.round(Number(r.penalty_minutes_override)));
+    } else if (r.penalty_minutes != null) {
+      penaltyMinutes = String(Math.round(Number(r.penalty_minutes)));
+    }
     setEdit({
       employeeId: r.employee._id,
       name: r.employee.name,
       check_in: formatClockInput(r.check_in),
       check_out: formatClockInput(r.check_out),
-      // Keep fractional minutes — breaks are recorded with sub-minute precision.
       break_display: String(r.break_total ?? 0),
       break_started_at: formatClockInput(r.break_started_at),
       penalty_waived: !!r.penalty_waived,
+      penalty_minutes: penaltyMinutes,
+      useDefaultPenalty: !r.penalty_waived && !hasOverride,
       end_break: false,
+      late,
+      defaultPenalty,
     });
   };
 
@@ -144,16 +181,35 @@ export function TodayAttendancePage() {
     setSaving(true);
     setError(null);
     try {
+      const body: Record<string, unknown> = {
+        check_in: to24HourClock(edit.check_in),
+        check_out: to24HourClock(edit.check_out),
+        break_total: parseBreakMinutes(edit.break_display),
+        break_started_at: edit.end_break ? null : to24HourClock(edit.break_started_at),
+        end_break: edit.end_break,
+        penalty_waived: edit.penalty_waived,
+      };
+
+      if (edit.penalty_waived) {
+        body.penalty_waived = true;
+        body.penalty_minutes = 0;
+      } else if (edit.useDefaultPenalty) {
+        body.penalty_waived = false;
+        body.penalty_minutes_override = null;
+      } else {
+        const mins = Math.max(0, Math.min(480, Math.floor(Number(edit.penalty_minutes))));
+        if (!Number.isFinite(mins)) {
+          setError('Penalty minutes must be a number between 0 and 480');
+          setSaving(false);
+          return;
+        }
+        body.penalty_waived = false;
+        body.penalty_minutes = mins;
+      }
+
       await api(`/attendance/today/${edit.employeeId}`, {
         method: 'PUT',
-        body: {
-          check_in: to24HourClock(edit.check_in),
-          check_out: to24HourClock(edit.check_out),
-          break_total: parseBreakMinutes(edit.break_display),
-          break_started_at: edit.end_break ? null : to24HourClock(edit.break_started_at),
-          end_break: edit.end_break,
-          penalty_waived: edit.penalty_waived,
-        },
+        body,
       });
       setEdit(null);
       await load();
@@ -264,17 +320,7 @@ export function TodayAttendancePage() {
                   <td>
                     <StatusBadge status={r.live_status} />
                   </td>
-                  <td>
-                    {r.late_minutes && r.late_minutes > 0 ? (
-                      r.penalty_waived ? (
-                        <span className="label">Waived</span>
-                      ) : (
-                        <span>{Math.round(r.penalty_minutes || 15)}m penalty</span>
-                      )
-                    ) : (
-                      '—'
-                    )}
-                  </td>
+                  <td>{penaltyLabel(r)}</td>
                   <td>
                     <Button variant="outline" onClick={() => openEdit(r)}>
                       Manage
@@ -334,6 +380,32 @@ export function TodayAttendancePage() {
                     onChange={(e) => setEdit({ ...edit, break_started_at: e.target.value })}
                   />
                 </div>
+                <div>
+                  <label className="label">Late penalty (minutes)</label>
+                  <input
+                    className="input"
+                    type="number"
+                    min={0}
+                    max={480}
+                    step={1}
+                    disabled={edit.penalty_waived}
+                    value={edit.penalty_waived ? '0' : edit.penalty_minutes}
+                    onChange={(e) =>
+                      setEdit({
+                        ...edit,
+                        penalty_minutes: e.target.value,
+                        penalty_waived: false,
+                        useDefaultPenalty: false,
+                      })
+                    }
+                  />
+                  <p className="label" style={{ marginTop: 6 }}>
+                    {edit.useDefaultPenalty && !edit.penalty_waived
+                      ? `Using default rule (${edit.defaultPenalty}m).`
+                      : 'Custom penalty for this day.'}{' '}
+                    Allowed range 0–480 minutes.
+                  </p>
+                </div>
               </div>
               <label className="label" style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12 }}>
                 <input
@@ -353,10 +425,34 @@ export function TodayAttendancePage() {
                 <input
                   type="checkbox"
                   checked={edit.penalty_waived}
-                  onChange={(e) => setEdit({ ...edit, penalty_waived: e.target.checked })}
+                  onChange={(e) =>
+                    setEdit({
+                      ...edit,
+                      penalty_waived: e.target.checked,
+                      penalty_minutes: e.target.checked ? '0' : String(edit.defaultPenalty),
+                      useDefaultPenalty: !e.target.checked,
+                    })
+                  }
                 />
-                Remove / waive late check-in penalty (work starts from actual check-in; no +15m)
+                Waive late penalty (work starts from actual check-in)
               </label>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={edit.penalty_waived}
+                  onClick={() =>
+                    setEdit({
+                      ...edit,
+                      penalty_waived: false,
+                      useDefaultPenalty: true,
+                      penalty_minutes: String(edit.defaultPenalty),
+                    })
+                  }
+                >
+                  Reset to default ({edit.defaultPenalty}m)
+                </Button>
+              </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setEdit(null)} disabled={saving}>
                   Cancel

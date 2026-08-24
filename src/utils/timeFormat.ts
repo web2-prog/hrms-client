@@ -144,16 +144,22 @@ export function isLateCheckIn(
   return checkInSeconds >= shiftSeconds + (normalizeLateBufferMinutes(bufferMinutes) + 1) * 60;
 }
 
-/** If late (and not waived), work counts from check_in + 15 minutes */
+/** If late (and not waived), work counts from check_in + effective penalty minutes. */
 export function effectiveWorkStart(
   checkIn?: string | null,
   shiftStart?: string | null,
   penaltyWaived = false,
-  bufferMinutes = DEFAULT_LATE_BUFFER_MINUTES
+  bufferMinutes = DEFAULT_LATE_BUFFER_MINUTES,
+  penaltyMinutesOverride: number | null = null
 ) {
   if (!checkIn) return null;
-  if (!penaltyWaived && isLateCheckIn(checkIn, shiftStart, bufferMinutes)) {
-    return addMinutesToTime(checkIn, LATE_CHECKIN_PENALTY_MINUTES);
+  if (isLateCheckIn(checkIn, shiftStart, bufferMinutes)) {
+    let mins = LATE_CHECKIN_PENALTY_MINUTES;
+    if (penaltyWaived) mins = 0;
+    else if (penaltyMinutesOverride != null && Number.isFinite(Number(penaltyMinutesOverride))) {
+      mins = Math.max(0, Math.min(480, Math.floor(Number(penaltyMinutesOverride))));
+    }
+    if (mins > 0) return addMinutesToTime(checkIn, mins);
   }
   return checkIn;
 }
