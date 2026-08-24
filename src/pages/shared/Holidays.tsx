@@ -67,8 +67,7 @@ export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
     setLoading(true);
     setError(null);
     try {
-      // Calendar view: fetch the whole year at once so month groups stay intact.
-      const q = buildQuery({ page: 1, limit: 400, search: list.search, year, type: list.get('type') });
+      const q = buildQuery({ page: list.page, limit: list.limit, search: list.search, year, type: list.get('type') });
       const res = await api<ListResult<Holiday>>(`/holidays${q}`);
       setData(res.data);
       setTotal(res.total);
@@ -88,7 +87,7 @@ export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
     }
   };
 
-  useEffect(() => { load(); }, [list.search, list.params]);
+  useEffect(() => { load(); }, [list.page, list.limit, list.search, list.params]);
 
   // Local today (YYYY-MM-DD) — holidays that ended before this are "completed".
   const now = new Date();
@@ -167,7 +166,6 @@ export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
         error={error}
         empty={!data.length}
         total={total}
-        hidePagination
         onRefresh={load}
         filters={
           <select className="select select-year" value={year} onChange={(e) => list.setFilter('year', e.target.value)}>

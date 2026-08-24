@@ -11,6 +11,7 @@ import {
   TrendingUp,
   UserRound,
 } from 'lucide-react';
+import { ListPagination, PAGE_SIZE } from '../../components/ListingPage';
 import { api, buildQuery, type ListResult } from '../../services/api';
 import { formatHours, hoursBadge, StatusBadge } from '../../components/StatusBadge';
 import { RequireRole } from '../../components/StatusBadge';
@@ -124,6 +125,7 @@ function EmployeeSummaryInner() {
   const month = Number(params.get('month') || now.getMonth() + 1);
   const year = Number(params.get('year') || Math.max(2026, now.getFullYear()));
   const [tab, setTab] = useState<TabId>('attendance');
+  const [tabPage, setTabPage] = useState(1);
 
   const [emps, setEmps] = useState<EmpOption[]>([]);
   const [emp, setEmp] = useState<EmpOption | null>(null);
@@ -141,6 +143,10 @@ function EmployeeSummaryInner() {
     else next.delete(key);
     setParams(next);
   };
+
+  useEffect(() => {
+    setTabPage(1);
+  }, [tab, employeeId, period, month, year]);
 
   useEffect(() => {
     api<ListResult<EmpOption>>('/employees?limit=10000&status=active')
@@ -450,7 +456,10 @@ function EmployeeSummaryInner() {
                   role="tab"
                   aria-selected={tab === t.id}
                   className={`esum-tab${tab === t.id ? ' active' : ''}`}
-                  onClick={() => setTab(t.id)}
+                  onClick={() => {
+                    setTab(t.id);
+                    setTabPage(1);
+                  }}
                 >
                   {t.icon}
                   <span>{t.label}</span>
@@ -476,6 +485,8 @@ function EmployeeSummaryInner() {
                     {hoursBadge(a.surplus_shortfall, a.status)}
                   </span>,
                 ])}
+                page={tabPage}
+                onPageChange={setTabPage}
               />
             )}
 
@@ -490,6 +501,8 @@ function EmployeeSummaryInner() {
                   displayClock(a.check_out),
                   <StatusBadge key="s" status={a.status} />,
                 ])}
+                page={tabPage}
+                onPageChange={setTabPage}
               />
             )}
 
@@ -504,6 +517,8 @@ function EmployeeSummaryInner() {
                   l.reason || '—',
                   <StatusBadge key="s" status={l.status} />,
                 ])}
+                page={tabPage}
+                onPageChange={setTabPage}
               />
             )}
 
@@ -518,6 +533,8 @@ function EmployeeSummaryInner() {
                   o.reason || '—',
                   <StatusBadge key="s" status={o.status} />,
                 ])}
+                page={tabPage}
+                onPageChange={setTabPage}
               />
             )}
 
@@ -563,6 +580,8 @@ function EmployeeSummaryInner() {
                   formatWorked(a.working_hours),
                   <StatusBadge key="s" status={a.status} />,
                 ])}
+                page={tabPage}
+                onPageChange={setTabPage}
               />
             )}
 
@@ -578,6 +597,8 @@ function EmployeeSummaryInner() {
                   displayClock(a.check_out),
                   <StatusBadge key="s" status={a.status} />,
                 ])}
+                page={tabPage}
+                onPageChange={setTabPage}
               />
             )}
 
@@ -597,6 +618,8 @@ function EmployeeSummaryInner() {
                     <StatusBadge status={s.payment_status} />
                   </span>,
                 ])}
+                page={tabPage}
+                onPageChange={setTabPage}
               />
             )}
           </div>
@@ -619,32 +642,44 @@ function SummaryTable({
   head,
   rows,
   empty,
+  page,
+  onPageChange,
 }: {
   head: string[];
   rows: ReactNode[][];
   empty: string;
+  page?: number;
+  onPageChange?: (page: number) => void;
 }) {
   if (!rows.length) return <div className="state-box">{empty}</div>;
+  const pageSafe = page || 1;
+  const start = (pageSafe - 1) * PAGE_SIZE;
+  const visible = onPageChange ? rows.slice(start, start + PAGE_SIZE) : rows;
   return (
-    <div className="table-wrap">
-      <table className="data">
-        <thead>
-          <tr>
-            {head.map((h) => (
-              <th key={h}>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((cells, i) => (
-            <tr key={i}>
-              {cells.map((c, j) => (
-                <td key={j}>{c}</td>
+    <>
+      <div className="table-wrap">
+        <table className="data">
+          <thead>
+            <tr>
+              {head.map((h) => (
+                <th key={h}>{h}</th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {visible.map((cells, i) => (
+              <tr key={i}>
+                {cells.map((c, j) => (
+                  <td key={j}>{c}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {onPageChange ? (
+        <ListPagination total={rows.length} page={pageSafe} onPageChange={onPageChange} />
+      ) : null}
+    </>
   );
 }

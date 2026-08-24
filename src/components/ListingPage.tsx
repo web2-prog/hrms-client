@@ -3,13 +3,8 @@ import { RefreshCw } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+
+export const PAGE_SIZE = 8;
 
 type Props = {
   title?: string;
@@ -31,6 +26,33 @@ type Props = {
   children: React.ReactNode;
 };
 
+type ListPaginationProps = {
+  total: number;
+  page: number;
+  onPageChange: (page: number) => void;
+  pageSize?: number;
+};
+
+export function ListPagination({ total, page, onPageChange, pageSize = PAGE_SIZE }: ListPaginationProps) {
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  const pageSafe = Math.min(Math.max(1, page), pages);
+  return (
+    <div className="pagination">
+      <span>Total: {total}</span>
+      <span>{pageSize} per page</span>
+      <Button variant="outline" disabled={pageSafe <= 1} onClick={() => onPageChange(pageSafe - 1)}>
+        Prev
+      </Button>
+      <span>
+        Page {pageSafe} / {pages}
+      </span>
+      <Button variant="outline" disabled={pageSafe >= pages} onClick={() => onPageChange(pageSafe + 1)}>
+        Next
+      </Button>
+    </div>
+  );
+}
+
 export function ListingPage({
   title,
   subtitle,
@@ -50,7 +72,6 @@ export function ListingPage({
 }: Props) {
   const [params, setParams] = useSearchParams();
   const page = Number(params.get('page') || 1);
-  const limit = Number(params.get('limit') || 10);
   const search = params.get('search') || '';
   const [localSearch, setLocalSearch] = useState(search);
 
@@ -73,15 +94,6 @@ export function ListingPage({
     next.set('page', String(p));
     setParams(next);
   };
-
-  const setLimit = (l: number) => {
-    const next = new URLSearchParams(params);
-    next.set('limit', String(l));
-    next.set('page', '1');
-    setParams(next);
-  };
-
-  const pages = Math.max(1, Math.ceil(total / limit));
 
   return (
     <div>
@@ -117,29 +129,9 @@ export function ListingPage({
         {error && !loading && <div className="state-box" style={{ color: 'var(--error)' }}>{error}</div>}
         {!loading && !error && empty && <div className="state-box">No records found</div>}
         {!loading && !error && !empty && children}
-        {!hidePagination && <div className="pagination">
-          <span>Total: {total}</span>
-          <Select value={String(limit >= 10000 ? 10000 : limit)} onValueChange={(v) => setLimit(Number(v))}>
-            <SelectTrigger className="w-[90px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="10">10</SelectItem>
-              <SelectItem value="25">25</SelectItem>
-              <SelectItem value="50">50</SelectItem>
-              <SelectItem value="10000">All</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button variant="outline" disabled={page <= 1} onClick={() => setPage(page - 1)}>
-            Prev
-          </Button>
-          <span>
-            Page {page} / {pages}
-          </span>
-          <Button variant="outline" disabled={page >= pages} onClick={() => setPage(page + 1)}>
-            Next
-          </Button>
-        </div>}
+        {!hidePagination && (
+          <ListPagination total={total} page={page} onPageChange={setPage} />
+        )}
       </div>
     </div>
   );
@@ -150,7 +142,7 @@ export function useListParams() {
   return useMemo(
     () => ({
       page: Number(params.get('page') || 1),
-      limit: Number(params.get('limit') || 10),
+      limit: PAGE_SIZE,
       search: params.get('search') || '',
       get: (k: string) => params.get(k) || '',
       setFilter: (k: string, v: string) => {

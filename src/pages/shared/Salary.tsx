@@ -14,6 +14,7 @@ import {
 import {
   apiPayslipToForm,
   applyCompanyToForm,
+  formToAdjustPayload,
   getSalaryPdfFilename,
   resolveCompanyKeyFromForm,
   SALARY_COMPANIES,
@@ -46,6 +47,9 @@ type Slip = {
   payment_reference?: string;
   employee_id?: { _id: string; name: string; department_id?: { name: string } };
   payslip?: Record<string, unknown>;
+  adjustment_note?: string;
+  sent_on?: string;
+  sent_to?: string;
 };
 
 export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
@@ -64,9 +68,13 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
   });
   const [previewForm, setPreviewForm] = useState<SalarySlipFormData | null>(null);
   const [previewSlipId, setPreviewSlipId] = useState<string | null>(null);
+  const [previewStatus, setPreviewStatus] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [companySaving, setCompanySaving] = useState(false);
+  const [adjustSaving, setAdjustSaving] = useState(false);
+  const [showAdjust, setShowAdjust] = useState(false);
   const [genBusy, setGenBusy] = useState(false);
+  const [sendBusy, setSendBusy] = useState<string | null>(null);
   const previewRef = useRef<HTMLDivElement | null>(null);
 
   const load = async () => {
@@ -130,7 +138,9 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
       showGeneratedSlip(slip);
       if (slip.payslip) {
         setPreviewSlipId(slip._id);
+        setPreviewStatus(slip.status);
         setPreviewForm(apiPayslipToForm(slip.payslip));
+        setShowAdjust(true);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Generate failed');
@@ -188,7 +198,9 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
     try {
       const slip = await api<Slip & { payslip: Record<string, unknown> }>(`/salary/${id}`);
       setPreviewSlipId(slip._id);
+      setPreviewStatus(slip.status);
       setPreviewForm(apiPayslipToForm(slip.payslip));
+      setShowAdjust((user?.role === 'admin' || user?.role === 'hr') && slip.status === 'Draft');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load payslip');
     } finally {
@@ -215,19 +227,75 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
     }
   };
 
-  const downloadServerPdf = async (id: string, filenameHint?: string) => {
-    const blob = await api<Blob>(`/salary/${id}/pdf`);
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filenameHint || `salary-${id}.pdf`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const closePreview = () => {
+    setPreviewForm(null);
+    setPreviewSlipId(null);
+    setPreviewStatus(null);
+    setShowAdjust(false);
+  };
+
+  const canAdjust =
+    (user?.role === 'admin' || user?.role === 'hr') && previewStatus === 'Draft' && Boolean(previewSlipId);
+
+  const saveAdjustments = async () => {
+    if (!previewSlipId || !previewForm) return;
+    setAdjustSaving(true);
+    setError(null);
+    try {
+      const slip = await api<Slip & { payslip: Record<string, unknown> }>(`/salary/${previewSlipId}/adjust`, {
+        method: 'PATCH',
+        body: formToAdjustPayload(previewForm),
+      });
+      setPreviewForm(apiPayslipToForm(slip.payslip));
+      setPreviewStatus(slip.status);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save salary values');
+    } finally {
+      setAdjustSaving(false);
+    }
+  };
+
+  const resetAdjustments = async () => {
+    if (!previewSlipId) return;
+    setAdjustSaving(true);
+    setError(null);
+    try {
+      const slip = await api<Slip & { payslip: Record<string, unknown> }>(`/salary/${previewSlipId}/adjust`, {
+        method: 'PATCH',
+        body: { reset: true },
+      });
+      setPreviewForm(apiPayslipToForm(slip.payslip));
+      setPreviewStatus(slip.status);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to reset salary values');
+    } finally {
+      setAdjustSaving(false);
+    }
   };
 
   const downloadPreviewPdf = async () => {
     if (!previewRef.current || !previewForm) return;
     await downloadSalarySlipPdf(previewRef.current, getSalaryPdfFilename(previewForm));
+  };
+
+  const sendSlip = async (id: string) => {
+    setSendBusy(id);
+    setError(null);
+    try {
+      const res = await api<{ message: string; sent_on: string; sent_to: string }>(`/salary/${id}/send`, {
+        method: 'POST',
+        body: {},
+      });
+      setError(null);
+      alert(res.message || 'Salary slip sent');
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to send salary slip');
+    } finally {
+      setSendBusy(null);
+    }
   };
 
   return (
@@ -419,10 +487,7 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
                   </td>
                   <td className="row-actions">
                     <Button variant="outline" onClick={() => openPreview(s._id)} disabled={previewLoading}>
-                      View
-                    </Button>
-                    <Button variant="outline" onClick={() => downloadServerPdf(s._id)}>
-                      PDF
+                      {(user?.role === 'admin' || user?.role === 'hr') && s.status === 'Draft' ? 'Adjust' : 'View'}
                     </Button>
                     {(user?.role === 'admin' || user?.role === 'hr') && s.status === 'Draft' && (
                       <Button
@@ -448,6 +513,15 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
                         }}
                       >
                         Reverse
+                      </Button>
+                    )}
+                    {(user?.role === 'admin' || user?.role === 'hr') && s.status === 'Finalized' && (
+                      <Button
+                        variant="outline"
+                        disabled={sendBusy === s._id}
+                        onClick={() => sendSlip(s._id)}
+                      >
+                        {sendBusy === s._id ? 'Sending…' : s.sent_on ? 'Resend' : 'Send salary'}
                       </Button>
                     )}
                     {(user?.role === 'admin' || user?.role === 'hr') &&
@@ -481,13 +555,10 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
         <Dialog
           open
           onOpenChange={(o) => {
-            if (!o) {
-              setPreviewForm(null);
-              setPreviewSlipId(null);
-            }
+            if (!o) closePreview();
           }}
         >
-          <DialogContent className="sm:max-w-[860px]" style={{ maxHeight: '92vh', overflow: 'auto' }}>
+          <DialogContent className="sm:max-w-[920px]" style={{ maxHeight: '92vh', overflow: 'auto' }}>
             <DialogHeader>
               <DialogTitle>Salary Slip Preview</DialogTitle>
             </DialogHeader>
@@ -507,21 +578,51 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
                   </select>
                 </label>
               )}
-              <Button onClick={downloadPreviewPdf}>
-                Download PDF
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setPreviewForm(null);
-                  setPreviewSlipId(null);
-                }}
-              >
+              {canAdjust && (
+                <>
+                  <Button variant="outline" onClick={() => setShowAdjust((v) => !v)}>
+                    {showAdjust ? 'View slip' : 'Edit values'}
+                  </Button>
+                  {showAdjust && (
+                    <>
+                      <Button variant="outline" disabled={adjustSaving} onClick={resetAdjustments}>
+                        Reset calculated
+                      </Button>
+                      <Button disabled={adjustSaving} onClick={saveAdjustments}>
+                        {adjustSaving ? 'Saving…' : 'Save values'}
+                      </Button>
+                    </>
+                  )}
+                </>
+              )}
+              {!showAdjust && (
+                <>
+                  <Button onClick={downloadPreviewPdf}>
+                    Download PDF
+                  </Button>
+                  {(user?.role === 'admin' || user?.role === 'hr') && previewStatus === 'Finalized' && previewSlipId && (
+                    <Button
+                      variant="outline"
+                      disabled={sendBusy === previewSlipId}
+                      onClick={() => sendSlip(previewSlipId)}
+                    >
+                      {sendBusy === previewSlipId ? 'Sending…' : 'Send salary'}
+                    </Button>
+                  )}
+                </>
+              )}
+              <Button variant="outline" onClick={closePreview}>
                 Close
               </Button>
             </div>
             <div style={{ overflowX: 'auto' }}>
-              <SalarySlipPreview form={previewForm} previewRef={previewRef} />
+              <SalarySlipPreview
+                form={previewForm}
+                previewRef={previewRef}
+                editable={canAdjust && showAdjust}
+                disabled={adjustSaving}
+                onChange={setPreviewForm}
+              />
             </div>
           </DialogContent>
         </Dialog>

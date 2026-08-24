@@ -5,6 +5,7 @@ import { ListingPage, useListParams } from '../../components/ListingPage';
 import { StatusBadge } from '../../components/StatusBadge';
 import { ConfirmClearData } from '../../components/ConfirmClearData';
 import { BondSalaryManager } from '../../components/BondSalaryManager';
+import { NumberInput } from '../../components/NumberInput';
 import { useAuth } from '../../context/AuthContext';
 import { formatClockInput, to24HourClock } from '../../utils/timeFormat';
 import { Button } from '@/components/ui/button';
@@ -435,7 +436,7 @@ export function EmployeeManagePage({ basePath }: { basePath: string }) {
           </div>
           <div>
             <label className="label">Base salary (current)</label>
-            <input className="input" type="number" value={emp.base_salary || 0} onChange={(e) => set('base_salary', Number(e.target.value))} />
+            <NumberInput className="input" min={0} value={emp.base_salary || 0} onChange={(n) => set('base_salary', n)} />
             <p style={{ color: 'var(--muted)', fontSize: '0.82rem', margin: '0.35rem 0 0' }}>
               Auto-updated from the active salary schedule band when you save.
             </p>
@@ -473,19 +474,6 @@ export function EmployeeManagePage({ basePath }: { basePath: string }) {
               <option value="">Select</option>
               <option value="Male">Male</option>
               <option value="Female">Female</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
-          <div>
-            <label className="label">Blood group</label>
-            <input className="input" value={emp.profile_details?.blood_group || ''} onChange={(e) => set('profile_details.blood_group', e.target.value)} placeholder="e.g. O+" />
-          </div>
-          <div>
-            <label className="label">Marital status</label>
-            <select className="select" value={emp.profile_details?.marital_status || ''} onChange={(e) => set('profile_details.marital_status', e.target.value)}>
-              <option value="">Select</option>
-              <option value="Single">Single</option>
-              <option value="Married">Married</option>
               <option value="Other">Other</option>
             </select>
           </div>

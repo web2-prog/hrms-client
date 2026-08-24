@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { api, apiUrl } from '../../services/api';
 import { formatHours, hoursBadge, StatusBadge } from '../../components/StatusBadge';
+import { ListingPage, useListParams } from '../../components/ListingPage';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '@/components/ui/button';
 import {
@@ -904,8 +905,6 @@ export function ProfilePage() {
           <div className="form-grid profile-grid">
             <ProfileField label="Date of birth">{displayValue(formatDate(pd.dob))}</ProfileField>
             <ProfileField label="Gender">{displayValue(pd.gender)}</ProfileField>
-            <ProfileField label="Blood group">{displayValue(pd.blood_group)}</ProfileField>
-            <ProfileField label="Marital status">{displayValue(pd.marital_status)}</ProfileField>
             <ProfileField label="Personal email">
               {pd.personal_email ? (
                 <a href={`mailto:${pd.personal_email}`}>{pd.personal_email}</a>
@@ -1116,40 +1115,60 @@ export function GlobalDataPage() {
 }
 
 export function AuditPage() {
+  const list = useListParams();
   const [data, setData] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api<any>(`/audit-logs?page=${list.page}&limit=${list.limit}`);
+      setData(res.data);
+      setTotal(res.total);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    api<any>('/audit-logs?limit=50').then((r) => { setData(r.data); setTotal(r.total); });
-  }, []);
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [list.page, list.limit]);
+
   return (
-    <div>
-      <div className="page-header">
-        <div>
-          <h1>Audit Logs</h1>
-          <p className="page-header-sub">Recent system actions and changes</p>
-        </div>
+    <ListingPage
+      title="Audit Logs"
+      subtitle="Recent system actions and changes"
+      loading={loading}
+      error={error}
+      empty={!data.length}
+      total={total}
+      onRefresh={load}
+      hideSearch
+    >
+      <div className="table-wrap">
+        <table className="data">
+          <thead>
+            <tr><th>Time</th><th>Action</th><th>By</th><th>Target</th><th>Details</th></tr>
+          </thead>
+          <tbody>
+            {data.map((a) => (
+              <tr key={a._id}>
+                <td>{displayDateTime(a.timestamp)}</td>
+                <td>{a.action}</td>
+                <td>{a.performed_by?.name}</td>
+                <td>{a.target_employee_id?.name || '—'}</td>
+                <td><code style={{ fontSize: 12 }}>{JSON.stringify(a.details)}</code></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
-      <div className="card card-accent violet">
-        <p style={{ color: 'var(--muted)' }}>Total: {total}</p>
-        <div className="table-wrap">
-          <table className="data">
-            <thead>
-              <tr><th>Time</th><th>Action</th><th>By</th><th>Target</th><th>Details</th></tr>
-            </thead>
-            <tbody>
-              {data.map((a) => (
-                <tr key={a._id}>
-                  <td>{displayDateTime(a.timestamp)}</td>
-                  <td>{a.action}</td>
-                  <td>{a.performed_by?.name}</td>
-                  <td>{a.target_employee_id?.name || '—'}</td>
-                  <td><code style={{ fontSize: 12 }}>{JSON.stringify(a.details)}</code></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
+    </ListingPage>
   );
 }

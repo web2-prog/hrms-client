@@ -56,7 +56,9 @@ export type SalarySlipFormData = {
   pfNo: string;
   uan: string;
   paidDays: number;
+  leaveDays: number;
   lopDays: number;
+  workingDays: number;
   month: number;
   year: number;
   basic: number;
@@ -75,6 +77,8 @@ export type SalarySlipFormData = {
   ytdBondSecurity: number;
   tds: number;
   ytdTds: number;
+  customEarnings: { label: string; amount: number; ytd: number }[];
+  customDeductions: { label: string; amount: number; ytd: number }[];
   /** Hours / rate breakdown for amount calculation */
   targetHours: number;
   countedHours: number;
@@ -107,17 +111,47 @@ export const applyCompanyToForm = (
   };
 };
 
-export const calculateGrossEarnings = (form: SalarySlipFormData) => form.basic + form.overtime;
+export const calculateGrossEarnings = (form: SalarySlipFormData) =>
+  form.basic +
+  form.overtime +
+  (form.customEarnings || []).reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
 
 export const calculateTotalDeductions = (form: SalarySlipFormData) =>
   form.shortfallDeduction +
   form.leaveDeduction +
   form.earlyCheckoutDeduction +
   form.bondSecurity +
-  form.tds;
+  form.tds +
+  (form.customDeductions || []).reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
 
 export const calculateNetPay = (form: SalarySlipFormData) =>
   calculateGrossEarnings(form) - calculateTotalDeductions(form);
+
+export const slipDailyRate = (form: Pick<SalarySlipFormData, 'basic' | 'workingDays' | 'paidDays' | 'lopDays'>) => {
+  const days =
+    Number(form.workingDays) ||
+    Number(form.paidDays) + Number(form.lopDays) ||
+    0;
+  return days > 0 ? Number(form.basic) / days : 0;
+};
+
+/** Leave count → leave deduction amount (per-day rate × days). */
+export const applyLeaveCount = (form: SalarySlipFormData, leaveDays: number): SalarySlipFormData => {
+  const days = Math.max(0, Number(leaveDays) || 0);
+  const amount = Math.round(days * slipDailyRate(form) * 100) / 100;
+  return { ...patchYtd(form, 'leaveDeduction', 'ytdLeaveDeduction', amount), leaveDays: days };
+};
+
+function patchYtd(
+  form: SalarySlipFormData,
+  field: 'leaveDeduction',
+  ytdField: 'ytdLeaveDeduction',
+  next: number
+): SalarySlipFormData {
+  const prev = Number(form[field]) || 0;
+  const prevYtd = Number(form[ytdField]) || 0;
+  return { ...form, [field]: next, [ytdField]: Math.round((prevYtd - prev + next) * 100) / 100 };
+}
 
 export const formatSlipAmount = (value: number, withSymbol = false) => {
   if (!Number.isFinite(value)) return withSymbol ? '₹0.00' : '0.00';
@@ -248,7 +282,9 @@ export const apiPayslipToForm = (p: Partial<SalarySlipFormData> & Record<string,
     pfNo: String(p.pfNo || 'NA'),
     uan: String(p.uan || 'NA'),
     paidDays: Number(p.paidDays) || 0,
+    leaveDays: Number(p.leaveDays) || 0,
     lopDays: Number(p.lopDays) || 0,
+    workingDays: Number(p.workingDays) || 0,
     month: Number(p.month) || 1,
     year: Number(p.year) || 2026,
     basic,
@@ -267,6 +303,20 @@ export const apiPayslipToForm = (p: Partial<SalarySlipFormData> & Record<string,
     ytdBondSecurity: Number(p.ytdBondSecurity) || 0,
     tds: Number(p.tds) || 0,
     ytdTds: Number(p.ytdTds) || 0,
+    customEarnings: Array.isArray(p.customEarnings)
+      ? p.customEarnings.map((item) => ({
+          label: String(item.label || ''),
+          amount: Number(item.amount) || 0,
+          ytd: Number(item.ytd) || Number(item.amount) || 0,
+        }))
+      : [],
+    customDeductions: Array.isArray(p.customDeductions)
+      ? p.customDeductions.map((item) => ({
+          label: String(item.label || ''),
+          amount: Number(item.amount) || 0,
+          ytd: Number(item.ytd) || Number(item.amount) || 0,
+        }))
+      : [],
     targetHours,
     countedHours,
     overtimeHours,
@@ -276,3 +326,23 @@ export const apiPayslipToForm = (p: Partial<SalarySlipFormData> & Record<string,
     shortfallRate,
   };
 };
+
+export const formToAdjustPayload = (form: SalarySlipFormData) => ({
+  pay_date: form.payDate,
+  pf_no: form.pfNo,
+  uan: form.uan,
+  tds: form.tds,
+  paid_days: form.paidDays,
+  leave_days: form.leaveDays,
+  lop_days: form.lopDays,
+  base_salary: form.basic,
+  overtime_amount: form.overtime,
+  overtime_hours: form.overtimeHours,
+  deduction_amount: form.shortfallDeduction,
+  leave_deduction_amount: form.leaveDeduction,
+  early_checkout_deduction_amount: form.earlyCheckoutDeduction,
+  bond_security_deduction: form.bondSecurity,
+  bond_security_percent: form.bondSecurityPercent,
+  custom_earnings: (form.customEarnings || []).map((item) => ({ label: item.label, amount: item.amount })),
+  custom_deductions: (form.customDeductions || []).map((item) => ({ label: item.label, amount: item.amount })),
+});

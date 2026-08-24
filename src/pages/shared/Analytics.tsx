@@ -8,6 +8,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { api, buildQuery, type ListResult } from '../../services/api';
+import { ListPagination, PAGE_SIZE } from '../../components/ListingPage';
 import { formatHours } from '../../components/StatusBadge';
 import { RequireRole } from '../../components/StatusBadge';
 import { Button } from '@/components/ui/button';
@@ -203,7 +204,6 @@ function AnalyticsInner() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(10);
 
   useEffect(() => {
     api<ListResult<any>>('/departments?limit=100')
@@ -314,9 +314,9 @@ function AnalyticsInner() {
     return filtered.sort((a, b) => b.score - a.score);
   }, [data, type, otFilter]);
 
-  const pages = Math.max(1, Math.ceil(ranked.length / limit));
+  const pages = Math.max(1, Math.ceil(ranked.length / PAGE_SIZE));
   const pageSafe = Math.min(page, pages);
-  const paged = ranked.slice((pageSafe - 1) * limit, pageSafe * limit);
+  const paged = ranked.slice((pageSafe - 1) * PAGE_SIZE, pageSafe * PAGE_SIZE);
 
   return (
     <div className="an-page">
@@ -482,43 +482,7 @@ function AnalyticsInner() {
                 </tbody>
               </table>
             </div>
-            <div className="pagination">
-              <span>Total: {ranked.length}</span>
-              <select
-                className="select"
-                style={{ width: 90 }}
-                value={limit}
-                onChange={(e) => {
-                  setLimit(Number(e.target.value));
-                  setPage(1);
-                }}
-                aria-label="Rows per page"
-              >
-                <option value={10}>10</option>
-                <option value={25}>25</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-              </select>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={pageSafe <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-              >
-                Prev
-              </Button>
-              <span>
-                Page {pageSafe} / {pages}
-              </span>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={pageSafe >= pages}
-                onClick={() => setPage((p) => Math.min(pages, p + 1))}
-              >
-                Next
-              </Button>
-            </div>
+            <ListPagination total={ranked.length} page={pageSafe} onPageChange={setPage} />
           </>
         )}
       </div>

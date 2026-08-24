@@ -4,7 +4,18 @@ import { ArrowUpRight, Building2, Clock3, Pencil, Plus, Timer, Trash2, Users } f
 import { api, buildQuery, type ListResult } from '../../services/api';
 import { ListingPage, useListParams } from '../../components/ListingPage';
 import { StatusBadge, RequireRole } from '../../components/StatusBadge';
-import { displayClock, formatClockInput, to24HourClock } from '../../utils/timeFormat';
+import {
+  displayClock,
+  formatClockInput,
+  formatDailyHours,
+  defaultHalfDayHours,
+  parseDailyHours,
+  to24HourClock,
+  lateBufferUntil,
+  lateBufferMinutesFromUntil,
+  DEFAULT_LATE_BUFFER_MINUTES,
+  DEFAULT_LATE_BUFFER_UNTIL,
+} from '../../utils/timeFormat';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -21,6 +32,7 @@ type Dept = {
   _id: string;
   name: string;
   working_hours_per_day: number;
+  half_day_hours?: number | null;
   shift_start: string;
   shift_end: string;
   late_buffer_minutes: number;
@@ -65,23 +77,14 @@ function initials(name: string) {
     .join('');
 }
 
-function fmtHours(n?: number) {
-  if (n == null || Number.isNaN(n)) return '—';
-  return `${n} hrs/day`;
-}
-
 function memberLabel(n?: number) {
   if (n == null) return null;
   return `${n} ${n === 1 ? 'member' : 'members'}`;
 }
 
-/** Decimal hours → compact "8h 24m" */
 function fmtAvgHours(n?: number) {
   if (n == null || Number.isNaN(n)) return '—';
-  const totalMin = Math.round(Number(n) * 60);
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
-  return `${h}h ${String(m).padStart(2, '0')}m`;
+  return formatDailyHours(n) || '—';
 }
 
 function onTimePct(an: DeptAnalytics) {
@@ -119,6 +122,9 @@ function DepartmentsInner() {
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [formErr, setFormErr] = useState('');
   const [deleteErr, setDeleteErr] = useState('');
+  const [hoursInput, setHoursInput] = useState('8h 15m');
+  const [halfDayInput, setHalfDayInput] = useState('4h 7.5m');
+  const [halfDayManual, setHalfDayManual] = useState(false);
 
   // Overall snapshot for the summary strip (independent of search/pagination).
   const [snapshot, setSnapshot] = useState<Dept[] | null>(null);
@@ -169,16 +175,51 @@ function DepartmentsInner() {
   const active = snapshot ? snapshot.filter((d) => d.status === 'active').length : 0;
   const totalMembers = snapshot ? snapshot.reduce((sum, d) => sum + (d.members || 0), 0) : 0;
 
+  const syncHalfDayDefault = (fullDayText: string) => {
+    const full = parseDailyHours(fullDayText);
+    if (full != null) setHalfDayInput(formatDailyHours(defaultHalfDayHours(full)));
+  };
+
+  const openEditor = (dept: Partial<Dept>) => {
+    setFormErr('');
+    const full = dept.working_hours_per_day ?? 8.25;
+    const half = dept.half_day_hours ?? defaultHalfDayHours(full);
+    setHoursInput(formatDailyHours(full) || '8h 15m');
+    setHalfDayInput(formatDailyHours(half) || '4h 7.5m');
+    setHalfDayManual(false);
+    setEditing(dept);
+  };
+
   const save = async () => {
     if (!editing || !editing.name?.trim()) return;
+    const workingHours = parseDailyHours(hoursInput);
+    if (workingHours == null || workingHours <= 0) {
+      setFormErr('Enter daily hours as 8h 15m (or 8:15).');
+      return;
+    }
+    const halfDayHours = parseDailyHours(halfDayInput);
+    if (halfDayHours == null || halfDayHours <= 0) {
+      setFormErr('Enter half-day hours as 4h 7.5m (or 4:07:30).');
+      return;
+    }
+    if (halfDayHours > workingHours) {
+      setFormErr('Half-day hours cannot exceed full-day hours.');
+      return;
+    }
     setSaving(true);
     setFormErr('');
     try {
       const body = {
         ...editing,
         name: editing.name.trim(),
+        working_hours_per_day: Math.round(workingHours * 10000) / 10000,
+        half_day_hours: Math.round(halfDayHours * 10000) / 10000,
         shift_start: to24HourClock(editing.shift_start) || editing.shift_start,
         shift_end: to24HourClock(editing.shift_end) || editing.shift_end,
+        late_buffer_minutes: Math.max(
+          0,
+          Math.min(240, Math.floor(Number(editing.late_buffer_minutes ?? DEFAULT_LATE_BUFFER_MINUTES) || 0))
+        ),
       };
       if (editing._id) await api(`/departments/${editing._id}`, { method: 'PUT', body });
       else await api('/departments', { method: 'POST', body });
@@ -272,17 +313,14 @@ function DepartmentsInner() {
           </select>
         }
         actions={
-          <Button onClick={() => {
-            setFormErr('');
-            setEditing({
+          <Button onClick={() => openEditor({
               name: '',
               working_hours_per_day: 8.25,
-              shift_start: '9:15 AM',
+              shift_start: '8:45 AM',
               shift_end: '5:30 PM',
-              late_buffer_minutes: 5,
+              late_buffer_minutes: DEFAULT_LATE_BUFFER_MINUTES,
               status: 'active',
-            });
-          }}>
+            })}>
             <Plus size={16} />
             Add Department
           </Button>
@@ -307,14 +345,11 @@ function DepartmentsInner() {
                       size="icon-sm"
                       className="dept-card-action"
                       title="Edit department"
-                      onClick={() => {
-                        setFormErr('');
-                        setEditing({
+                      onClick={() => openEditor({
                           ...d,
                           shift_start: formatClockInput(d.shift_start),
                           shift_end: formatClockInput(d.shift_end),
-                        });
-                      }}
+                        })}
                     >
                       <Pencil size={15} />
                     </Button>
@@ -344,11 +379,23 @@ function DepartmentsInner() {
                   </div>
                   <div className="dept-meta-row">
                     <Timer size={15} />
-                    <span>{fmtHours(d.working_hours_per_day)}</span>
+                    <span>{formatDailyHours(d.working_hours_per_day) || '—'} / day</span>
+                  </div>
+                  <div className="dept-meta-row">
+                    <Timer size={15} />
+                    <span>
+                      {formatDailyHours(d.half_day_hours ?? defaultHalfDayHours(d.working_hours_per_day)) || '—'} half day
+                    </span>
                   </div>
                   <div className="dept-meta-row">
                     <Clock3 size={15} />
-                    <span>{d.late_buffer_minutes ?? 5}m late buffer</span>
+                    <span>
+                      Late until{' '}
+                      {displayClock(
+                        lateBufferUntil(d.shift_start, d.late_buffer_minutes ?? DEFAULT_LATE_BUFFER_MINUTES)
+                      )}{' '}
+                      ({d.late_buffer_minutes ?? DEFAULT_LATE_BUFFER_MINUTES}m buffer)
+                    </span>
                   </div>
                 </div>
 
@@ -410,12 +457,29 @@ function DepartmentsInner() {
                   <Label htmlFor="dept-hours">Hours / day</Label>
                   <Input
                     id="dept-hours"
-                    type="number"
-                    step="0.25"
-                    min="0.5"
-                    value={editing.working_hours_per_day ?? 8}
-                    onChange={(e) => setEditing({ ...editing, working_hours_per_day: Number(e.target.value) })}
+                    value={hoursInput}
+                    onChange={(e) => {
+                      setHoursInput(e.target.value);
+                      if (!halfDayManual) syncHalfDayDefault(e.target.value);
+                    }}
+                    placeholder="8h 15m"
                   />
+                  <p className="field-hint">Use hours and minutes, e.g. 8h 15m or 8:15</p>
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="dept-half-hours">Half day</Label>
+                  <Input
+                    id="dept-half-hours"
+                    value={halfDayInput}
+                    onChange={(e) => {
+                      setHalfDayManual(true);
+                      setHalfDayInput(e.target.value);
+                    }}
+                    placeholder="4h 7.5m"
+                  />
+                  <p className="field-hint">
+                    Default is half of full day (8h 15m → 4h 7.5m). Used for half-day leave target reduction.
+                  </p>
                 </div>
                 <div className="grid gap-1.5">
                   <Label htmlFor="dept-status">Status</Label>
@@ -449,20 +513,47 @@ function DepartmentsInner() {
                   <p className="field-hint">12-hour format, e.g. 5:30 PM</p>
                 </div>
                 <div className="grid gap-1.5">
-                  <Label htmlFor="dept-late-buffer">Late buffer (minutes)</Label>
+                  <Label htmlFor="dept-late-until">Late check-in until</Label>
+                  <Input
+                    id="dept-late-until"
+                    value={formatClockInput(
+                      lateBufferUntil(
+                        to24HourClock(editing.shift_start) || editing.shift_start,
+                        editing.late_buffer_minutes ?? DEFAULT_LATE_BUFFER_MINUTES
+                      )
+                    )}
+                    onChange={(e) => {
+                      const shift24 =
+                        to24HourClock(editing.shift_start) || editing.shift_start || '08:45';
+                      const until24 = to24HourClock(e.target.value) || e.target.value;
+                      setEditing({
+                        ...editing,
+                        late_buffer_minutes: lateBufferMinutesFromUntil(shift24, until24),
+                      });
+                    }}
+                    placeholder="9:05 AM"
+                  />
+                  <p className="field-hint">
+                    Inclusive grace after shift start (default {formatClockInput(DEFAULT_LATE_BUFFER_UNTIL)}).
+                    Check-in through this minute has no penalty; the next minute applies +15m.
+                    Currently {editing.late_buffer_minutes ?? DEFAULT_LATE_BUFFER_MINUTES} minutes after shift start.
+                  </p>
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="dept-late-buffer">Buffer (minutes)</Label>
                   <Input
                     id="dept-late-buffer"
                     type="number"
                     min="0"
                     max="240"
                     step="1"
-                    value={editing.late_buffer_minutes ?? 5}
+                    value={editing.late_buffer_minutes ?? DEFAULT_LATE_BUFFER_MINUTES}
                     onChange={(e) => setEditing({
                       ...editing,
                       late_buffer_minutes: Math.max(0, Math.min(240, Math.floor(Number(e.target.value) || 0))),
                     })}
                   />
-                  <p className="field-hint">Inclusive: a 5m buffer permits check-in through 5 minutes after shift start.</p>
+                  <p className="field-hint">Same setting as minutes — HR/Admin can edit either field.</p>
                 </div>
               </div>
               {formErr && <p className="form-error">{formErr}</p>}

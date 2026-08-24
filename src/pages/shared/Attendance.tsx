@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { CalendarDays, CheckCircle2, Clock3, TrendingUp, Timer } from 'lucide-react';
 import { api, buildQuery, type ListResult } from '../../services/api';
-import { ListingPage, useListParams } from '../../components/ListingPage';
+import { ListingPage, ListPagination, PAGE_SIZE, useListParams } from '../../components/ListingPage';
 import { StatusBadge, hoursBadge, formatHours } from '../../components/StatusBadge';
 import { EmpCell } from '../../components/EmpCell';
 import { useAuth } from '../../context/AuthContext';
@@ -355,6 +355,8 @@ type EcRequest = {
 /** HR/Admin approval queue for early checkout requests (Attendance page). */
 function EarlyCheckoutRequestsCard() {
   const [pending, setPending] = useState<EcRequest[]>([]);
+  const [pendingTotal, setPendingTotal] = useState(0);
+  const [pendingPage, setPendingPage] = useState(1);
   const [recent, setRecent] = useState<EcRequest[]>([]);
   const [rejecting, setRejecting] = useState<EcRequest | null>(null);
   const [note, setNote] = useState('');
@@ -366,10 +368,13 @@ function EarlyCheckoutRequestsCard() {
     setErr('');
     try {
       const [p, r] = await Promise.all([
-        api<ListResult<EcRequest>>('/attendance/early-checkout-requests?status=Pending&limit=50'),
-        api<ListResult<EcRequest>>('/attendance/early-checkout-requests?limit=8'),
+        api<ListResult<EcRequest>>(
+          `/attendance/early-checkout-requests?status=Pending&page=${pendingPage}&limit=${PAGE_SIZE}`
+        ),
+        api<ListResult<EcRequest>>(`/attendance/early-checkout-requests?page=1&limit=${PAGE_SIZE}&status=Approved`),
       ]);
       setPending(p.data || []);
+      setPendingTotal(p.total || 0);
       setRecent(r.data || []);
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Failed to load requests');
@@ -382,7 +387,7 @@ function EarlyCheckoutRequestsCard() {
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [pendingPage]);
 
   const decide = async (req: EcRequest, status: 'Approved' | 'Rejected', decisionNote = '') => {
     setBusyId(req._id);
@@ -417,7 +422,7 @@ function EarlyCheckoutRequestsCard() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {pending.length > 0 && <span className="badge badge-warn">{pending.length} pending</span>}
+          {pendingTotal > 0 && <span className="badge badge-warn">{pendingTotal} pending</span>}
           <Button variant="outline" size="sm" onClick={load}>
             Refresh
           </Button>
@@ -427,54 +432,57 @@ function EarlyCheckoutRequestsCard() {
       {msg && <p style={{ color: 'var(--success)', margin: '0.75rem 0 0' }}>{msg}</p>}
       {err && <p style={{ color: 'var(--error)', margin: '0.75rem 0 0' }}>{err}</p>}
 
-      {pending.length === 0 ? (
+      {pendingTotal === 0 ? (
         <p className="ecr-empty">No pending early checkout requests.</p>
       ) : (
-        <div className="table-wrap" style={{ marginTop: 12 }}>
-          <table className="data">
-            <thead>
-              <tr>
-                <th>Employee</th>
-                <th>Requested at</th>
-                <th>Date</th>
-                <th>Reason</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {pending.map((r) => (
-                <tr key={r._id}>
-                  <td>
-                    <EmpCell name={r.employee_id?.name} dept={r.employee_id?.department_id?.name} />
-                  </td>
-                  <td>{displayClock(r.requested_time)}</td>
-                  <td>{r.date}</td>
-                  <td style={{ maxWidth: 320 }}>{r.reason || '—'}</td>
-                  <td className="row-actions">
-                    <Button
-                      size="sm"
-                      disabled={busyId === r._id}
-                      onClick={() => decide(r, 'Approved')}
-                    >
-                      Approve
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={busyId === r._id}
-                      onClick={() => {
-                        setRejecting(r);
-                        setNote('');
-                      }}
-                    >
-                      Reject
-                    </Button>
-                  </td>
+        <>
+          <div className="table-wrap" style={{ marginTop: 12 }}>
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Employee</th>
+                  <th>Requested at</th>
+                  <th>Date</th>
+                  <th>Reason</th>
+                  <th></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {pending.map((r) => (
+                  <tr key={r._id}>
+                    <td>
+                      <EmpCell name={r.employee_id?.name} dept={r.employee_id?.department_id?.name} />
+                    </td>
+                    <td>{displayClock(r.requested_time)}</td>
+                    <td>{r.date}</td>
+                    <td style={{ maxWidth: 320 }}>{r.reason || '—'}</td>
+                    <td className="row-actions">
+                      <Button
+                        size="sm"
+                        disabled={busyId === r._id}
+                        onClick={() => decide(r, 'Approved')}
+                      >
+                        Approve
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={busyId === r._id}
+                        onClick={() => {
+                          setRejecting(r);
+                          setNote('');
+                        }}
+                      >
+                        Reject
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <ListPagination total={pendingTotal} page={pendingPage} onPageChange={setPendingPage} />
+        </>
       )}
 
       {recent.some((r) => r.status !== 'Pending') && (
