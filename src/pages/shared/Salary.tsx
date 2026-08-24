@@ -48,6 +48,7 @@ type Slip = {
   company_name?: string;
   paid_date?: string;
   payment_reference?: string;
+  sent_on?: string;
   employee_id?: { _id: string; name: string; department_id?: { name: string } };
   payslip?: Record<string, unknown>;
   adjustment_note?: string;

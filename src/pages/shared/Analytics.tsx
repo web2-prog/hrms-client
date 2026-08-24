@@ -535,7 +535,7 @@ function AnalyticsInner() {
   }, [data, type, otFilter, onlyPositive]);
 
   const ranked = view === 'department' ? rankedDepts : rankedEmps;
-  const pages = Math.max(1, Math.ceil(ranked.length / limit));
+  const pages = Math.max(1, Math.ceil(ranked.length / PAGE_SIZE));
   const pageSafe = Math.min(page, pages);
   const paged = ranked.slice((pageSafe - 1) * PAGE_SIZE, pageSafe * PAGE_SIZE);
 

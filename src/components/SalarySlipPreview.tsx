@@ -11,7 +11,6 @@ import {
   calculateNetPay,
   formatSlipAmount,
   amountToWords,
-  applyLeaveCount,
   applyLopDays,
 } from '../services/salarySlipDefaults';
 import './SalarySlipPreview.css';
