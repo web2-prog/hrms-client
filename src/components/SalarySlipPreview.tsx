@@ -12,6 +12,7 @@ import {
   formatSlipAmount,
   amountToWords,
   applyLeaveCount,
+  applyLopDays,
 } from '../services/salarySlipDefaults';
 import './SalarySlipPreview.css';
 
@@ -67,14 +68,14 @@ function buildDeductionRows(form: SalarySlipFormData, editable: boolean): Row[] 
   }
   rows.push({
     key: 'leave',
-    label: 'Leave Deduction',
+    label: `Leave Deduction (${form.lopDays} LOP day${form.lopDays === 1 ? '' : 's'})`,
     amount: form.leaveDeduction,
     ytd: form.ytdLeaveDeduction,
   });
   if (editable || form.earlyCheckoutDeduction > 0) {
     rows.push({
       key: 'early',
-      label: 'Early Checkout Deduction',
+      label: `Early Checkout Deduction (${Math.round(form.earlyCheckoutMinutes)} min)`,
       amount: form.earlyCheckoutDeduction,
       ytd: form.ytdEarlyCheckoutDeduction,
     });
@@ -211,7 +212,7 @@ export function SalarySlipPreview({ form, previewRef, editable = false, disabled
           disabled={disabled}
           onChange={(v) => {
             const next = patchAmount(form, 'basic', 'ytdBasic', v);
-            update(form.leaveDays > 0 ? applyLeaveCount(next, form.leaveDays) : next);
+            update(form.lopDays > 0 ? applyLopDays(next, form.lopDays) : next);
           }}
         />
       );
@@ -380,13 +381,13 @@ export function SalarySlipPreview({ form, previewRef, editable = false, disabled
               </span>
             </div>
             <div className="meta-row">
-              <span className="meta-label">Leave Count</span>
+              <span className="meta-label">Total Approved Leave</span>
               <span className="meta-value">
                 {editable && onChange ? (
                   <DaysField
                     value={form.leaveDays}
                     disabled={disabled}
-                    onChange={(v) => update(applyLeaveCount(form, v))}
+                    onChange={(v) => update({ ...form, leaveDays: v })}
                   />
                 ) : (
                   form.leaveDays
@@ -394,14 +395,22 @@ export function SalarySlipPreview({ form, previewRef, editable = false, disabled
               </span>
             </div>
             <div className="meta-row">
-              <span className="meta-label">LOP Days</span>
+              <span className="meta-label">Leave Deduction Days</span>
               <span className="meta-value">
                 {editable && onChange ? (
-                  <DaysField value={form.lopDays} disabled={disabled} onChange={(v) => update({ ...form, lopDays: v })} />
+                  <DaysField
+                    value={form.lopDays}
+                    disabled={disabled}
+                    onChange={(v) => update(applyLopDays(form, v))}
+                  />
                 ) : (
                   form.lopDays
                 )}
               </span>
+            </div>
+            <div className="meta-row">
+              <span className="meta-label">Early Checkout</span>
+              <span className="meta-value">{Math.round(form.earlyCheckoutMinutes)} min</span>
             </div>
           </div>
         </div>

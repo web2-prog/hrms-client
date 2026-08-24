@@ -123,8 +123,11 @@ export function LeavesPage() {
       // Same filters as the table so the strip reflects the filtered view.
       const base = {
         limit: 1,
+        search: list.search || undefined,
         month: month || undefined,
         year: year || undefined,
+        day_type: list.get('day_type') || undefined,
+        when: when || undefined,
         department_id: list.get('department_id'),
         employee_id: list.get('employee_id'),
       };

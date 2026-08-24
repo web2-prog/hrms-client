@@ -4,6 +4,7 @@ import { api, buildQuery, type ListResult } from '../../services/api';
 import { ListingPage, useListParams } from '../../components/ListingPage';
 import { StatusBadge, hoursBadge, formatHours } from '../../components/StatusBadge';
 import { displayClock, formatDurationMinutes } from '../../utils/timeFormat';
+import { useAuth } from '../../context/AuthContext';
 
 type Att = {
   _id: string;
@@ -28,6 +29,7 @@ type MonthSummary = {
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 export function AttendanceHistoryPage() {
+  const { user } = useAuth();
   const list = useListParams();
   const [data, setData] = useState<Att[]>([]);
   const [total, setTotal] = useState(0);
@@ -39,19 +41,24 @@ export function AttendanceHistoryPage() {
   const month = list.get('month') || String(new Date().getMonth() + 1);
 
   const load = async () => {
+    if (!user?._id) return;
     setLoading(true);
     setError(null);
     try {
+      // Always scoped to the signed-in person (employees, HR, or admin personal history).
       const q = buildQuery({
         page: list.page,
         limit: list.limit,
         status: list.get('status'),
         month,
         year,
+        employee_id: user._id,
       });
       const [attRes, monthRes] = await Promise.all([
         api<ListResult<Att>>(`/attendance${q}`),
-        api<MonthSummary>(`/monthly-summary${buildQuery({ month, year })}`).catch(() => null),
+        api<MonthSummary>(`/monthly-summary${buildQuery({ month, year, employee_id: user._id })}`).catch(
+          () => null
+        ),
       ]);
       setData(attRes.data);
       setTotal(attRes.total);
@@ -66,7 +73,7 @@ export function AttendanceHistoryPage() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [list.page, list.limit, list.params]);
+  }, [list.page, list.limit, list.params, user?._id]);
 
   const monthLabel = `${MONTH_NAMES[Number(month) - 1] || month} ${year}`;
   const monthTarget = Number(summary?.monthly_target_hours || 0);
@@ -100,7 +107,7 @@ export function AttendanceHistoryPage() {
             <div>
               <span className="label">Month overtime</span>
               <div className="emp-stat-value is-extra">{formatHours(summary?.overtime_hours)}</div>
-              <span className="emp-stat-hint">Counted extra</span>
+              <span className="emp-stat-hint">Attendance + approved General OT</span>
             </div>
           </div>
         </div>
@@ -122,7 +129,7 @@ export function AttendanceHistoryPage() {
             <div>
               <span className="label">Working days</span>
               <div className="emp-stat-value">{summary?.working_days_in_month ?? '—'}</div>
-              <span className="emp-stat-hint">{total} day{total === 1 ? '' : 's'} in this view</span>
+              <span className="emp-stat-hint">Calendar working days · {total} row{total === 1 ? '' : 's'} shown</span>
             </div>
           </div>
         </div>

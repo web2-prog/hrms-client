@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { CalendarDays, CheckCircle2, Clock3, TrendingUp, Timer } from 'lucide-react';
+import { CalendarDays, CheckCircle2, TrendingUp, Timer } from 'lucide-react';
 import { api, buildQuery, type ListResult } from '../../services/api';
 import { ListingPage, ListPagination, PAGE_SIZE, useListParams } from '../../components/ListingPage';
 import { StatusBadge, hoursBadge, formatHours } from '../../components/StatusBadge';
 import { EmpCell } from '../../components/EmpCell';
 import { useAuth } from '../../context/AuthContext';
-import { displayClock, formatBreakMinutes, formatClockInput, parseBreakMinutes, to24HourClock } from '../../utils/timeFormat';
+import { displayClock, formatBreakMinutes, formatClockInput, parseBreakMinutes, to24HourClock, todayISO } from '../../utils/timeFormat';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -44,6 +44,18 @@ function fmtDate(d?: string) {
   };
 }
 
+function monthBounds(year: string, month: string) {
+  const y = Number(year);
+  const m = Number(month);
+  if (!y || !m) return { from: '', to: '' };
+  const last = new Date(y, m, 0).getDate();
+  const mm = String(m).padStart(2, '0');
+  return {
+    from: `${y}-${mm}-01`,
+    to: `${y}-${mm}-${String(last).padStart(2, '0')}`,
+  };
+}
+
 export function AttendancePage(_props: { allowBulk?: boolean }) {
   const list = useListParams();
   const { user } = useAuth();
@@ -58,8 +70,51 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
 
   const [summary, setSummary] = useState<{ total: number; onTime: number; extra: number; low: number } | null>(null);
 
-  const year = list.get('year') || String(new Date().getFullYear());
-  const month = list.get('month') || String(new Date().getMonth() + 1);
+  const today = todayISO();
+  const year = list.get('year') || String(Math.max(2026, Number(today.slice(0, 4))));
+  const month = list.get('month') || String(Number(today.slice(5, 7)));
+  const dateFrom = list.get('from');
+  const dateTo = list.get('to');
+  const hasDateRange = !!(dateFrom || dateTo);
+
+  const dateQuery = hasDateRange
+    ? { from: dateFrom || undefined, to: dateTo || undefined }
+    : { month, year };
+
+  const setDateRange = (from: string, to: string) => {
+    const next = new URLSearchParams(list.params);
+    if (from) next.set('from', from);
+    else next.delete('from');
+    if (to) next.set('to', to);
+    else next.delete('to');
+    // Keep month/year aligned with the selected range for a coherent UI.
+    const anchor = from || to;
+    if (anchor && /^\d{4}-\d{2}-\d{2}$/.test(anchor)) {
+      next.set('year', anchor.slice(0, 4));
+      next.set('month', String(Number(anchor.slice(5, 7))));
+    }
+    next.set('page', '1');
+    list.setParams(next);
+  };
+
+  const clearDateRange = () => {
+    const next = new URLSearchParams(list.params);
+    next.delete('from');
+    next.delete('to');
+    next.set('page', '1');
+    list.setParams(next);
+  };
+
+  const setMonthYear = (nextMonth: string, nextYear: string) => {
+    const next = new URLSearchParams(list.params);
+    next.set('month', nextMonth);
+    next.set('year', nextYear);
+    // Switching month/year exits explicit date-range mode.
+    next.delete('from');
+    next.delete('to');
+    next.set('page', '1');
+    list.setParams(next);
+  };
 
   const load = async () => {
     setLoading(true);
@@ -72,8 +127,7 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
         department_id: list.get('department_id'),
         employee_id: list.get('employee_id'),
         status: list.get('status'),
-        month,
-        year,
+        ...dateQuery,
       });
       const res = await api<ListResult<Att>>(`/attendance${q}`);
       setData(res.data);
@@ -90,8 +144,7 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
       // Same filters as the table so the strip reflects the filtered view.
       const base = {
         limit: 1,
-        month,
-        year,
+        ...dateQuery,
         department_id: list.get('department_id'),
         employee_id: list.get('employee_id'),
       };
@@ -116,7 +169,7 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
   };
 
   useEffect(() => { load(); }, [list.page, list.limit, list.search, list.params]);
-  useEffect(() => { loadSummary(); }, [month, year, list.params]);
+  useEffect(() => { loadSummary(); }, [month, year, dateFrom, dateTo, list.params]);
   useEffect(() => {
     if (!isStaff) return;
     api<ListResult<any>>('/departments?limit=50').then((r) => setDepts(r.data));
@@ -133,7 +186,13 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
     });
   };
 
-  const periodLabel = `${MONTH_NAMES[Number(month) - 1]} ${year}`;
+  const periodLabel = (() => {
+    if (dateFrom && dateTo && dateFrom === dateTo) return fmtDate(dateFrom).main;
+    if (dateFrom && dateTo) return `${fmtDate(dateFrom).main} – ${fmtDate(dateTo).main}`;
+    if (dateFrom) return `From ${fmtDate(dateFrom).main}`;
+    if (dateTo) return `Until ${fmtDate(dateTo).main}`;
+    return `${MONTH_NAMES[Number(month) - 1]} ${year}`;
+  })();
 
   return (
     <>
@@ -148,10 +207,83 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
         onRefresh={() => { load(); loadSummary(); }}
         filters={
           <>
-            <select className="select select-month" value={month} onChange={(e) => list.setFilter('month', e.target.value)}>
-              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => <option key={m} value={m}>{MONTH_NAMES[m - 1]}</option>)}
+            <label className="att-date-filter">
+              <span className="label">From</span>
+              <input
+                className="input att-date-input"
+                type="date"
+                value={dateFrom}
+                max={dateTo || undefined}
+                onChange={(e) => {
+                  const from = e.target.value;
+                  let to = dateTo;
+                  if (from && to && to < from) to = from;
+                  if (from && !to) to = from;
+                  setDateRange(from, to);
+                }}
+                aria-label="From date"
+              />
+            </label>
+            <label className="att-date-filter">
+              <span className="label">To</span>
+              <input
+                className="input att-date-input"
+                type="date"
+                value={dateTo}
+                min={dateFrom || undefined}
+                onChange={(e) => {
+                  const to = e.target.value;
+                  let from = dateFrom;
+                  if (to && from && to < from) from = to;
+                  if (to && !from) from = to;
+                  setDateRange(from, to);
+                }}
+                aria-label="To date"
+              />
+            </label>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setDateRange(today, today)}
+              title="Show today only"
+            >
+              Today
+            </Button>
+            {hasDateRange ? (
+              <Button type="button" variant="ghost" size="sm" onClick={clearDateRange} title="Clear date range">
+                Clear dates
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  const bounds = monthBounds(year, month);
+                  setDateRange(bounds.from, bounds.to);
+                }}
+                title="Use full selected month as date range"
+              >
+                Whole month
+              </Button>
+            )}
+            <select
+              className="select select-month"
+              value={month}
+              onChange={(e) => setMonthYear(e.target.value, year)}
+              title={hasDateRange ? 'Changing month clears the date range' : 'Month'}
+            >
+              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                <option key={m} value={m}>{MONTH_NAMES[m - 1]}</option>
+              ))}
             </select>
-            <select className="select select-year" value={year} onChange={(e) => list.setFilter('year', e.target.value)}>
+            <select
+              className="select select-year"
+              value={year}
+              onChange={(e) => setMonthYear(month, e.target.value)}
+              title={hasDateRange ? 'Changing year clears the date range' : 'Year'}
+            >
               {[2026, 2027, 2028].map((y) => <option key={y} value={y}>{y}</option>)}
             </select>
             {isStaff && (
@@ -193,7 +325,7 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
                   <div>
                     <span className="label">On time</span>
                     <div className="emp-stat-value">{summary.onTime}</div>
-                    <span className="emp-stat-hint">No late penalties</span>
+                    <span className="emp-stat-hint">Met daily hour target</span>
                   </div>
                 </div>
               </div>

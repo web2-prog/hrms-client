@@ -81,8 +81,15 @@ export function OvertimePage() {
 
   const loadSummary = async () => {
     try {
-      // Match the table's source filter so the strip reflects the filtered view.
-      const base = { limit: 1, month, year, source };
+      // Match the table's non-status filters so the strip reflects the filtered view.
+      const base = {
+        limit: 1,
+        month,
+        year,
+        source,
+        search: list.search || undefined,
+        ot_type: list.get('ot_type') || undefined,
+      };
       const res = await Promise.all([
         api<ListResult<OtRequest>>(`/overtime${buildQuery(base)}`),
         api<ListResult<OtRequest>>(`/overtime${buildQuery({ ...base, status: 'Pending' })}`),
@@ -194,7 +201,7 @@ export function OvertimePage() {
                   <div>
                     <span className="label">Approved</span>
                     <div className="emp-stat-value">{summary.approved}</div>
-                    <span className="emp-stat-hint">Counted to salary</span>
+                    <span className="emp-stat-hint">General → salary · Management → performance</span>
                   </div>
                 </div>
               </div>

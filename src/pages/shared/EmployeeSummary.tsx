@@ -64,6 +64,14 @@ type Ot = {
   ot_type?: string;
 };
 
+type EarlyCheckout = {
+  _id: string;
+  date: string;
+  requested_time?: string;
+  status?: string;
+  reason?: string;
+};
+
 type Salary = {
   _id: string;
   month?: number;
@@ -132,6 +140,7 @@ function EmployeeSummaryInner() {
   const [attendance, setAttendance] = useState<Att[]>([]);
   const [leaves, setLeaves] = useState<Leave[]>([]);
   const [overtime, setOvertime] = useState<Ot[]>([]);
+  const [earlyCheckouts, setEarlyCheckouts] = useState<EarlyCheckout[]>([]);
   const [salary, setSalary] = useState<Salary[]>([]);
   const [summary, setSummary] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -169,6 +178,7 @@ function EmployeeSummaryInner() {
       setAttendance([]);
       setLeaves([]);
       setOvertime([]);
+      setEarlyCheckouts([]);
       setSalary([]);
       setSummary(null);
       setError('');
@@ -218,6 +228,12 @@ function EmployeeSummaryInner() {
           api<ListResult<Leave>>(`/leaves${buildQuery(leaveQ)}`),
           api<ListResult<Ot>>(`/overtime${buildQuery(otQ)}`),
           api<ListResult<Salary>>(`/salary${buildQuery(salQ)}`),
+          api<ListResult<EarlyCheckout>>(
+            `/attendance/early-checkout-requests${buildQuery({
+              ...attQ,
+              status: 'Approved',
+            })}`
+          ),
         ];
 
         if (period === 'month' || period === 'today') {
@@ -233,12 +249,17 @@ function EmployeeSummaryInner() {
         let attData: Att[] = attRes.data || [];
         if (period === 'today') attData = attData.filter((a) => a.date === today);
 
+        let earlyData: EarlyCheckout[] =
+          results[4].status === 'fulfilled' ? results[4].value.data || [] : [];
+        if (period === 'today') earlyData = earlyData.filter((a) => a.date === today);
+
         setAttendance(attData);
         setLeaves(results[1].status === 'fulfilled' ? results[1].value.data || [] : []);
         setOvertime(results[2].status === 'fulfilled' ? results[2].value.data || [] : []);
         setSalary(results[3].status === 'fulfilled' ? results[3].value.data || [] : []);
+        setEarlyCheckouts(earlyData);
         setSummary(
-          results[4] && results[4].status === 'fulfilled' ? results[4].value : null
+          results[5] && results[5].status === 'fulfilled' ? results[5].value : null
         );
 
         const failed = results.find((r) => r.status === 'rejected');
@@ -265,13 +286,26 @@ function EmployeeSummaryInner() {
 
   const earlyRows = useMemo(() => {
     const endSec = timeToSeconds(shiftEnd);
-    return attendance.filter((a) => {
-      if (!a.check_out) return false;
-      const out = timeToSeconds(a.check_out);
-      if (out == null || endSec == null) return a.status === 'Low';
-      return out < endSec;
-    });
-  }, [attendance, shiftEnd]);
+    const attByDate = new Map(attendance.map((a) => [a.date, a]));
+    return earlyCheckouts
+      .filter((r) => r.status === 'Approved')
+      .map((r) => {
+        const leaveAt = r.requested_time || attByDate.get(r.date)?.check_out || null;
+        const leaveSec = timeToSeconds(leaveAt);
+        const earlyMins =
+          leaveSec != null && endSec != null && leaveSec < endSec
+            ? Math.round(((endSec - leaveSec) / 60) * 100) / 100
+            : 0;
+        return {
+          ...r,
+          leaveAt,
+          earlyMins,
+          worked: attByDate.get(r.date)?.working_hours,
+          attendanceStatus: attByDate.get(r.date)?.status,
+        };
+      })
+      .filter((r) => r.earlyMins > 0);
+  }, [earlyCheckouts, attendance, shiftEnd]);
 
   const lowRows = useMemo(
     () => attendance.filter((a) => a.status === 'Low' || (a.surplus_shortfall != null && a.surplus_shortfall < 0)),
@@ -571,14 +605,15 @@ function EmployeeSummaryInner() {
 
             {!loading && tab === 'early' && (
               <SummaryTable
-                empty="No early checkouts"
-                head={['Date', 'Check-out', 'Shift end', 'Worked', 'Status']}
+                empty="No approved early checkouts"
+                head={['Date', 'Left at', 'Shift end', 'Early', 'Worked', 'Status']}
                 rows={earlyRows.map((a) => [
                   a.date,
-                  displayClock(a.check_out),
+                  displayClock(a.leaveAt),
                   displayClock(shiftEnd),
-                  formatWorked(a.working_hours),
-                  <StatusBadge key="s" status={a.status} />,
+                  `${a.earlyMins}m`,
+                  formatWorked(a.worked),
+                  <StatusBadge key="s" status={a.status || a.attendanceStatus || 'Approved'} />,
                 ])}
                 page={tabPage}
                 onPageChange={setTabPage}
