@@ -278,15 +278,11 @@ textarea {
 .sidebar .brand-mark {
   width: 38px;
   height: 38px;
-  border-radius: var(--radius-sm);
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-bright) 50%, var(--link) 100%);
-  color: var(--on-primary);
-  display: grid;
-  place-items: center;
-  font-size: 0.9rem;
-  font-weight: 800;
+  border-radius: 0;
+  object-fit: contain;
+  background: transparent;
   flex-shrink: 0;
-  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35);
+  box-shadow: none;
 }
 
 .sidebar .brand-text {
@@ -1198,19 +1194,16 @@ table.data tbody tr:last-child td {
 }
 
 .login-brand-mark {
-  width: 48px;
-  height: 48px;
-  border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(8px);
-  color: var(--on-primary);
-  display: grid;
-  place-items: center;
-  font-family: var(--font-heading);
-  font-weight: 800;
-  font-size: 1.1rem;
+  width: 52px;
+  height: 52px;
+  border-radius: 0;
+  object-fit: contain;
+  background: transparent;
   flex-shrink: 0;
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  border: none;
+  box-shadow: none;
+  /* Transparent logo on dark aside: flip dark wordmark to light, keep brand hues */
+  filter: invert(1) hue-rotate(180deg);
 }
 
 .login-brand-name {
@@ -1336,16 +1329,11 @@ table.data tbody tr:last-child td {
 .login-card-brand .brand-mark {
   width: 44px;
   height: 44px;
-  border-radius: var(--radius-sm);
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-bright) 50%, var(--link) 100%);
-  color: var(--on-primary);
-  display: grid;
-  place-items: center;
-  font-family: var(--font-heading);
-  font-weight: 800;
-  font-size: 1rem;
+  border-radius: 0;
+  object-fit: contain;
+  background: transparent;
   flex-shrink: 0;
-  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+  box-shadow: none;
 }
 
 .login-card-brand h1 {
@@ -2123,9 +2111,9 @@ table.data.salary-table .salary-status-label {
 }
 
 table.data.salary-table .col-actions {
-  min-width: 15rem;
-  width: 15rem;
-  white-space: normal;
+  min-width: 16.5rem;
+  width: 16.5rem;
+  white-space: nowrap;
 }
 
 table.data.salary-table thead th.col-actions,
@@ -2146,9 +2134,18 @@ table.data.salary-table tbody tr:hover td.col-actions {
   background: var(--fog);
 }
 
-table.data.salary-table td.col-actions.row-actions {
-  gap: 0.35rem;
-  flex-wrap: wrap;
+table.data.salary-table .salary-actions {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.4rem;
+}
+
+table.data.salary-table .salary-actions > button {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .bond-add-box {

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -21,7 +22,8 @@ import {
   type SalaryCompanyKey,
   type SalarySlipFormData,
 } from '../../services/salarySlipDefaults';
-import { downloadSalarySlipPdf } from '../../services/salarySlipPdf';
+import { downloadSalarySlipPdf, buildSalarySlipPdfPayload } from '../../services/salarySlipPdf';
+import { buildPayslipPdfBase64FromForm } from '../../services/buildPayslipEmailPdf';
 
 type Slip = {
   _id: string;
@@ -49,6 +51,7 @@ type Slip = {
   paid_date?: string;
   payment_reference?: string;
   sent_on?: string;
+  sent_to?: string;
   employee_id?: { _id: string; name: string; department_id?: { name: string } };
   payslip?: Record<string, unknown>;
   adjustment_note?: string;
@@ -77,6 +80,9 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
   const [showAdjust, setShowAdjust] = useState(false);
   const [genBusy, setGenBusy] = useState(false);
   const [sendBusy, setSendBusy] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<Slip | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteErr, setDeleteErr] = useState('');
   const previewRef = useRef<HTMLDivElement | null>(null);
 
   const load = async () => {
@@ -294,9 +300,24 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
     setSendBusy(id);
     setError(null);
     try {
+      // Prefer the open preview DOM (exact View design); otherwise render off-screen.
+      let pdf_base64: string | undefined;
+      let pdf_filename: string | undefined;
+      if (previewSlipId === id && previewRef.current && previewForm && !showAdjust) {
+        const payload = await buildSalarySlipPdfPayload(previewRef.current);
+        pdf_base64 = payload.base64;
+        pdf_filename = getSalaryPdfFilename(previewForm);
+      } else {
+        const slip = await api<Slip & { payslip: Record<string, unknown> }>(`/salary/${id}`);
+        const form = apiPayslipToForm(slip.payslip || {});
+        const payload = await buildPayslipPdfBase64FromForm(form);
+        pdf_base64 = payload.base64;
+        pdf_filename = payload.filename;
+      }
+
       const res = await api<{ message: string; sent_on: string; sent_to: string }>(`/salary/${id}/send`, {
         method: 'POST',
-        body: {},
+        body: { pdf_base64, pdf_filename },
       });
       setError(null);
       alert(res.message || 'Salary slip sent');
@@ -305,6 +326,22 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
       setError(e instanceof Error ? e.message : 'Failed to send salary slip');
     } finally {
       setSendBusy(null);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    setDeleteErr('');
+    try {
+      await api(`/salary/${deleting._id}`, { method: 'DELETE' });
+      if (previewSlipId === deleting._id) closePreview();
+      setDeleting(null);
+      await load();
+    } catch (e) {
+      setDeleteErr(e instanceof Error ? e.message : 'Failed to delete salary slip');
+    } finally {
+      setDeleteBusy(false);
     }
   };
 
@@ -520,41 +557,60 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
                       <StatusBadge status={s.payment_status} />
                     </div>
                   </td>
-                  <td className="row-actions col-actions">
-                    {/* Draft: Adjust + Finalize only. Finalized: View + Send only. Employee: View only. */}
-                    <Button variant="outline" size="sm" onClick={() => openPreview(s._id)} disabled={previewLoading}>
-                      {(user?.role === 'admin' || user?.role === 'hr') && s.status === 'Draft' ? 'Adjust' : 'View'}
-                    </Button>
-                    {(user?.role === 'admin' || user?.role === 'hr') && s.status === 'Draft' && (
-                      <Button
-                        size="sm"
-                        onClick={async () => {
-                          try {
-                            setError(null);
-                            await api(`/salary/${s._id}/finalize`, { method: 'POST', body: {} });
-                            load();
-                          } catch (e) {
-                            setError(
-                              e instanceof Error
-                                ? e.message
-                                : 'Cannot finalize this salary slip. Check Performance for pending hours.'
-                            );
+                  <td className="col-actions">
+                    <div className="salary-actions">
+                      <Button variant="outline" size="sm" onClick={() => openPreview(s._id)} disabled={previewLoading}>
+                        {(user?.role === 'admin' || user?.role === 'hr') && s.status === 'Draft' ? 'Adjust' : 'View'}
+                      </Button>
+                      {(user?.role === 'admin' || user?.role === 'hr') && s.status === 'Draft' && (
+                        <Button
+                          size="sm"
+                          onClick={async () => {
+                            try {
+                              setError(null);
+                              await api(`/salary/${s._id}/finalize`, { method: 'POST', body: {} });
+                              load();
+                            } catch (e) {
+                              setError(
+                                e instanceof Error
+                                  ? e.message
+                                  : 'Cannot finalize this salary slip. Check Performance for pending hours.'
+                              );
+                            }
+                          }}
+                        >
+                          Finalize
+                        </Button>
+                      )}
+                      {(user?.role === 'admin' || user?.role === 'hr') && s.status === 'Finalized' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={sendBusy === s._id}
+                          title={
+                            s.sent_on
+                              ? `Resend PDF to employee personal email${s.sent_to ? ` (${s.sent_to})` : ''}`
+                              : 'Email PDF to employee personal email'
                           }
-                        }}
-                      >
-                        Finalize
-                      </Button>
-                    )}
-                    {(user?.role === 'admin' || user?.role === 'hr') && s.status === 'Finalized' && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={sendBusy === s._id}
-                        onClick={() => sendSlip(s._id)}
-                      >
-                        {sendBusy === s._id ? 'Sending…' : s.sent_on ? 'Resend salary slip' : 'Send salary slip'}
-                      </Button>
-                    )}
+                          onClick={() => sendSlip(s._id)}
+                        >
+                          {sendBusy === s._id ? 'Sending…' : s.sent_on ? 'Resend' : 'Send mail'}
+                        </Button>
+                      )}
+                      {(user?.role === 'admin' || user?.role === 'hr') && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          title="Delete salary slip"
+                          onClick={() => {
+                            setDeleteErr('');
+                            setDeleting(s);
+                          }}
+                        >
+                          Delete
+                        </Button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -629,6 +685,30 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
           </DialogContent>
         </Dialog>
       )}
+
+      <Dialog open={!!deleting} onOpenChange={(o) => !o && !deleteBusy && setDeleting(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete salary slip?</DialogTitle>
+          </DialogHeader>
+          {deleting && (
+            <p style={{ margin: 0, color: 'var(--graphite)', fontSize: '0.92rem', lineHeight: 1.5 }}>
+              This permanently removes the {deleting.month}/{deleting.year} slip for{' '}
+              <strong>{deleting.employee_id?.name || 'this employee'}</strong> from HR/Admin and the
+              employee panel. This cannot be undone.
+            </p>
+          )}
+          {deleteErr && <p className="form-error">{deleteErr}</p>}
+          <DialogFooter>
+            <Button variant="outline" disabled={deleteBusy} onClick={() => setDeleting(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" disabled={deleteBusy} onClick={confirmDelete}>
+              {deleteBusy ? 'Deleting…' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

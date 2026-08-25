@@ -55,6 +55,11 @@ function PersonalAttendanceBody({ title }: { title: string }) {
   const [earlyReason, setEarlyReason] = useState('');
   const [earlyErr, setEarlyErr] = useState('');
   const [earlyBusy, setEarlyBusy] = useState(false);
+  const [coverOpen, setCoverOpen] = useState(false);
+  const [coverHours, setCoverHours] = useState('0.75');
+  const [coverReason, setCoverReason] = useState('');
+  const [coverErr, setCoverErr] = useState('');
+  const [coverBusy, setCoverBusy] = useState(false);
   const [tick, setTick] = useState(() => new Date());
   const [dataLoadedAt, setDataLoadedAt] = useState(() => Date.now());
 
@@ -131,14 +136,9 @@ function PersonalAttendanceBody({ title }: { title: string }) {
     }
 
     let workMins = 0;
+    let rawWorkMins = 0;
     if (checkedIn) {
       let end = checkedOut ? att.check_out : now;
-      // Open session / auto-checkout: time after shift end is not General OT
-      if ((!checkedOut || att.auto_checkout) && shift.shift_end) {
-        const endSec = timeToSeconds(end);
-        const se = timeToSeconds(shift.shift_end);
-        if (endSec != null && se != null && endSec > se) end = shift.shift_end;
-      }
       const start =
         data.work_start ||
         effectiveWorkStart(
@@ -149,14 +149,26 @@ function PersonalAttendanceBody({ title }: { title: string }) {
           att.penalty_minutes_override ?? null
         ) ||
         att.check_in;
+      const rawSpan = minutesBetween(start, end);
+      rawWorkMins = Math.max(0, rawSpan - breakMins);
+
+      // Open session / auto-checkout: time after shift end is not General OT
+      if ((!checkedOut || att.auto_checkout) && shift.shift_end) {
+        const endSec = timeToSeconds(end);
+        const se = timeToSeconds(shift.shift_end);
+        if (endSec != null && se != null && endSec > se) end = shift.shift_end;
+      }
       const span = minutesBetween(start, end);
       workMins = Math.max(0, span - breakMins);
     }
 
     const threshold = Number(shift.working_hours_per_day || 8);
     const workHours = workMins / 60;
+    const rawWorkHours = rawWorkMins / 60;
     const overtimeMins = Math.max(0, workMins - threshold * 60);
     const shortfallMins = Math.max(0, threshold * 60 - workMins);
+    const coverMins = Math.max(0, rawWorkMins - threshold * 60);
+    const dailyTargetMet = rawWorkHours + 1 / 120 >= threshold;
     const shiftEndSec = timeToSeconds(shift.shift_end);
     const nowSec = timeToSeconds(now)!;
     const isEarly = checkedIn && !checkedOut && shiftEndSec != null && nowSec < shiftEndSec;
@@ -169,9 +181,13 @@ function PersonalAttendanceBody({ title }: { title: string }) {
       breakMins,
       breakSessionMins,
       workMins,
+      rawWorkMins,
       workHours,
+      rawWorkHours,
       overtimeMins,
       shortfallMins,
+      coverMins,
+      dailyTargetMet,
       threshold,
       isEarly,
       onBreak,
@@ -199,8 +215,11 @@ function PersonalAttendanceBody({ title }: { title: string }) {
   const shift = data.shift || {};
   const summary = data.monthly_summary;
   const ecr = data.early_checkout_request || null;
+  const ctr = data.cover_time_request || null;
+  const coverMinHours = Number(data.cover_time_min_hours ?? 0.75);
   const monthTarget = Number(summary?.monthly_target_hours || 0);
   const monthCounted = Number(summary?.monthly_counted_hours || 0);
+  const monthPending = Number(summary?.pending_hours || 0);
   const monthPct = monthTarget > 0 ? Math.min(100, Math.round((monthCounted / monthTarget) * 100)) : 0;
   const workedSeconds = Math.max(0, Math.round(live.workMins * 60));
   const workedClock = {
@@ -208,6 +227,14 @@ function PersonalAttendanceBody({ title }: { title: string }) {
     minutes: pad2(Math.floor((workedSeconds % 3600) / 60)),
     seconds: pad2(workedSeconds % 60),
   };
+  const activeCover = ctr && (ctr.status === 'Pending' || ctr.status === 'Approved');
+  const coverReadyToCheckout = !activeCover || live.coverMins >= coverMinHours * 60 - 0.5;
+  const canRequestCover =
+    live.checkedIn &&
+    !live.checkedOut &&
+    live.dailyTargetMet &&
+    monthPending + 0.001 >= coverMinHours &&
+    !activeCover;
 
   const submitEarlyRequest = async () => {
     if (!earlyReason.trim()) {
@@ -245,8 +272,54 @@ function PersonalAttendanceBody({ title }: { title: string }) {
     }
   };
 
+  const submitCoverRequest = async () => {
+    const hrs = Number(coverHours);
+    if (!Number.isFinite(hrs) || hrs < coverMinHours) {
+      setCoverErr(`Cover time must be at least ${Math.round(coverMinHours * 60)} minutes.`);
+      return;
+    }
+    if (!coverReason.trim()) {
+      setCoverErr('Please add a reason for cover time.');
+      return;
+    }
+    setCoverBusy(true);
+    setCoverErr('');
+    try {
+      await api('/attendance/me/cover-time-request', {
+        method: 'POST',
+        body: { hours: hrs, reason: coverReason },
+      });
+      setCoverOpen(false);
+      setCoverReason('');
+      setCoverHours(String(coverMinHours));
+      await load();
+    } catch (e) {
+      setCoverErr(e instanceof Error ? e.message : 'Failed to send request');
+    } finally {
+      setCoverBusy(false);
+    }
+  };
+
+  const cancelCoverRequest = async () => {
+    if (!ctr?._id) return;
+    setBusy(true);
+    setErr('');
+    try {
+      await api(`/attendance/me/cover-time-request/${ctr._id}/cancel`, { method: 'POST', body: {} });
+      await load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Failed to cancel cover request');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const requestCheckout = () => {
     if (ecr?.status === 'Pending') return;
+    if (activeCover && !coverReadyToCheckout) {
+      setErr(`Cover time requires at least ${Math.round(coverMinHours * 60)} minutes before checkout.`);
+      return;
+    }
     if (live.isEarly) {
       setEarlyOpen(true);
       return;
@@ -292,20 +365,45 @@ function PersonalAttendanceBody({ title }: { title: string }) {
                 >
                   <Coffee size={16} /> {live.onBreak ? 'End Break' : 'Break'}
                 </Button>
+                {canRequestCover && (
+                  <Button
+                    variant="outline"
+                    className="attendance-action"
+                    disabled={busy || coverBusy}
+                    onClick={() => {
+                      setCoverErr('');
+                      const suggested = Math.max(
+                        coverMinHours,
+                        Math.min(monthPending, Math.max(coverMinHours, Number(coverHours) || coverMinHours))
+                      );
+                      setCoverHours(String(Math.round(Math.min(monthPending, suggested) * 100) / 100));
+                      setCoverOpen(true);
+                    }}
+                  >
+                    <Timer size={16} /> Cover Time
+                  </Button>
+                )}
                 <Button
                   className="attendance-action attendance-action-primary"
-                  disabled={busy || ecr?.status === 'Pending'}
-                  onClick={live.isEarly ? requestCheckout : () => action('/attendance/me/check-out')}
+                  disabled={busy || ecr?.status === 'Pending' || (activeCover && !coverReadyToCheckout)}
+                  onClick={live.isEarly && !activeCover ? requestCheckout : () => requestCheckout()}
                 >
                   {ecr?.status === 'Pending'
                     ? 'Early Checkout Pending'
-                    : live.isEarly
-                      ? 'Early Checkout Request'
-                      : 'Check Out'}
+                    : activeCover && !coverReadyToCheckout
+                      ? `Cover ${Math.round(coverMinHours * 60)}m required`
+                      : live.isEarly && !activeCover
+                        ? 'Early Checkout Request'
+                        : 'Check Out'}
                 </Button>
                 {ecr?.status === 'Pending' && (
                   <button className="attendance-cancel" disabled={busy} onClick={cancelEarlyRequest}>
                     Cancel request
+                  </button>
+                )}
+                {ctr?.status === 'Pending' && (
+                  <button className="attendance-cancel" disabled={busy} onClick={cancelCoverRequest}>
+                    Cancel cover request
                   </button>
                 )}
               </>
@@ -344,6 +442,27 @@ function PersonalAttendanceBody({ title }: { title: string }) {
         )}
         {ecr?.status === 'Approved' && !live.checkedOut && (
           <div className="attendance-notice is-success">Your early checkout request has been approved.</div>
+        )}
+        {activeCover && (
+          <div className="attendance-notice is-success">
+            <strong>Cover time {ctr.status === 'Approved' ? 'approved' : 'requested'}:</strong>{' '}
+            {formatHours(ctr.requested_hours)} to make up shortfall.
+            {live.coverMins > 0
+              ? ` Covered so far ${formatDurationMinutes(live.coverMins)}.`
+              : ` Stay at least ${Math.round(coverMinHours * 60)} minutes past daily hours before checkout.`}
+            {monthPending > 0 ? ` Monthly shortfall left: ${formatHours(monthPending)}.` : ''}
+          </div>
+        )}
+        {ctr?.status === 'Rejected' && (
+          <div className="attendance-notice is-error">
+            <strong>Cover time request declined.</strong>{' '}
+            {ctr.decision_note || 'HR/Admin did not approve your cover time.'}
+          </div>
+        )}
+        {ctr?.status === 'Approved' && live.checkedOut && Number(ctr.actual_cover_hours) > 0 && (
+          <div className="attendance-notice is-success">
+            Cover time of {formatHours(ctr.actual_cover_hours)} counted toward your working hours.
+          </div>
         )}
       </section>
 
@@ -431,6 +550,10 @@ function PersonalAttendanceBody({ title }: { title: string }) {
             <span className="label">Balance</span>
             <strong>{formatHours(summary?.monthly_shortfall_or_surplus)}</strong>
           </div>
+          <div>
+            <span className="label">Cover time</span>
+            <strong>{formatHours(summary?.cover_time_hours)}</strong>
+          </div>
         </div>
       </div>
 
@@ -462,6 +585,58 @@ function PersonalAttendanceBody({ title }: { title: string }) {
             </Button>
             <Button disabled={earlyBusy} onClick={submitEarlyRequest}>
               {earlyBusy ? 'Sending…' : 'Send Request'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={coverOpen} onOpenChange={(o) => !o && setCoverOpen(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cover Time Request</DialogTitle>
+            <DialogDescription>
+              You have completed today&apos;s {formatHours(live.threshold)} and have {formatHours(monthPending)} shortfall
+              this month. Requested cover time counts toward working hours (not overtime). Stay at least{' '}
+              {Math.round(coverMinHours * 60)} minutes past daily hours before checkout.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-1.5">
+            <label className="label" htmlFor="cover-hours">
+              Hours to cover <span style={{ color: 'var(--error)' }}>*</span>
+            </label>
+            <input
+              id="cover-hours"
+              className="input"
+              type="number"
+              min={coverMinHours}
+              max={Math.max(coverMinHours, monthPending)}
+              step="0.25"
+              value={coverHours}
+              onChange={(e) => setCoverHours(e.target.value)}
+            />
+            <span className="emp-stat-hint">
+              Minimum {Math.round(coverMinHours * 60)} minutes · max {formatHours(monthPending)} (your shortfall)
+            </span>
+          </div>
+          <div className="grid gap-1.5">
+            <label className="label" htmlFor="cover-reason">
+              Reason <span style={{ color: 'var(--error)' }}>*</span>
+            </label>
+            <Textarea
+              id="cover-reason"
+              rows={3}
+              placeholder="e.g. Making up 2h early checkout from 19 Aug…"
+              value={coverReason}
+              onChange={(e) => setCoverReason(e.target.value)}
+            />
+          </div>
+          {coverErr && <p style={{ color: 'var(--error)', margin: 0 }}>{coverErr}</p>}
+          <DialogFooter>
+            <Button variant="outline" disabled={coverBusy} onClick={() => setCoverOpen(false)}>
+              Cancel
+            </Button>
+            <Button disabled={coverBusy} onClick={submitCoverRequest}>
+              {coverBusy ? 'Sending…' : 'Send Request'}
             </Button>
           </DialogFooter>
         </DialogContent>

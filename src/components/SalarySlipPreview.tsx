@@ -103,8 +103,17 @@ function buildDeductionRows(form: SalarySlipFormData, editable: boolean): Row[] 
 }
 
 function CompanyLogo({ form }: { form: SalarySlipFormData }) {
-  const company = SALARY_COMPANIES[resolveCompanyKeyFromForm(form)];
-  return <img src={company.logoSrc} alt={company.label} className="company-logo" />;
+  const key = resolveCompanyKeyFromForm(form);
+  const company = SALARY_COMPANIES[key];
+  return (
+    <img
+      src={company.logoSrc}
+      alt={company.label}
+      className={`company-logo company-logo--${key}`}
+      crossOrigin="anonymous"
+      decoding="sync"
+    />
+  );
 }
 
 function TextField({

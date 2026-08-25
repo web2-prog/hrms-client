@@ -89,6 +89,7 @@ function fmtAvgHours(n?: number) {
 
 function onTimePct(an: DeptAnalytics) {
   if (!an.attendance_days) return 100;
+  // Share of tracked days with check-in inside the late buffer (not status=OnTime hours).
   return Math.round((100 * (an.attendance_days - an.late_checkin_count)) / an.attendance_days);
 }
 
@@ -418,9 +419,11 @@ function DepartmentsInner() {
                           <span className="dept-an-hint">{an.attendance_days} tracked days</span>
                         </div>
                         <div className="dept-an-item">
-                          <span className="label">On time</span>
+                          <span className="label">Punctual</span>
                           <strong className={`dept-an-value is-${punctualityTone(an)}`}>{onTimePct(an)}%</strong>
-                          <span className="dept-an-hint">{an.late_checkin_count} late check-ins</span>
+                          <span className="dept-an-hint">
+                            {an.late_checkin_count} late of {an.attendance_days} days
+                          </span>
                         </div>
                       </>
                     ) : (
