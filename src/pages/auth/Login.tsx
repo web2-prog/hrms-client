@@ -26,7 +26,7 @@ export default function LoginPage() {
     <div className="login-page">
       <aside className="login-aside">
         <div className="login-brand">
-          <span className="login-brand-mark">H</span>
+          <img className="login-brand-mark" src="/images/kriraai-logo.svg" alt="KriraAI" />
           <span className="login-brand-name">
             <strong>HRMS</strong>
             <small>Workforce Suite</small>
@@ -54,7 +54,7 @@ export default function LoginPage() {
         <Card className="login-card p-0">
           <CardContent className="p-0">
             <div className="login-card-brand">
-              <span className="brand-mark">H</span>
+              <img className="brand-mark" src="/images/kriraai-logo.svg" alt="KriraAI" />
               <h1>Sign in</h1>
             </div>
             <p className="login-sub">Sign in to continue to your workspace</p>

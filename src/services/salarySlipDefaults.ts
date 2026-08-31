@@ -79,6 +79,10 @@ export type SalarySlipFormData = {
   ytdTds: number;
   customEarnings: { label: string; amount: number; ytd: number }[];
   customDeductions: { label: string; amount: number; ytd: number }[];
+  /** Optional totals from API (also recomputed live when editing). */
+  ytdGrossEarnings?: number;
+  ytdTotalDeductions?: number;
+  ytdNetPay?: number;
   /** Hours / rate breakdown for amount calculation */
   targetHours: number;
   countedHours: number;
@@ -126,6 +130,20 @@ export const calculateTotalDeductions = (form: SalarySlipFormData) =>
 
 export const calculateNetPay = (form: SalarySlipFormData) =>
   calculateGrossEarnings(form) - calculateTotalDeductions(form);
+
+/** YTD gross from line YTDs (keeps in sync while HR edits amounts). */
+export const calculateYtdGrossEarnings = (form: SalarySlipFormData) =>
+  Number(form.ytdBasic || 0) +
+  Number(form.ytdOvertime || 0) +
+  (form.customEarnings || []).reduce((sum, item) => sum + (Number(item.ytd) || 0), 0);
+
+export const calculateYtdTotalDeductions = (form: SalarySlipFormData) =>
+  Number(form.ytdShortfallDeduction || 0) +
+  Number(form.ytdLeaveDeduction || 0) +
+  Number(form.ytdEarlyCheckoutDeduction || 0) +
+  Number(form.ytdBondSecurity || 0) +
+  Number(form.ytdTds || 0) +
+  (form.customDeductions || []).reduce((sum, item) => sum + (Number(item.ytd) || 0), 0);
 
 export const slipDailyRate = (form: Pick<SalarySlipFormData, 'basic' | 'workingDays' | 'paidDays' | 'lopDays'>) => {
   const days =
@@ -313,16 +331,23 @@ export const apiPayslipToForm = (p: Partial<SalarySlipFormData> & Record<string,
       ? p.customEarnings.map((item) => ({
           label: String(item.label || ''),
           amount: Number(item.amount) || 0,
-          ytd: Number(item.ytd) || Number(item.amount) || 0,
+          ytd: item.ytd != null && Number.isFinite(Number(item.ytd))
+            ? Number(item.ytd)
+            : Number(item.amount) || 0,
         }))
       : [],
     customDeductions: Array.isArray(p.customDeductions)
       ? p.customDeductions.map((item) => ({
           label: String(item.label || ''),
           amount: Number(item.amount) || 0,
-          ytd: Number(item.ytd) || Number(item.amount) || 0,
+          ytd: item.ytd != null && Number.isFinite(Number(item.ytd))
+            ? Number(item.ytd)
+            : Number(item.amount) || 0,
         }))
       : [],
+    ytdGrossEarnings: Number(p.ytdGrossEarnings) || 0,
+    ytdTotalDeductions: Number(p.ytdTotalDeductions) || 0,
+    ytdNetPay: Number(p.ytdNetPay) || 0,
     targetHours,
     countedHours,
     overtimeHours,

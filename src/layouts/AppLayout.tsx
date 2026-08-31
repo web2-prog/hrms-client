@@ -231,7 +231,7 @@ export function AppLayout({ variant }: { variant: 'admin' | 'hr' | 'employee' })
       {navOpen && <div className="sidebar-overlay" onClick={() => setNavOpen(false)} aria-hidden />}
       <aside className="sidebar" aria-label="Main navigation">
         <div className="brand">
-          <span className="brand-mark">H</span>
+          <img className="brand-mark" src="/images/kriraai-logo.svg" alt="KriraAI" />
           <span className="brand-text">
             HRMS
             <small>{variant} portal</small>
