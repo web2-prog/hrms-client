@@ -54,17 +54,18 @@ export default defineConfig({
   base: '/',
 
   server: {
-    port: 3003,
+      port: 6004,
+      host: "127.0.0.1",
     // Bind to 0.0.0.0 so the dev server is also reachable over the LAN.
-    host: true,
     // Fail fast with a clear error instead of silently moving to a random port
     // (a port drift is a common cause of "nothing works after refresh").
     strictPort: true,
   },
 
   preview: {
-    port: 4173,
-    host: true,
+    port: 6005,
+    host: "127.0.0.1",
+    allowedHosts: ["hrms.kriraai.com"]
   },
 
   build: {

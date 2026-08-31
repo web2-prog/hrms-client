@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "start": "vite",
+    "start": "vite preview --host 127.0.0.1 --port 6005",
     "build": "tsc -b && vite build",
     "preview": "vite preview"
   },
