@@ -25,21 +25,39 @@
 .header-left {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
+  min-width: 0;
+  flex: 1;
 }
 
 .company-logo {
-  height: 36px;
-  width: auto;
   flex-shrink: 0;
   display: block;
+  object-fit: contain;
+  background: transparent;
+}
+
+/* KriraAI logo is square (icon + wordmark) — transparent, no card chrome */
+.company-logo--kriraai {
+  width: 88px;
+  height: 88px;
+  border-radius: 0;
+  border: none;
+}
+
+/* Ondial logo is a wide wordmark */
+.company-logo--ondial {
+  height: 44px;
+  width: auto;
+  max-width: 180px;
 }
 
 .header-company {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  max-width: 280px;
+  max-width: 320px;
+  min-width: 0;
 }
 
 .payslip .company-address {

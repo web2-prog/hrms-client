@@ -115,7 +115,9 @@ export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
       arr.push(h);
       map.set(key, arr);
     }
-    return [...map.entries()].map(([key, items]) => ({
+    return [...map.entries()]
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([key, items]) => ({
       key,
       label: `${MONTHS[Number(key.split('-')[1]) - 1]} ${key.split('-')[0]}`,
       items,

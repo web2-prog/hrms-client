@@ -90,6 +90,14 @@ function penaltyLabel(r: TodayRow) {
   return custom ? `${mins}m (custom)` : `${mins}m`;
 }
 
+function hasActivePenalty(r: TodayRow) {
+  return (
+    !!(r.late_minutes && r.late_minutes > 0) &&
+    !r.penalty_waived &&
+    Math.round(Number(r.penalty_minutes) || 0) > 0
+  );
+}
+
 export function TodayAttendancePage() {
   const list = useListParams();
   const [data, setData] = useState<TodayRow[]>([]);
@@ -320,7 +328,13 @@ export function TodayAttendancePage() {
                   <td>
                     <StatusBadge status={r.live_status} />
                   </td>
-                  <td>{penaltyLabel(r)}</td>
+                  <td>
+                    {hasActivePenalty(r) ? (
+                      <span className="penalty-mins">{penaltyLabel(r)}</span>
+                    ) : (
+                      penaltyLabel(r)
+                    )}
+                  </td>
                   <td>
                     <Button variant="outline" onClick={() => openEdit(r)}>
                       Manage

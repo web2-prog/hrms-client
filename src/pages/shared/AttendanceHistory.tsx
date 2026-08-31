@@ -105,9 +105,9 @@ export function AttendanceHistoryPage() {
           <div className="stat-card">
             <span className="stat-icon teal"><TrendingUp size={20} /></span>
             <div>
-              <span className="label">Month overtime</span>
+              <span className="label">Month general OT</span>
               <div className="emp-stat-value is-extra">{formatHours(summary?.overtime_hours)}</div>
-              <span className="emp-stat-hint">Attendance + approved General OT</span>
+              <span className="emp-stat-hint">Auto at checkout when above daily target</span>
             </div>
           </div>
         </div>

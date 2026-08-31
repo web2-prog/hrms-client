@@ -17,6 +17,7 @@ import { HelpdeskPage } from './pages/shared/Helpdesk';
 import { SalaryPage } from './pages/shared/Salary';
 import { PerformancePage } from './pages/shared/Performance';
 import { OvertimePage } from './pages/shared/Overtime';
+import { RequestsPage } from './pages/shared/Requests';
 import {
   AdminDashboard,
   EmployeeDashboard,
@@ -54,6 +55,7 @@ function AppRoutes() {
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="attendance" element={<AttendancePage allowBulk />} />
         <Route path="today" element={<TodayAttendancePage />} />
+        <Route path="requests" element={<RequestsPage />} />
         <Route path="performance" element={<PerformancePage />} />
         <Route path="overtime" element={<OvertimePage />} />
         <Route path="leaves" element={<LeavesPage />} />
@@ -80,6 +82,7 @@ function AppRoutes() {
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="attendance" element={<AttendancePage />} />
         <Route path="today" element={<TodayAttendancePage />} />
+        <Route path="requests" element={<RequestsPage />} />
         <Route path="performance" element={<PerformancePage />} />
         <Route path="overtime" element={<OvertimePage />} />
         <Route path="leaves" element={<LeavesPage />} />

@@ -32,9 +32,10 @@ type OtRequest = {
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 function otTypeChip(row: OtRequest) {
-  if (row.ot_type === 'General') return <span className="hol-chip is-vacation">General OT</span>;
+  if (row.ot_type === 'General' || row.source === 'attendance') {
+    return <span className="hol-chip is-vacation">General OT</span>;
+  }
   if (row.ot_type === 'Management') return <span className="hol-chip is-festival">Management OT</span>;
-  if (row.ot_type === 'Attendance' || row.source === 'attendance') return <span className="hol-chip is-neutral">Attendance OT</span>;
   return '—';
 }
 
@@ -42,12 +43,12 @@ export function OvertimePage() {
   const list = useListParams();
   const { user } = useAuth();
   const isManager = user?.role === 'admin' || user?.role === 'hr';
+  const isEmployee = user?.role === 'employee';
   const [data, setData] = useState<OtRequest[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showApply, setShowApply] = useState(false);
-  const [decideRow, setDecideRow] = useState<OtRequest | null>(null);
 
   const [summary, setSummary] = useState<{ total: number; pending: number; approved: number; rejected: number } | null>(null);
 
@@ -81,7 +82,6 @@ export function OvertimePage() {
 
   const loadSummary = async () => {
     try {
-      // Match the table's non-status filters so the strip reflects the filtered view.
       const base = {
         limit: 1,
         month,
@@ -118,7 +118,11 @@ export function OvertimePage() {
     <>
       <ListingPage
         title="Overtime"
-        subtitle="Overtime from attendance extras and submitted requests"
+        subtitle={
+          isManager
+            ? 'OT records and history — approve pending management OT in Requests'
+            : 'General OT from checkout extras · Management OT from employee requests'
+        }
         searchPlaceholder="Search employee…"
         loading={loading}
         error={error}
@@ -147,12 +151,12 @@ export function OvertimePage() {
           <>
             <select className="select" value={source} onChange={(e) => list.setFilter('source', e.target.value === 'all' ? '' : e.target.value)}>
               <option value="all">All OT</option>
-              <option value="attendance">Attendance Extra</option>
-              <option value="requests">OT Requests</option>
+              <option value="attendance">General OT (auto)</option>
+              <option value="requests">Management requests</option>
             </select>
             <select className="select" value={list.get('status')} onChange={(e) => list.setFilter('status', e.target.value)}>
               <option value="">Status</option>
-              <option value="Extra">Extra (attendance)</option>
+              <option value="Extra">Extra (auto General)</option>
               <option value="Pending">Pending</option>
               <option value="Approved">Approved</option>
               <option value="Rejected">Rejected</option>
@@ -160,7 +164,6 @@ export function OvertimePage() {
             {isManager && (
               <select className="select" value={list.get('ot_type')} onChange={(e) => list.setFilter('ot_type', e.target.value)}>
                 <option value="">OT Type</option>
-                <option value="Attendance">Attendance OT</option>
                 <option value="General">General OT</option>
                 <option value="Management">Management OT</option>
               </select>
@@ -168,9 +171,9 @@ export function OvertimePage() {
           </>
         }
         actions={
-          <Button onClick={() => setShowApply(true)}>
-            Request Overtime
-          </Button>
+          isEmployee ? (
+            <Button onClick={() => setShowApply(true)}>Request Management OT</Button>
+          ) : null
         }
         prepend={
           summary && (
@@ -191,7 +194,7 @@ export function OvertimePage() {
                   <div>
                     <span className="label">Pending</span>
                     <div className="emp-stat-value">{summary.pending}</div>
-                    <span className="emp-stat-hint">Awaiting decision</span>
+                    <span className="emp-stat-hint">Management OT awaiting decision</span>
                   </div>
                 </div>
               </div>
@@ -201,7 +204,7 @@ export function OvertimePage() {
                   <div>
                     <span className="label">Approved</span>
                     <div className="emp-stat-value">{summary.approved}</div>
-                    <span className="emp-stat-hint">General → salary · Management → performance</span>
+                    <span className="emp-stat-hint">Management OT approved</span>
                   </div>
                 </div>
               </div>
@@ -220,7 +223,8 @@ export function OvertimePage() {
         }
       >
         <p className="listing-note">
-          Attendance Extra = hours worked beyond shift (auto from attendance). OT Requests = submitted General / Management OT.
+          General OT is automatic when checkout hours exceed the daily target (status Extra, no request).
+          Management OT is requested by employees after daily target and approved by HR/Admin.
         </p>
         <div className="table-wrap">
           <table className="data">
@@ -232,7 +236,6 @@ export function OvertimePage() {
                 <th>Reason</th>
                 <th>Status</th>
                 <th>OT Type</th>
-                {isManager && <th></th>}
               </tr>
             </thead>
             <tbody>
@@ -245,19 +248,11 @@ export function OvertimePage() {
                   )}
                   <td>{row.date}</td>
                   <td className="num-cell"><strong>{formatHours(row.hours)}</strong></td>
-                  <td style={{ maxWidth: 280 }}>{row.reason}</td>
+                  <td style={{ maxWidth: 280 }}>{row.reason || '—'}</td>
                   <td>
                     <StatusBadge status={row.status} />
                   </td>
                   <td>{otTypeChip(row)}</td>
-                  {isManager && row.source !== 'attendance' && row.status === 'Pending' && (
-                    <td className="row-actions">
-                      <Button onClick={() => setDecideRow(row)}>
-                        Decide
-                      </Button>
-                    </td>
-                  )}
-                  {isManager && (row.source === 'attendance' || row.status !== 'Pending') && <td />}
                 </tr>
               ))}
             </tbody>
@@ -270,17 +265,6 @@ export function OvertimePage() {
           onClose={() => setShowApply(false)}
           onSaved={() => {
             setShowApply(false);
-            load();
-            loadSummary();
-          }}
-        />
-      )}
-      {decideRow && (
-        <DecideOtModal
-          row={decideRow}
-          onClose={() => setDecideRow(null)}
-          onSaved={() => {
-            setDecideRow(null);
             load();
             loadSummary();
           }}
@@ -300,8 +284,12 @@ function ApplyOtModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Request overtime</DialogTitle>
+          <DialogTitle>Request Management OT</DialogTitle>
         </DialogHeader>
+        <p style={{ color: 'var(--muted)', fontSize: '0.9rem', marginBottom: 12 }}>
+          General OT is counted automatically at checkout when you work beyond your daily hours.
+          Use this form only for Management OT (company-paid overtime).
+        </p>
         <div className="form-grid">
           <div>
             <label className="label">Date</label>
@@ -321,7 +309,7 @@ function ApplyOtModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
           </div>
           <div style={{ gridColumn: '1 / -1' }}>
             <label className="label">Reason</label>
-            <textarea className="textarea" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why is overtime needed?" />
+            <textarea className="textarea" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why is management overtime needed?" />
           </div>
         </div>
         {err && <p style={{ color: 'var(--error)' }}>{err}</p>}
@@ -335,91 +323,17 @@ function ApplyOtModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
                 if (!date) return setErr('Date required');
                 if (!hours || Number(hours) <= 0) return setErr('Hours required');
                 if (!reason.trim()) return setErr('Reason required');
-                await api('/overtime', { method: 'POST', body: { date, hours: Number(hours), reason } });
+                await api('/overtime', {
+                  method: 'POST',
+                  body: { date, hours: Number(hours), reason, ot_type: 'Management' },
+                });
                 onSaved();
               } catch (e) {
                 setErr(e instanceof Error ? e.message : 'Failed');
               }
             }}
           >
-            Submit
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function DecideOtModal({
-  row,
-  onClose,
-  onSaved,
-}: {
-  row: OtRequest;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const [otType, setOtType] = useState<'General' | 'Management'>('General');
-  const [note, setNote] = useState('');
-  const [err, setErr] = useState('');
-  const [busy, setBusy] = useState(false);
-
-  const submit = async (status: 'Approved' | 'Rejected') => {
-    setBusy(true);
-    setErr('');
-    try {
-      await api(`/overtime/${row._id}/decide`, {
-        method: 'PATCH',
-        body: {
-          status,
-          ot_type: status === 'Approved' ? otType : undefined,
-          decision_note: note,
-        },
-      });
-      onSaved();
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Failed');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Decide overtime request</DialogTitle>
-        </DialogHeader>
-        <p style={{ color: 'var(--muted)', marginBottom: 12 }}>
-          {row.employee_id?.name || 'Employee'} · {row.date} · {formatHours(row.hours)}
-        </p>
-        <p style={{ marginBottom: 12 }}>{row.reason}</p>
-        <div className="form-grid">
-          <div style={{ gridColumn: '1 / -1' }}>
-            <label className="label">Credit OT to</label>
-            <select className="select" value={otType} onChange={(e) => setOtType(e.target.value as 'General' | 'Management')}>
-              <option value="General">General OT</option>
-              <option value="Management">Management OT</option>
-            </select>
-            <p style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 6 }}>
-              General OT adds to regular overtime. Management OT is tracked on Performance.
-            </p>
-          </div>
-          <div style={{ gridColumn: '1 / -1' }}>
-            <label className="label">Note (optional)</label>
-            <textarea className="textarea" value={note} onChange={(e) => setNote(e.target.value)} />
-          </div>
-        </div>
-        {err && <p style={{ color: 'var(--error)' }}>{err}</p>}
-        <DialogFooter>
-          <Button variant="outline" disabled={busy} onClick={onClose}>
-            Cancel
-          </Button>
-          <Button variant="outline" disabled={busy} onClick={() => submit('Rejected')}>
-            Reject
-          </Button>
-          <Button disabled={busy} onClick={() => submit('Approved')}>
-            Approve as {otType} OT
+            Submit Management OT
           </Button>
         </DialogFooter>
       </DialogContent>

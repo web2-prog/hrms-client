@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { CalendarDays, CheckCircle2, TrendingUp, Timer } from 'lucide-react';
 import { api, buildQuery, type ListResult } from '../../services/api';
-import { ListingPage, ListPagination, PAGE_SIZE, useListParams } from '../../components/ListingPage';
+import { ListingPage, useListParams } from '../../components/ListingPage';
 import { StatusBadge, hoursBadge, formatHours } from '../../components/StatusBadge';
 import { EmpCell } from '../../components/EmpCell';
 import { useAuth } from '../../context/AuthContext';
@@ -14,7 +14,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
 
 type Att = {
   _id: string;
@@ -34,7 +33,7 @@ type EditState = Att & { break_display?: string };
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 function fmtDate(d?: string) {
-  if (!d) return { main: '—', sub: '' };
+  if (!d) return { main: 'â€”', sub: '' };
   const [y, m, day] = d.split('-').map(Number);
   if (!y || !m || !day) return { main: d, sub: '' };
   const dt = new Date(y, m - 1, day);
@@ -151,7 +150,7 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
       const res = await Promise.all([
         api<ListResult<Att>>(`/attendance${buildQuery(base)}`),
         api<ListResult<Att>>(`/attendance${buildQuery({ ...base, status: 'OnTime' })}`),
-        // Auto-checkout days don't earn OT — match the table's OT column.
+        // Auto-checkout days don't earn OT â€” match the table's OT column.
         api<ListResult<Att>>(`/attendance${buildQuery({ ...base, status: 'Extra', exclude_auto_checkout: '1' })}`),
         api<ListResult<Att>>(`/attendance${buildQuery({ ...base, status: 'Low' })}`),
       ]).catch(() => null);
@@ -181,14 +180,14 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
       ...r,
       check_in: formatClockInput(r.check_in),
       check_out: formatClockInput(r.check_out),
-      // Keep fractional minutes — breaks are recorded with sub-minute precision.
+      // Keep fractional minutes â€” breaks are recorded with sub-minute precision.
       break_display: String(r.break_total ?? 0),
     });
   };
 
   const periodLabel = (() => {
     if (dateFrom && dateTo && dateFrom === dateTo) return fmtDate(dateFrom).main;
-    if (dateFrom && dateTo) return `${fmtDate(dateFrom).main} – ${fmtDate(dateTo).main}`;
+    if (dateFrom && dateTo) return `${fmtDate(dateFrom).main} â€“ ${fmtDate(dateTo).main}`;
     if (dateFrom) return `From ${fmtDate(dateFrom).main}`;
     if (dateTo) return `Until ${fmtDate(dateTo).main}`;
     return `${MONTH_NAMES[Number(month) - 1]} ${year}`;
@@ -196,7 +195,6 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
 
   return (
     <>
-      {isStaff && <EarlyCheckoutRequestsCard />}
       <ListingPage
         title="Attendance"
         subtitle="Daily check-in, check-out and hours across the team"
@@ -404,7 +402,7 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
       <Dialog open={!!edit} onOpenChange={(o) => !o && setEdit(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit attendance — {edit?.date}</DialogTitle>
+            <DialogTitle>Edit attendance â€” {edit?.date}</DialogTitle>
           </DialogHeader>
           {edit && (
             <>
@@ -469,214 +467,5 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
         </DialogContent>
       </Dialog>
     </>
-  );
-}
-
-type EcRequest = {
-  _id: string;
-  date: string;
-  requested_time: string;
-  reason: string;
-  status: string;
-  decision_note?: string;
-  createdAt?: string;
-  employee_id?: { name: string; department_id?: { name: string } };
-  decided_by?: { name?: string } | null;
-};
-
-/** HR/Admin approval queue for early checkout requests (Attendance page). */
-function EarlyCheckoutRequestsCard() {
-  const [pending, setPending] = useState<EcRequest[]>([]);
-  const [pendingTotal, setPendingTotal] = useState(0);
-  const [pendingPage, setPendingPage] = useState(1);
-  const [recent, setRecent] = useState<EcRequest[]>([]);
-  const [rejecting, setRejecting] = useState<EcRequest | null>(null);
-  const [note, setNote] = useState('');
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [msg, setMsg] = useState('');
-  const [err, setErr] = useState('');
-
-  const load = async () => {
-    setErr('');
-    try {
-      const [p, r] = await Promise.all([
-        api<ListResult<EcRequest>>(
-          `/attendance/early-checkout-requests?status=Pending&page=${pendingPage}&limit=${PAGE_SIZE}`
-        ),
-        api<ListResult<EcRequest>>(`/attendance/early-checkout-requests?page=1&limit=${PAGE_SIZE}&status=Approved`),
-      ]);
-      setPending(p.data || []);
-      setPendingTotal(p.total || 0);
-      setRecent(r.data || []);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Failed to load requests');
-    }
-  };
-
-  useEffect(() => {
-    load();
-    const onFocus = () => load();
-    window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingPage]);
-
-  const decide = async (req: EcRequest, status: 'Approved' | 'Rejected', decisionNote = '') => {
-    setBusyId(req._id);
-    setErr('');
-    try {
-      await api(`/attendance/early-checkout-requests/${req._id}/decide`, {
-        method: 'POST',
-        body: { status, note: decisionNote },
-      });
-      setMsg(
-        status === 'Approved'
-          ? `Approved — ${req.employee_id?.name || 'employee'} has been checked out at ${displayClock(req.requested_time)}.`
-          : 'Request rejected.'
-      );
-      setRejecting(null);
-      setNote('');
-      await load();
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Failed');
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  return (
-    <div className="card ecr-card" style={{ marginBottom: 16 }}>
-      <div className="ecr-head">
-        <div>
-          <h3 style={{ margin: 0 }}>Early Checkout Requests</h3>
-          <p className="emp-action-help" style={{ margin: '4px 0 0' }}>
-            Employees leaving before shift end need approval. Approving checks them out at the requested time.
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {pendingTotal > 0 && <span className="badge badge-warn">{pendingTotal} pending</span>}
-          <Button variant="outline" size="sm" onClick={load}>
-            Refresh
-          </Button>
-        </div>
-      </div>
-
-      {msg && <p style={{ color: 'var(--success)', margin: '0.75rem 0 0' }}>{msg}</p>}
-      {err && <p style={{ color: 'var(--error)', margin: '0.75rem 0 0' }}>{err}</p>}
-
-      {pendingTotal === 0 ? (
-        <p className="ecr-empty">No pending early checkout requests.</p>
-      ) : (
-        <>
-          <div className="table-wrap" style={{ marginTop: 12 }}>
-            <table className="data">
-              <thead>
-                <tr>
-                  <th>Employee</th>
-                  <th>Requested at</th>
-                  <th>Date</th>
-                  <th>Reason</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {pending.map((r) => (
-                  <tr key={r._id}>
-                    <td>
-                      <EmpCell name={r.employee_id?.name} dept={r.employee_id?.department_id?.name} />
-                    </td>
-                    <td>{displayClock(r.requested_time)}</td>
-                    <td>{r.date}</td>
-                    <td style={{ maxWidth: 320 }}>{r.reason || '—'}</td>
-                    <td className="row-actions">
-                      <Button
-                        size="sm"
-                        disabled={busyId === r._id}
-                        onClick={() => decide(r, 'Approved')}
-                      >
-                        Approve
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={busyId === r._id}
-                        onClick={() => {
-                          setRejecting(r);
-                          setNote('');
-                        }}
-                      >
-                        Reject
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <ListPagination total={pendingTotal} page={pendingPage} onPageChange={setPendingPage} />
-        </>
-      )}
-
-      {recent.some((r) => r.status !== 'Pending') && (
-        <div style={{ marginTop: 14, borderTop: '1px solid var(--hairline)', paddingTop: 12 }}>
-          <span className="label">Recent decisions</span>
-          <div className="ecr-recent-list">
-            {recent
-              .filter((r) => r.status !== 'Pending')
-              .slice(0, 5)
-              .map((r) => (
-                <div key={r._id} className="ecr-recent-item">
-                  <span style={{ fontWeight: 600 }}>{r.employee_id?.name || '—'}</span>
-                  <StatusBadge status={r.status} />
-                  <span style={{ color: 'var(--muted)', fontSize: '0.82rem' }}>
-                    {displayClock(r.requested_time)} · {r.date}
-                    {r.decision_note ? ` · “${r.decision_note}”` : ''}
-                  </span>
-                </div>
-              ))}
-          </div>
-        </div>
-      )}
-
-      <Dialog open={!!rejecting} onOpenChange={(o) => !o && setRejecting(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Reject early checkout</DialogTitle>
-          </DialogHeader>
-          {rejecting && (
-            <>
-              <p style={{ margin: 0, color: 'var(--muted)' }}>
-                {rejecting.employee_id?.name || 'Employee'} · {displayClock(rejecting.requested_time)} ·{' '}
-                {rejecting.reason || 'No reason given'}
-              </p>
-              <div className="grid gap-1.5">
-                <label className="label" htmlFor="ecr-note">
-                  Note (optional)
-                </label>
-                <Textarea
-                  id="ecr-note"
-                  rows={3}
-                  placeholder="e.g. Please finish the pending task before leaving…"
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                />
-              </div>
-              <DialogFooter>
-                <Button variant="outline" disabled={busyId === rejecting._id} onClick={() => setRejecting(null)}>
-                  Cancel
-                </Button>
-                <Button
-                  variant="destructive"
-                  disabled={busyId === rejecting._id}
-                  onClick={() => decide(rejecting, 'Rejected', note)}
-                >
-                  Reject request
-                </Button>
-              </DialogFooter>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
-    </div>
   );
 }

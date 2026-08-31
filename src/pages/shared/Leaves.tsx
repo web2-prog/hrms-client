@@ -105,14 +105,14 @@ export function LeavesPage() {
 
   const loadUpcoming = async () => {
     try {
-      // Always include Pending + Approved upcoming leaves (ignore status filter on main table)
+      // Pending + Approved only (rejected leaves are not upcoming)
       const q = buildQuery({
         page: 1,
         limit: 5,
         when: 'upcoming',
       });
       const res = await api<ListResult<Leave>>(`/leaves${q}`);
-      setUpcoming((res.data || []).filter((l) => l.status !== 'Rejected'));
+      setUpcoming((res.data || []).filter((l) => l.status === 'Pending' || l.status === 'Approved'));
     } catch {
       setUpcoming([]);
     }
@@ -123,11 +123,8 @@ export function LeavesPage() {
       // Same filters as the table so the strip reflects the filtered view.
       const base = {
         limit: 1,
-        search: list.search || undefined,
         month: month || undefined,
         year: year || undefined,
-        day_type: list.get('day_type') || undefined,
-        when: when || undefined,
         department_id: list.get('department_id'),
         employee_id: list.get('employee_id'),
       };
@@ -225,7 +222,7 @@ export function LeavesPage() {
 
       <ListingPage
         title="Leaves"
-        subtitle="Leave applications and approvals across the organisation"
+        subtitle={isStaff ? 'Leave history — approve pending requests in Requests' : 'Your leave applications'}
         loading={loading}
         error={error}
         empty={!data.length}
@@ -338,7 +335,6 @@ export function LeavesPage() {
                 <th>Day Type</th>
                 <th>Reason</th>
                 <th>Status</th>
-                {isStaff && <th></th>}
               </tr>
             </thead>
             <tbody>
@@ -373,34 +369,6 @@ export function LeavesPage() {
                     <td>
                       <StatusBadge status={l.status} />
                     </td>
-                    {isStaff && l.status === 'Pending' && (
-                      <td className="row-actions">
-                        <Button
-                          size="sm"
-                          onClick={async () => {
-                            await api(`/leaves/${l._id}/decide`, { method: 'PATCH', body: { status: 'Approved' } });
-                            load();
-                            loadUpcoming();
-                            loadSummary();
-                          }}
-                        >
-                          Approve
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={async () => {
-                            await api(`/leaves/${l._id}/decide`, { method: 'PATCH', body: { status: 'Rejected' } });
-                            load();
-                            loadUpcoming();
-                            loadSummary();
-                          }}
-                        >
-                          Reject
-                        </Button>
-                      </td>
-                    )}
-                    {isStaff && l.status !== 'Pending' && <td />}
                   </tr>
                 );
               })}

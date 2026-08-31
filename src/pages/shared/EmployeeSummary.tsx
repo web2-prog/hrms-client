@@ -78,7 +78,6 @@ type Salary = {
   year?: number;
   net_pay?: number;
   status?: string;
-  payment_status?: string;
   overtime_hours?: number;
   shortfall_hours?: number;
   monthly_counted_hours?: number;
@@ -580,7 +579,7 @@ function EmployeeSummaryInner() {
                     <PerfItem label="Counted hours" value={formatHours(summary.monthly_counted_hours)} />
                     <PerfItem label="Target hours" value={formatHours(summary.monthly_target_hours)} />
                     <PerfItem label="Carry in" value={formatHours(summary.carried_forward_hours)} />
-                    <PerfItem label="Attendance OT" value={formatHours(summary.attendance_ot_hours)} />
+                    <PerfItem label="General OT" value={formatHours(summary.attendance_ot_hours)} />
                     <PerfItem label="Management OT" value={formatHours(summary.management_ot_hours)} />
                     <PerfItem label="Low hours" value={formatHours(summary.low_hours)} />
                     <PerfItem label="Pending" value={formatHours(summary.pending_hours)} />
@@ -648,9 +647,8 @@ function EmployeeSummaryInner() {
                   formatHours(s.overtime_hours),
                   formatHours(s.shortfall_hours),
                   s.net_pay != null ? `₹${Number(s.net_pay).toLocaleString('en-IN')}` : '—',
-                  <span key="s" style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
+                  <span key="s">
                     <StatusBadge status={s.status} />
-                    <StatusBadge status={s.payment_status} />
                   </span>,
                 ])}
                 page={tabPage}

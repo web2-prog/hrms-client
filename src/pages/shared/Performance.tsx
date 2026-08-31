@@ -31,6 +31,7 @@ type PerformanceRow = {
   pending_hours: number;
   shortfall_action: 'deduct' | 'carry_forward' | null;
   needs_shortfall_decision: boolean;
+  shortfall_management_active?: boolean;
   extra_working_hours: number;
   general_ot_hours: number;
   attendance_ot_hours: number;
@@ -57,6 +58,7 @@ export function PerformancePage() {
 
   const year = list.get('year') || String(new Date().getFullYear());
   const month = list.get('month') || String(new Date().getMonth() + 1);
+  const shortfallMgmtActive = Number(year) > 2026 || (Number(year) === 2026 && Number(month) >= 8);
 
   const load = async () => {
     setLoading(true);
@@ -127,6 +129,11 @@ export function PerformancePage() {
         empty={!data.length}
         total={total}
         onRefresh={load}
+        subtitle={
+          shortfallMgmtActive
+            ? 'Month-end Salary Deduction / Carry Forward for shortfall hours.'
+            : 'Salary Deduction / Carry Forward starts from August 2026. Earlier months show hours only.'
+        }
         filters={
           <>
             <select
@@ -240,7 +247,7 @@ export function PerformancePage() {
                     )}
                   </td>
                   <td className="row-actions">
-                    {(row.needs_shortfall_decision || row.pending_hours > 0) && (
+                    {row.needs_shortfall_decision && (
                       <Button
                         disabled={busyId === row.employee_id?._id}
                         onClick={() => setDecideRow(row)}

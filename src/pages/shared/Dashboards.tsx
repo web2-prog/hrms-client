@@ -55,6 +55,15 @@ function PersonalAttendanceBody({ title }: { title: string }) {
   const [earlyReason, setEarlyReason] = useState('');
   const [earlyErr, setEarlyErr] = useState('');
   const [earlyBusy, setEarlyBusy] = useState(false);
+  const [otRequestOpen, setOtRequestOpen] = useState(false);
+  const [mgmtHours, setMgmtHours] = useState('');
+  const [mgmtReason, setMgmtReason] = useState('');
+  const [mgmtErr, setMgmtErr] = useState('');
+  const [mgmtBusy, setMgmtBusy] = useState(false);
+  const [coverHours, setCoverHours] = useState('0.75');
+  const [coverReason, setCoverReason] = useState('');
+  const [coverErr, setCoverErr] = useState('');
+  const [coverBusy, setCoverBusy] = useState(false);
   const [tick, setTick] = useState(() => new Date());
   const [dataLoadedAt, setDataLoadedAt] = useState(() => Date.now());
 
@@ -131,14 +140,9 @@ function PersonalAttendanceBody({ title }: { title: string }) {
     }
 
     let workMins = 0;
+    let rawWorkMins = 0;
     if (checkedIn) {
       let end = checkedOut ? att.check_out : now;
-      // Open session / auto-checkout: time after shift end is not General OT
-      if ((!checkedOut || att.auto_checkout) && shift.shift_end) {
-        const endSec = timeToSeconds(end);
-        const se = timeToSeconds(shift.shift_end);
-        if (endSec != null && se != null && endSec > se) end = shift.shift_end;
-      }
       const start =
         data.work_start ||
         effectiveWorkStart(
@@ -149,14 +153,26 @@ function PersonalAttendanceBody({ title }: { title: string }) {
           att.penalty_minutes_override ?? null
         ) ||
         att.check_in;
+      const rawSpan = minutesBetween(start, end);
+      rawWorkMins = Math.max(0, rawSpan - breakMins);
+
+      // Open session / auto-checkout: time after shift end is not General OT
+      if ((!checkedOut || att.auto_checkout) && shift.shift_end) {
+        const endSec = timeToSeconds(end);
+        const se = timeToSeconds(shift.shift_end);
+        if (endSec != null && se != null && endSec > se) end = shift.shift_end;
+      }
       const span = minutesBetween(start, end);
       workMins = Math.max(0, span - breakMins);
     }
 
     const threshold = Number(shift.working_hours_per_day || 8);
     const workHours = workMins / 60;
+    const rawWorkHours = rawWorkMins / 60;
     const overtimeMins = Math.max(0, workMins - threshold * 60);
     const shortfallMins = Math.max(0, threshold * 60 - workMins);
+    const coverMins = Math.max(0, rawWorkMins - threshold * 60);
+    const dailyTargetMet = rawWorkHours + 1 / 120 >= threshold;
     const shiftEndSec = timeToSeconds(shift.shift_end);
     const nowSec = timeToSeconds(now)!;
     const isEarly = checkedIn && !checkedOut && shiftEndSec != null && nowSec < shiftEndSec;
@@ -169,9 +185,13 @@ function PersonalAttendanceBody({ title }: { title: string }) {
       breakMins,
       breakSessionMins,
       workMins,
+      rawWorkMins,
       workHours,
+      rawWorkHours,
       overtimeMins,
       shortfallMins,
+      coverMins,
+      dailyTargetMet,
       threshold,
       isEarly,
       onBreak,
@@ -199,8 +219,11 @@ function PersonalAttendanceBody({ title }: { title: string }) {
   const shift = data.shift || {};
   const summary = data.monthly_summary;
   const ecr = data.early_checkout_request || null;
+  const ctr = data.cover_time_request || null;
+  const coverMinHours = Number(data.cover_time_min_hours ?? 0.75);
   const monthTarget = Number(summary?.monthly_target_hours || 0);
   const monthCounted = Number(summary?.monthly_counted_hours || 0);
+  const monthPending = Number(summary?.pending_hours || 0);
   const monthPct = monthTarget > 0 ? Math.min(100, Math.round((monthCounted / monthTarget) * 100)) : 0;
   const workedSeconds = Math.max(0, Math.round(live.workMins * 60));
   const workedClock = {
@@ -208,6 +231,20 @@ function PersonalAttendanceBody({ title }: { title: string }) {
     minutes: pad2(Math.floor((workedSeconds % 3600) / 60)),
     seconds: pad2(workedSeconds % 60),
   };
+  const activeCover = ctr && (ctr.status === 'Pending' || ctr.status === 'Approved');
+  const coverReadyToCheckout = !activeCover || live.coverMins >= coverMinHours * 60 - 0.5;
+  const earlyApproved =
+    ecr?.status === 'Approved' && live.checkedIn && !live.checkedOut;
+  const needsEarlyRequest =
+    live.isEarly && !activeCover && !earlyApproved && ecr?.status !== 'Pending';
+  const canRequestOt =
+    live.checkedIn &&
+    !live.checkedOut &&
+    live.dailyTargetMet;
+  const canRequestCover =
+    canRequestOt &&
+    monthPending + 0.001 >= coverMinHours &&
+    !activeCover;
 
   const submitEarlyRequest = async () => {
     if (!earlyReason.trim()) {
@@ -245,9 +282,99 @@ function PersonalAttendanceBody({ title }: { title: string }) {
     }
   };
 
+  const submitMgmtRequest = async () => {
+    const hrs = Number(mgmtHours);
+    if (!Number.isFinite(hrs) || hrs <= 0) {
+      setMgmtErr('Enter valid management OT hours.');
+      return;
+    }
+    if (!mgmtReason.trim()) {
+      setMgmtErr('Please add a reason for management overtime.');
+      return;
+    }
+    setMgmtBusy(true);
+    setMgmtErr('');
+    try {
+      const today = att.date || new Date().toISOString().slice(0, 10);
+      await api('/overtime', {
+        method: 'POST',
+        body: { date: today, hours: hrs, reason: mgmtReason, ot_type: 'Management' },
+      });
+      setMgmtReason('');
+      setOtRequestOpen(false);
+      await load();
+    } catch (e) {
+      setMgmtErr(e instanceof Error ? e.message : 'Failed to send request');
+    } finally {
+      setMgmtBusy(false);
+    }
+  };
+
+  const openOtRequestModal = () => {
+    setMgmtErr('');
+    setCoverErr('');
+    const surplusHrs = Math.max(0, Math.round((live.overtimeMins / 60) * 100) / 100);
+    setMgmtHours(surplusHrs > 0 ? String(surplusHrs) : '0.5');
+    if (canRequestCover) {
+      const suggested = Math.max(
+        coverMinHours,
+        Math.min(monthPending, Math.max(coverMinHours, Number(coverHours) || coverMinHours))
+      );
+      setCoverHours(String(Math.round(Math.min(monthPending, suggested) * 100) / 100));
+    }
+    setOtRequestOpen(true);
+  };
+
+  const submitCoverRequest = async () => {
+    const hrs = Number(coverHours);
+    if (!Number.isFinite(hrs) || hrs < coverMinHours) {
+      setCoverErr(`Cover time must be at least ${Math.round(coverMinHours * 60)} minutes.`);
+      return;
+    }
+    if (!coverReason.trim()) {
+      setCoverErr('Please add a reason for cover time.');
+      return;
+    }
+    setCoverBusy(true);
+    setCoverErr('');
+    try {
+      await api('/attendance/me/cover-time-request', {
+        method: 'POST',
+        body: { hours: hrs, reason: coverReason },
+      });
+      setCoverReason('');
+      setCoverHours(String(coverMinHours));
+      setOtRequestOpen(false);
+      await load();
+    } catch (e) {
+      setCoverErr(e instanceof Error ? e.message : 'Failed to send request');
+    } finally {
+      setCoverBusy(false);
+    }
+  };
+
+  const cancelCoverRequest = async () => {
+    if (!ctr?._id) return;
+    setBusy(true);
+    setErr('');
+    try {
+      await api(`/attendance/me/cover-time-request/${ctr._id}/cancel`, { method: 'POST', body: {} });
+      await load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Failed to cancel cover request');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const requestCheckout = () => {
     if (ecr?.status === 'Pending') return;
-    if (live.isEarly) {
+    if (activeCover && !coverReadyToCheckout) {
+      setErr(`Cover time requires at least ${Math.round(coverMinHours * 60)} minutes before checkout.`);
+      return;
+    }
+    // Early leave needs HR approval first; once approved, employee checks out themselves.
+    if (needsEarlyRequest) {
       setEarlyOpen(true);
       return;
     }
@@ -292,20 +419,39 @@ function PersonalAttendanceBody({ title }: { title: string }) {
                 >
                   <Coffee size={16} /> {live.onBreak ? 'End Break' : 'Break'}
                 </Button>
+                {canRequestOt && (
+                  <Button
+                    variant="outline"
+                    className="attendance-action"
+                    disabled={busy || coverBusy || mgmtBusy}
+                    onClick={openOtRequestModal}
+                  >
+                    <Timer size={16} /> Overtime Request
+                  </Button>
+                )}
                 <Button
                   className="attendance-action attendance-action-primary"
-                  disabled={busy || ecr?.status === 'Pending'}
-                  onClick={live.isEarly ? requestCheckout : () => action('/attendance/me/check-out')}
+                  disabled={busy || ecr?.status === 'Pending' || (activeCover && !coverReadyToCheckout)}
+                  onClick={() => requestCheckout()}
                 >
                   {ecr?.status === 'Pending'
                     ? 'Early Checkout Pending'
-                    : live.isEarly
-                      ? 'Early Checkout Request'
-                      : 'Check Out'}
+                    : activeCover && !coverReadyToCheckout
+                      ? `Cover ${Math.round(coverMinHours * 60)}m required`
+                      : earlyApproved
+                        ? 'Check Out'
+                        : needsEarlyRequest
+                          ? 'Early Checkout Request'
+                          : 'Check Out'}
                 </Button>
                 {ecr?.status === 'Pending' && (
                   <button className="attendance-cancel" disabled={busy} onClick={cancelEarlyRequest}>
                     Cancel request
+                  </button>
+                )}
+                {ctr?.status === 'Pending' && (
+                  <button className="attendance-cancel" disabled={busy} onClick={cancelCoverRequest}>
+                    Cancel cover request
                   </button>
                 )}
               </>
@@ -319,7 +465,17 @@ function PersonalAttendanceBody({ title }: { title: string }) {
         </div>
 
         <div className="attendance-widget-meta">
-          <div><span>Check In</span><strong>{displayClock(att.check_in)}</strong></div>
+          <div>
+            <span>Check In</span>
+            <strong>{displayClock(att.check_in)}</strong>
+            {live.penaltyMinutes > 0 && !live.penaltyWaived ? (
+              <span className="att-time-note is-penalty">
+                Penalty {Math.round(live.penaltyMinutes)}m
+              </span>
+            ) : live.lateMinutes > 0 && live.penaltyWaived ? (
+              <span className="att-time-note">Penalty waived</span>
+            ) : null}
+          </div>
           <div><span>Check Out</span><strong>{displayClock(att.check_out)}</strong></div>
           <div><span>Break Time</span><strong>{formatDurationMinutes(live.breakMins)}</strong></div>
           <div>
@@ -343,7 +499,30 @@ function PersonalAttendanceBody({ title }: { title: string }) {
           </div>
         )}
         {ecr?.status === 'Approved' && !live.checkedOut && (
-          <div className="attendance-notice is-success">Your early checkout request has been approved.</div>
+          <div className="attendance-notice is-success">
+            Your early checkout request has been approved. You can check out now.
+          </div>
+        )}
+        {activeCover && (
+          <div className="attendance-notice is-success">
+            <strong>Cover time {ctr.status === 'Approved' ? 'approved' : 'requested'}:</strong>{' '}
+            {formatHours(ctr.requested_hours)} to make up shortfall.
+            {live.coverMins > 0
+              ? ` Covered so far ${formatDurationMinutes(live.coverMins)}.`
+              : ` Stay at least ${Math.round(coverMinHours * 60)} minutes past daily hours before checkout.`}
+            {monthPending > 0 ? ` Monthly shortfall left: ${formatHours(monthPending)}.` : ''}
+          </div>
+        )}
+        {ctr?.status === 'Rejected' && (
+          <div className="attendance-notice is-error">
+            <strong>Cover time request declined.</strong>{' '}
+            {ctr.decision_note || 'HR/Admin did not approve your cover time.'}
+          </div>
+        )}
+        {ctr?.status === 'Approved' && live.checkedOut && Number(ctr.actual_cover_hours) > 0 && (
+          <div className="attendance-notice is-success">
+            Cover time of {formatHours(ctr.actual_cover_hours)} counted toward your working hours.
+          </div>
         )}
       </section>
 
@@ -396,9 +575,9 @@ function PersonalAttendanceBody({ title }: { title: string }) {
           <div className="stat-card">
             <span className="stat-icon teal"><TrendingUp size={20} /></span>
             <div>
-              <span className="label">Month overtime</span>
+              <span className="label">Month general OT</span>
               <div className="emp-stat-value is-extra">{formatHours(summary?.overtime_hours)}</div>
-              <span className="emp-stat-hint">Attendance + approved General OT</span>
+              <span className="emp-stat-hint">Auto at checkout when above daily target</span>
             </div>
           </div>
         </div>
@@ -431,6 +610,10 @@ function PersonalAttendanceBody({ title }: { title: string }) {
             <span className="label">Balance</span>
             <strong>{formatHours(summary?.monthly_shortfall_or_surplus)}</strong>
           </div>
+          <div>
+            <span className="label">Cover time</span>
+            <strong>{formatHours(summary?.cover_time_hours)}</strong>
+          </div>
         </div>
       </div>
 
@@ -462,6 +645,105 @@ function PersonalAttendanceBody({ title }: { title: string }) {
             </Button>
             <Button disabled={earlyBusy} onClick={submitEarlyRequest}>
               {earlyBusy ? 'Sending…' : 'Send Request'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={otRequestOpen} onOpenChange={(o) => !o && setOtRequestOpen(false)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Overtime Request</DialogTitle>
+            <DialogDescription>
+              You have completed today&apos;s {formatHours(live.threshold)}. General OT is counted automatically at checkout.
+              Request Management OT (paid) or Cover Time (monthly shortfall) below.
+            </DialogDescription>
+          </DialogHeader>
+
+          <section className="grid gap-3" style={{ borderBottom: '1px solid var(--border)', paddingBottom: 16 }}>
+            <h4 style={{ margin: 0, fontSize: '0.95rem' }}>Management OT</h4>
+            <p className="emp-stat-hint" style={{ margin: 0 }}>
+              Company-paid overtime for actual extra work today (+{formatDurationMinutes(live.overtimeMins)} so far).
+            </p>
+            <div className="grid gap-1.5">
+              <label className="label" htmlFor="mgmt-hours">
+                Hours <span style={{ color: 'var(--error)' }}>*</span>
+              </label>
+              <input
+                id="mgmt-hours"
+                className="input"
+                type="number"
+                min="0.25"
+                step="0.25"
+                value={mgmtHours}
+                onChange={(e) => setMgmtHours(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <label className="label" htmlFor="mgmt-reason">
+                Reason <span style={{ color: 'var(--error)' }}>*</span>
+              </label>
+              <Textarea
+                id="mgmt-reason"
+                rows={2}
+                placeholder="e.g. Urgent client delivery, production deadline…"
+                value={mgmtReason}
+                onChange={(e) => setMgmtReason(e.target.value)}
+              />
+            </div>
+            {mgmtErr && <p style={{ color: 'var(--error)', margin: 0 }}>{mgmtErr}</p>}
+            <Button disabled={mgmtBusy} onClick={submitMgmtRequest}>
+              {mgmtBusy ? 'Sending…' : 'Submit Management OT'}
+            </Button>
+          </section>
+
+          {canRequestCover && (
+            <section className="grid gap-3" style={{ paddingTop: 8 }}>
+              <h4 style={{ margin: 0, fontSize: '0.95rem' }}>Cover Time</h4>
+              <p className="emp-stat-hint" style={{ margin: 0 }}>
+                Cover {formatHours(monthPending)} monthly shortfall. Counts toward working hours, not overtime. Stay at least{' '}
+                {Math.round(coverMinHours * 60)} minutes past daily hours before checkout.
+              </p>
+              <div className="grid gap-1.5">
+                <label className="label" htmlFor="cover-hours">
+                  Hours to cover <span style={{ color: 'var(--error)' }}>*</span>
+                </label>
+                <input
+                  id="cover-hours"
+                  className="input"
+                  type="number"
+                  min={coverMinHours}
+                  max={Math.max(coverMinHours, monthPending)}
+                  step="0.25"
+                  value={coverHours}
+                  onChange={(e) => setCoverHours(e.target.value)}
+                />
+                <span className="emp-stat-hint">
+                  Minimum {Math.round(coverMinHours * 60)} minutes · max {formatHours(monthPending)}
+                </span>
+              </div>
+              <div className="grid gap-1.5">
+                <label className="label" htmlFor="cover-reason">
+                  Reason <span style={{ color: 'var(--error)' }}>*</span>
+                </label>
+                <Textarea
+                  id="cover-reason"
+                  rows={2}
+                  placeholder="e.g. Making up 2h early checkout from 19 Aug…"
+                  value={coverReason}
+                  onChange={(e) => setCoverReason(e.target.value)}
+                />
+              </div>
+              {coverErr && <p style={{ color: 'var(--error)', margin: 0 }}>{coverErr}</p>}
+              <Button variant="outline" disabled={coverBusy} onClick={submitCoverRequest}>
+                {coverBusy ? 'Sending…' : 'Submit Cover Time'}
+              </Button>
+            </section>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOtRequestOpen(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -589,7 +871,7 @@ export function AdminDashboard() {
           hint="Teams & shifts"
         />
         <DashMetric
-          to="/admin/leaves"
+          to="/admin/requests"
           accent="amber"
           iconClass="amber"
           icon={<CalendarDays size={20} />}
@@ -598,7 +880,7 @@ export function AdminDashboard() {
           hint="Awaiting approval"
         />
         <DashMetric
-          to="/admin/overtime"
+          to="/admin/requests"
           accent="violet"
           iconClass="violet"
           icon={<Timer size={20} />}
@@ -745,7 +1027,7 @@ export function HrDashboard() {
           hint="Manage profiles"
         />
         <DashMetric
-          to="/hr/overtime"
+          to="/hr/requests"
           accent="violet"
           iconClass="violet"
           icon={<Timer size={20} />}
