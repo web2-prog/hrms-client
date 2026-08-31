@@ -22,8 +22,7 @@ import {
   type SalaryCompanyKey,
   type SalarySlipFormData,
 } from '../../services/salarySlipDefaults';
-import { downloadSalarySlipPdf, buildSalarySlipPdfPayload } from '../../services/salarySlipPdf';
-import { buildPayslipPdfBase64FromForm } from '../../services/buildPayslipEmailPdf';
+import { downloadSalarySlipPdf } from '../../services/salarySlipPdf';
 
 const SALARY_GEN_MIN_YEAR = 2026;
 
@@ -357,24 +356,10 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
     setSendBusy(id);
     setError(null);
     try {
-      // Prefer the open preview DOM (exact View design); otherwise render off-screen.
-      let pdf_base64: string | undefined;
-      let pdf_filename: string | undefined;
-      if (previewSlipId === id && previewRef.current && previewForm && !showAdjust) {
-        const payload = await buildSalarySlipPdfPayload(previewRef.current);
-        pdf_base64 = payload.base64;
-        pdf_filename = getSalaryPdfFilename(previewForm);
-      } else {
-        const slip = await api<Slip & { payslip: Record<string, unknown> }>(`/salary/${id}`);
-        const form = apiPayslipToForm(slip.payslip || {});
-        const payload = await buildPayslipPdfBase64FromForm(form);
-        pdf_base64 = payload.base64;
-        pdf_filename = payload.filename;
-      }
-
+      // PDF is generated on the server — never upload base64 (Vercel 4.5MB body limit).
       const res = await api<{ message: string; sent_on: string; sent_to: string }>(`/salary/${id}/send`, {
         method: 'POST',
-        body: { pdf_base64, pdf_filename },
+        body: {},
       });
       setError(null);
       alert(res.message || 'Salary slip sent');
