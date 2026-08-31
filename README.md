@@ -7,7 +7,7 @@ React 19 + Vite + TypeScript UI for the HRMS system.
 ```bash
 npm install
 cp .env.example .env   # defaults to http://localhost:5001/api
-npm run dev            # http://localhost:3003
+npm start              # http://localhost:3003 (same as npm run dev)
 ```
 
 ## Environment Variables
