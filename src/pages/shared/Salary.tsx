@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -21,7 +22,58 @@ import {
   type SalaryCompanyKey,
   type SalarySlipFormData,
 } from '../../services/salarySlipDefaults';
-import { downloadSalarySlipPdf } from '../../services/salarySlipPdf';
+import { downloadSalarySlipPdf, buildSalarySlipPdfPayload } from '../../services/salarySlipPdf';
+import { buildPayslipPdfBase64FromForm } from '../../services/buildPayslipEmailPdf';
+
+const SALARY_GEN_MIN_YEAR = 2026;
+
+function nowYearMonthIst() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+  }).formatToParts(new Date());
+  return {
+    year: Number(parts.find((p) => p.type === 'year')?.value),
+    month: Number(parts.find((p) => p.type === 'month')?.value),
+  };
+}
+
+function previousMonthYear(year: number, month: number) {
+  if (month === 1) return { year: year - 1, month: 12 };
+  return { year, month: month - 1 };
+}
+
+/** Default generate period: previous calendar month (IST), never current/future. */
+function defaultGenPeriod() {
+  const now = nowYearMonthIst();
+  const prev = previousMonthYear(now.year, now.month);
+  if (prev.year < SALARY_GEN_MIN_YEAR) {
+    return { month: '1', year: String(SALARY_GEN_MIN_YEAR) };
+  }
+  return { month: String(prev.month), year: String(prev.year) };
+}
+
+function genYearOptions() {
+  const now = nowYearMonthIst();
+  const maxYear = now.month === 1 ? now.year - 1 : now.year;
+  const years: number[] = [];
+  for (let y = SALARY_GEN_MIN_YEAR; y <= maxYear; y += 1) years.push(y);
+  return years;
+}
+
+function genMonthOptions(year: number) {
+  const now = nowYearMonthIst();
+  if (!Number.isFinite(year) || year < SALARY_GEN_MIN_YEAR || year > now.year) return [];
+  const maxMonth = year === now.year ? now.month - 1 : 12;
+  if (maxMonth < 1) return [];
+  return Array.from({ length: maxMonth }, (_, i) => i + 1);
+}
+
+function isPastSalaryPeriod(month: number, year: number) {
+  const now = nowYearMonthIst();
+  return year < now.year || (year === now.year && month < now.month);
+}
 
 type Slip = {
   _id: string;
@@ -49,6 +101,7 @@ type Slip = {
   paid_date?: string;
   payment_reference?: string;
   sent_on?: string;
+  sent_to?: string;
   employee_id?: { _id: string; name: string; department_id?: { name: string } };
   payslip?: Record<string, unknown>;
   adjustment_note?: string;
@@ -62,11 +115,14 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [emps, setEmps] = useState<{ _id: string; name: string }[]>([]);
-  const [gen, setGen] = useState({
-    employee_id: '',
-    month: String(new Date().getMonth() + 1),
-    year: '2026',
-    company_key: 'kriraai' as SalaryCompanyKey,
+  const [gen, setGen] = useState(() => {
+    const period = defaultGenPeriod();
+    return {
+      employee_id: '',
+      month: period.month,
+      year: period.year,
+      company_key: 'kriraai' as SalaryCompanyKey,
+    };
   });
   const [previewForm, setPreviewForm] = useState<SalarySlipFormData | null>(null);
   const [previewSlipId, setPreviewSlipId] = useState<string | null>(null);
@@ -77,7 +133,13 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
   const [showAdjust, setShowAdjust] = useState(false);
   const [genBusy, setGenBusy] = useState(false);
   const [sendBusy, setSendBusy] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<Slip | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteErr, setDeleteErr] = useState('');
   const previewRef = useRef<HTMLDivElement | null>(null);
+
+  const genYears = genYearOptions();
+  const genMonths = genMonthOptions(Number(gen.year));
 
   const load = async () => {
     setLoading(true);
@@ -125,6 +187,10 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
       setError('Select an employee to generate a salary slip');
       return;
     }
+    if (!isPastSalaryPeriod(Number(gen.month), Number(gen.year))) {
+      setError('Salary slips can only be generated for past months');
+      return;
+    }
     setGenBusy(true);
     setError(null);
     try {
@@ -152,6 +218,10 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
   };
 
   const handleBulkGenerate = async () => {
+    if (!isPastSalaryPeriod(Number(gen.month), Number(gen.year))) {
+      setError('Salary slips can only be generated for past months');
+      return;
+    }
     setGenBusy(true);
     setError(null);
     try {
@@ -294,9 +364,24 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
     setSendBusy(id);
     setError(null);
     try {
+      // Prefer the open preview DOM (exact View design); otherwise render off-screen.
+      let pdf_base64: string | undefined;
+      let pdf_filename: string | undefined;
+      if (previewSlipId === id && previewRef.current && previewForm && !showAdjust) {
+        const payload = await buildSalarySlipPdfPayload(previewRef.current);
+        pdf_base64 = payload.base64;
+        pdf_filename = getSalaryPdfFilename(previewForm);
+      } else {
+        const slip = await api<Slip & { payslip: Record<string, unknown> }>(`/salary/${id}`);
+        const form = apiPayslipToForm(slip.payslip || {});
+        const payload = await buildPayslipPdfBase64FromForm(form);
+        pdf_base64 = payload.base64;
+        pdf_filename = payload.filename;
+      }
+
       const res = await api<{ message: string; sent_on: string; sent_to: string }>(`/salary/${id}/send`, {
         method: 'POST',
-        body: {},
+        body: { pdf_base64, pdf_filename },
       });
       setError(null);
       alert(res.message || 'Salary slip sent');
@@ -305,6 +390,22 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
       setError(e instanceof Error ? e.message : 'Failed to send salary slip');
     } finally {
       setSendBusy(null);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    setDeleteErr('');
+    try {
+      await api(`/salary/${deleting._id}`, { method: 'DELETE' });
+      if (previewSlipId === deleting._id) closePreview();
+      setDeleting(null);
+      await load();
+    } catch (e) {
+      setDeleteErr(e instanceof Error ? e.message : 'Failed to delete salary slip');
+    } finally {
+      setDeleteBusy(false);
     }
   };
 
@@ -426,7 +527,7 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
                 value={gen.month}
                 onChange={(e) => setGen({ ...gen, month: e.target.value })}
               >
-                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                {genMonths.map((m) => (
                   <option key={m} value={m}>
                     {m}
                   </option>
@@ -435,19 +536,30 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
               <select
                 className="select select-year"
                 value={gen.year}
-                onChange={(e) => setGen({ ...gen, year: e.target.value })}
+                onChange={(e) => {
+                  const year = e.target.value;
+                  const months = genMonthOptions(Number(year));
+                  const month = months.includes(Number(gen.month))
+                    ? gen.month
+                    : String(months[months.length - 1] || '');
+                  setGen({ ...gen, year, month });
+                }}
               >
-                {[2026, 2027, 2028].map((y) => (
+                {genYears.map((y) => (
                   <option key={y} value={y}>
                     {y}
                   </option>
                 ))}
               </select>
-              <Button disabled={genBusy} onClick={handleGenerate}>
+              <Button disabled={genBusy || !genMonths.length} onClick={handleGenerate}>
                 {genBusy ? 'Generating…' : 'Generate'}
               </Button>
               {allowBulk && (
-                <Button variant="outline" disabled={genBusy} onClick={handleBulkGenerate}>
+                <Button
+                  variant="outline"
+                  disabled={genBusy || !genMonths.length}
+                  onClick={handleBulkGenerate}
+                >
                   Bulk generate
                 </Button>
               )}
@@ -520,41 +632,60 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
                       <StatusBadge status={s.payment_status} />
                     </div>
                   </td>
-                  <td className="row-actions col-actions">
-                    {/* Draft: Adjust + Finalize only. Finalized: View + Send only. Employee: View only. */}
-                    <Button variant="outline" size="sm" onClick={() => openPreview(s._id)} disabled={previewLoading}>
-                      {(user?.role === 'admin' || user?.role === 'hr') && s.status === 'Draft' ? 'Adjust' : 'View'}
-                    </Button>
-                    {(user?.role === 'admin' || user?.role === 'hr') && s.status === 'Draft' && (
-                      <Button
-                        size="sm"
-                        onClick={async () => {
-                          try {
-                            setError(null);
-                            await api(`/salary/${s._id}/finalize`, { method: 'POST', body: {} });
-                            load();
-                          } catch (e) {
-                            setError(
-                              e instanceof Error
-                                ? e.message
-                                : 'Cannot finalize this salary slip. Check Performance for pending hours.'
-                            );
+                  <td className="col-actions">
+                    <div className="salary-actions">
+                      <Button variant="outline" size="sm" onClick={() => openPreview(s._id)} disabled={previewLoading}>
+                        {(user?.role === 'admin' || user?.role === 'hr') && s.status === 'Draft' ? 'Adjust' : 'View'}
+                      </Button>
+                      {(user?.role === 'admin' || user?.role === 'hr') && s.status === 'Draft' && (
+                        <Button
+                          size="sm"
+                          onClick={async () => {
+                            try {
+                              setError(null);
+                              await api(`/salary/${s._id}/finalize`, { method: 'POST', body: {} });
+                              load();
+                            } catch (e) {
+                              setError(
+                                e instanceof Error
+                                  ? e.message
+                                  : 'Cannot finalize this salary slip. Check Performance for pending hours.'
+                              );
+                            }
+                          }}
+                        >
+                          Finalize
+                        </Button>
+                      )}
+                      {(user?.role === 'admin' || user?.role === 'hr') && s.status === 'Finalized' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={sendBusy === s._id}
+                          title={
+                            s.sent_on
+                              ? `Resend PDF to employee personal email${s.sent_to ? ` (${s.sent_to})` : ''}`
+                              : 'Email PDF to employee personal email'
                           }
-                        }}
-                      >
-                        Finalize
-                      </Button>
-                    )}
-                    {(user?.role === 'admin' || user?.role === 'hr') && s.status === 'Finalized' && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={sendBusy === s._id}
-                        onClick={() => sendSlip(s._id)}
-                      >
-                        {sendBusy === s._id ? 'Sending…' : s.sent_on ? 'Resend salary slip' : 'Send salary slip'}
-                      </Button>
-                    )}
+                          onClick={() => sendSlip(s._id)}
+                        >
+                          {sendBusy === s._id ? 'Sending…' : s.sent_on ? 'Resend' : 'Send mail'}
+                        </Button>
+                      )}
+                      {(user?.role === 'admin' || user?.role === 'hr') && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          title="Delete salary slip"
+                          onClick={() => {
+                            setDeleteErr('');
+                            setDeleting(s);
+                          }}
+                        >
+                          Delete
+                        </Button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -629,6 +760,30 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
           </DialogContent>
         </Dialog>
       )}
+
+      <Dialog open={!!deleting} onOpenChange={(o) => !o && !deleteBusy && setDeleting(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete salary slip?</DialogTitle>
+          </DialogHeader>
+          {deleting && (
+            <p style={{ margin: 0, color: 'var(--graphite)', fontSize: '0.92rem', lineHeight: 1.5 }}>
+              This permanently removes the {deleting.month}/{deleting.year} slip for{' '}
+              <strong>{deleting.employee_id?.name || 'this employee'}</strong> from HR/Admin and the
+              employee panel. This cannot be undone.
+            </p>
+          )}
+          {deleteErr && <p className="form-error">{deleteErr}</p>}
+          <DialogFooter>
+            <Button variant="outline" disabled={deleteBusy} onClick={() => setDeleting(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" disabled={deleteBusy} onClick={confirmDelete}>
+              {deleteBusy ? 'Deleting…' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

@@ -9,6 +9,8 @@ import {
   calculateGrossEarnings,
   calculateTotalDeductions,
   calculateNetPay,
+  calculateYtdGrossEarnings,
+  calculateYtdTotalDeductions,
   formatSlipAmount,
   amountToWords,
   applyLopDays,
@@ -103,8 +105,17 @@ function buildDeductionRows(form: SalarySlipFormData, editable: boolean): Row[] 
 }
 
 function CompanyLogo({ form }: { form: SalarySlipFormData }) {
-  const company = SALARY_COMPANIES[resolveCompanyKeyFromForm(form)];
-  return <img src={company.logoSrc} alt={company.label} className="company-logo" />;
+  const key = resolveCompanyKeyFromForm(form);
+  const company = SALARY_COMPANIES[key];
+  return (
+    <img
+      src={company.logoSrc}
+      alt={company.label}
+      className={`company-logo company-logo--${key}`}
+      crossOrigin="anonymous"
+      decoding="sync"
+    />
+  );
 }
 
 function TextField({
@@ -175,6 +186,8 @@ export function SalarySlipPreview({ form, previewRef, editable = false, disabled
   const grossEarnings = calculateGrossEarnings(form);
   const totalDeductions = calculateTotalDeductions(form);
   const netPay = calculateNetPay(form);
+  const ytdGrossEarnings = calculateYtdGrossEarnings(form);
+  const ytdTotalDeductions = calculateYtdTotalDeductions(form);
   const monthLabel = MONTH_NAMES[form.month - 1] || '';
   const payPeriod = `${monthLabel} ${form.year}`;
   const earningRows = buildEarningRows(form, editable);
@@ -494,10 +507,10 @@ export function SalarySlipPreview({ form, previewRef, editable = false, disabled
           <tr className="total-row">
             <td className="col-name total-label">Gross Earnings</td>
             <td className="col-amt total-amt">{formatSlipAmount(grossEarnings, true)}</td>
-            <td className="col-ytd" />
+            <td className="col-ytd total-amt">{formatSlipAmount(ytdGrossEarnings, true)}</td>
             <td className="col-name total-label">Total Deductions</td>
             <td className="col-amt total-amt">{formatSlipAmount(totalDeductions, true)}</td>
-            <td className="col-ytd" />
+            <td className="col-ytd total-amt">{formatSlipAmount(ytdTotalDeductions, true)}</td>
           </tr>
         </tbody>
       </table>

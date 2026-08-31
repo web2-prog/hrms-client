@@ -105,14 +105,14 @@ export function LeavesPage() {
 
   const loadUpcoming = async () => {
     try {
-      // Always include Pending + Approved upcoming leaves (ignore status filter on main table)
+      // Pending + Approved only (rejected leaves are not upcoming)
       const q = buildQuery({
         page: 1,
         limit: 5,
         when: 'upcoming',
       });
       const res = await api<ListResult<Leave>>(`/leaves${q}`);
-      setUpcoming((res.data || []).filter((l) => l.status !== 'Rejected'));
+      setUpcoming((res.data || []).filter((l) => l.status === 'Pending' || l.status === 'Approved'));
     } catch {
       setUpcoming([]);
     }
@@ -123,11 +123,8 @@ export function LeavesPage() {
       // Same filters as the table so the strip reflects the filtered view.
       const base = {
         limit: 1,
-        search: list.search || undefined,
         month: month || undefined,
         year: year || undefined,
-        day_type: list.get('day_type') || undefined,
-        when: when || undefined,
         department_id: list.get('department_id'),
         employee_id: list.get('employee_id'),
       };

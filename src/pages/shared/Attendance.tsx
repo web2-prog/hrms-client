@@ -197,6 +197,7 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
   return (
     <>
       {isStaff && <EarlyCheckoutRequestsCard />}
+      {isStaff && <CoverTimeRequestsCard />}
       <ListingPage
         title="Attendance"
         subtitle="Daily check-in, check-out and hours across the team"
@@ -531,7 +532,7 @@ function EarlyCheckoutRequestsCard() {
       });
       setMsg(
         status === 'Approved'
-          ? `Approved — ${req.employee_id?.name || 'employee'} has been checked out at ${displayClock(req.requested_time)}.`
+          ? `Approved — ${req.employee_id?.name || 'employee'} can now check out from their dashboard.`
           : 'Request rejected.'
       );
       setRejecting(null);
@@ -550,7 +551,8 @@ function EarlyCheckoutRequestsCard() {
         <div>
           <h3 style={{ margin: 0 }}>Early Checkout Requests</h3>
           <p className="emp-action-help" style={{ margin: '4px 0 0' }}>
-            Employees leaving before shift end need approval. Approving checks them out at the requested time.
+            Employees leaving before shift end need approval. Approving unlocks checkout — the employee
+            must check out themselves.
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -657,6 +659,215 @@ function EarlyCheckoutRequestsCard() {
                   id="ecr-note"
                   rows={3}
                   placeholder="e.g. Please finish the pending task before leaving…"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" disabled={busyId === rejecting._id} onClick={() => setRejecting(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  disabled={busyId === rejecting._id}
+                  onClick={() => decide(rejecting, 'Rejected', note)}
+                >
+                  Reject request
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+type CtRequest = {
+  _id: string;
+  date: string;
+  requested_hours: number;
+  actual_cover_hours?: number;
+  reason?: string;
+  status: string;
+  decision_note?: string;
+  createdAt?: string;
+  employee_id?: { name: string; department_id?: { name: string } };
+  decided_by?: { name?: string } | null;
+};
+
+/** HR/Admin approval queue for cover time requests (Attendance page). */
+function CoverTimeRequestsCard() {
+  const [pending, setPending] = useState<CtRequest[]>([]);
+  const [pendingTotal, setPendingTotal] = useState(0);
+  const [pendingPage, setPendingPage] = useState(1);
+  const [recent, setRecent] = useState<CtRequest[]>([]);
+  const [rejecting, setRejecting] = useState<CtRequest | null>(null);
+  const [note, setNote] = useState('');
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [msg, setMsg] = useState('');
+  const [err, setErr] = useState('');
+
+  const load = async () => {
+    setErr('');
+    try {
+      const [p, r] = await Promise.all([
+        api<ListResult<CtRequest>>(
+          `/attendance/cover-time-requests?status=Pending&page=${pendingPage}&limit=${PAGE_SIZE}`
+        ),
+        api<ListResult<CtRequest>>(`/attendance/cover-time-requests?page=1&limit=${PAGE_SIZE}&status=Approved`),
+      ]);
+      setPending(p.data || []);
+      setPendingTotal(p.total || 0);
+      setRecent(r.data || []);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Failed to load cover time requests');
+    }
+  };
+
+  useEffect(() => {
+    load();
+    const onFocus = () => load();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingPage]);
+
+  const decide = async (req: CtRequest, status: 'Approved' | 'Rejected', decisionNote = '') => {
+    setBusyId(req._id);
+    setErr('');
+    try {
+      const updated = await api<CtRequest>(`/attendance/cover-time-requests/${req._id}/decide`, {
+        method: 'POST',
+        body: { status, note: decisionNote },
+      });
+      setMsg(
+        status === 'Approved'
+          ? `Approved — ${formatHours(updated.actual_cover_hours || req.requested_hours)} cover time for ${req.employee_id?.name || 'employee'} counts toward working hours.`
+          : 'Cover time request rejected.'
+      );
+      setRejecting(null);
+      setNote('');
+      await load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <div className="card ecr-card" style={{ marginBottom: 16 }}>
+      <div className="ecr-head">
+        <div>
+          <h3 style={{ margin: 0 }}>Cover Time Requests</h3>
+          <p className="emp-action-help" style={{ margin: '4px 0 0' }}>
+            Employees making up shortfall hours after completing daily working hours. Approved cover time counts toward
+            monthly working hours (not overtime). Minimum 45 minutes.
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {pendingTotal > 0 && <span className="badge badge-warn">{pendingTotal} pending</span>}
+          <Button variant="outline" size="sm" onClick={load}>
+            Refresh
+          </Button>
+        </div>
+      </div>
+
+      {msg && <p style={{ color: 'var(--success)', margin: '0.75rem 0 0' }}>{msg}</p>}
+      {err && <p style={{ color: 'var(--error)', margin: '0.75rem 0 0' }}>{err}</p>}
+
+      {pendingTotal === 0 ? (
+        <p className="ecr-empty">No pending cover time requests.</p>
+      ) : (
+        <>
+          <div className="table-wrap" style={{ marginTop: 12 }}>
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Employee</th>
+                  <th>Requested</th>
+                  <th>Covered</th>
+                  <th>Date</th>
+                  <th>Reason</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {pending.map((r) => (
+                  <tr key={r._id}>
+                    <td>
+                      <EmpCell name={r.employee_id?.name} dept={r.employee_id?.department_id?.name} />
+                    </td>
+                    <td>{formatHours(r.requested_hours)}</td>
+                    <td>{formatHours(r.actual_cover_hours || 0)}</td>
+                    <td>{r.date}</td>
+                    <td style={{ maxWidth: 320 }}>{r.reason || '—'}</td>
+                    <td className="row-actions">
+                      <Button size="sm" disabled={busyId === r._id} onClick={() => decide(r, 'Approved')}>
+                        Approve
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={busyId === r._id}
+                        onClick={() => {
+                          setRejecting(r);
+                          setNote('');
+                        }}
+                      >
+                        Reject
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <ListPagination total={pendingTotal} page={pendingPage} onPageChange={setPendingPage} />
+        </>
+      )}
+
+      {recent.some((r) => r.status !== 'Pending') && (
+        <div style={{ marginTop: 14, borderTop: '1px solid var(--hairline)', paddingTop: 12 }}>
+          <span className="label">Recent cover approvals</span>
+          <div className="ecr-recent-list">
+            {recent
+              .filter((r) => r.status !== 'Pending')
+              .slice(0, 5)
+              .map((r) => (
+                <div key={r._id} className="ecr-recent-item">
+                  <span style={{ fontWeight: 600 }}>{r.employee_id?.name || '—'}</span>
+                  <StatusBadge status={r.status} />
+                  <span style={{ color: 'var(--muted)', fontSize: '0.82rem' }}>
+                    {formatHours(r.actual_cover_hours || r.requested_hours)} · {r.date}
+                    {r.decision_note ? ` · “${r.decision_note}”` : ''}
+                  </span>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+
+      <Dialog open={!!rejecting} onOpenChange={(o) => !o && setRejecting(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reject cover time</DialogTitle>
+          </DialogHeader>
+          {rejecting && (
+            <>
+              <p style={{ margin: 0, color: 'var(--muted)' }}>
+                {rejecting.employee_id?.name || 'Employee'} · {formatHours(rejecting.requested_hours)} ·{' '}
+                {rejecting.reason || 'No reason given'}
+              </p>
+              <div className="grid gap-1.5">
+                <label className="label" htmlFor="ctr-note">
+                  Note (optional)
+                </label>
+                <Textarea
+                  id="ctr-note"
+                  rows={3}
+                  placeholder="e.g. Please apply OT instead if this is extra work…"
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                 />

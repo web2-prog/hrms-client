@@ -665,7 +665,9 @@ function AnalyticsInner() {
             <div className="an-kpi-row">
               <div className="an-kpi">
                 <span className="label">{active.title}</span>
-                <div className="an-kpi-value">{kpi.primary}</div>
+                <div className={`an-kpi-value${type === 'penalty' ? ' is-penalty' : ''}`}>
+                  {kpi.primary}
+                </div>
                 <span className="emp-stat-hint">{kpi.secondary}</span>
               </div>
               {kpi.extras.map((extra) => (
@@ -783,7 +785,9 @@ function AnalyticsInner() {
                       <tr key={String(d.department_id || d.department)}>
                         <td>{d.department}</td>
                         <td>{d.employee_count}</td>
-                        <td>{deptMetric(d, type, otFilter)}</td>
+                        <td className={type === 'penalty' ? 'penalty-mins' : undefined}>
+                          {deptMetric(d, type, otFilter)}
+                        </td>
                       </tr>
                     ))}
                   {view === 'employee' &&
@@ -792,7 +796,9 @@ function AnalyticsInner() {
                         <td>{e.name}</td>
                         <td>{e.code || '—'}</td>
                         <td>{e.department || '—'}</td>
-                        <td>{empMetric(e, type, otFilter)}</td>
+                        <td className={type === 'penalty' ? 'penalty-mins' : undefined}>
+                          {empMetric(e, type, otFilter)}
+                        </td>
                       </tr>
                     ))}
                 </tbody>
