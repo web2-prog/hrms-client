@@ -107,7 +107,7 @@ export function ListingPage({
       </div>
       ) : null}
       {prepend}
-      <div className="card card-accent">
+      <div className="card">
         <div className="listing-toolbar">
           {filters}
           {!hideSearch && (

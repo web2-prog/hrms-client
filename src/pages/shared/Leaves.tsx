@@ -6,6 +6,7 @@ import { StatusBadge } from '../../components/StatusBadge';
 import { EmpCell } from '../../components/EmpCell';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '@/components/ui/button';
+import { AppSelect } from '../../components/AppSelect';
 import {
   Dialog,
   DialogContent,
@@ -164,7 +165,14 @@ export function LeavesPage() {
     setShowApply(false);
   };
 
-  const periodLabel = month && year ? `${MONTH_NAMES[Number(month) - 1]} ${year}` : 'All time';
+  const periodLabel =
+    month && year
+      ? `${MONTH_NAMES[Number(month) - 1]} ${year}`
+      : month
+        ? `${MONTH_NAMES[Number(month) - 1]} · all years`
+        : year
+          ? String(year)
+          : 'All time';
 
   return (
     <>
@@ -234,43 +242,57 @@ export function LeavesPage() {
         }}
         filters={
           <>
-            <select className="select select-month" value={month} onChange={(e) => list.setFilter('month', e.target.value)}>
-              <option value="">All months</option>
-              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                <option key={m} value={m}>
-                  {MONTH_NAMES[m - 1]}
-                </option>
-              ))}
-            </select>
-            <select className="select select-year" value={year} onChange={(e) => list.setFilter('year', e.target.value)}>
-              <option value="">All years</option>
-              {[2026, 2027, 2028].map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
-              ))}
-            </select>
+            <AppSelect
+              className="select-month"
+              value={month}
+              onChange={(v) => list.setFilter('month', v)}
+              options={[
+                { value: '', label: 'All months' },
+                ...MONTH_NAMES.map((name, i) => ({ value: String(i + 1), label: name })),
+              ]}
+            />
+            <AppSelect
+              className="select-year"
+              value={year}
+              onChange={(v) => list.setFilter('year', v)}
+              options={[
+                { value: '', label: 'All years' },
+                ...[2026, 2027, 2028].map((y) => ({ value: String(y), label: String(y) })),
+              ]}
+            />
           </>
         }
         typeFilters={
           <>
-            <select className="select" value={list.get('day_type')} onChange={(e) => list.setFilter('day_type', e.target.value)}>
-              <option value="">Show all leave</option>
-              <option value="Full Day">Full Day</option>
-              <option value="Half Day">Half Day</option>
-            </select>
-            <select className="select" value={list.get('status')} onChange={(e) => list.setFilter('status', e.target.value)}>
-              <option value="">Status</option>
-              <option value="Pending">Pending</option>
-              <option value="Approved">Approved</option>
-              <option value="Rejected">Rejected</option>
-            </select>
-            <select className="select" value={when} onChange={(e) => list.setFilter('when', e.target.value)}>
-              <option value="">All dates</option>
-              <option value="upcoming">Upcoming</option>
-              <option value="future">Future only</option>
-              <option value="past">Past</option>
-            </select>
+            <AppSelect
+              value={list.get('day_type')}
+              onChange={(v) => list.setFilter('day_type', v)}
+              options={[
+                { value: '', label: 'Show all leave' },
+                { value: 'Full Day', label: 'Full Day' },
+                { value: 'Half Day', label: 'Half Day' },
+              ]}
+            />
+            <AppSelect
+              value={list.get('status')}
+              onChange={(v) => list.setFilter('status', v)}
+              options={[
+                { value: '', label: 'Status' },
+                { value: 'Pending', label: 'Pending' },
+                { value: 'Approved', label: 'Approved' },
+                { value: 'Rejected', label: 'Rejected' },
+              ]}
+            />
+            <AppSelect
+              value={when}
+              onChange={(v) => list.setFilter('when', v)}
+              options={[
+                { value: '', label: 'All dates' },
+                { value: 'upcoming', label: 'Upcoming' },
+                { value: 'future', label: 'Future only' },
+                { value: 'past', label: 'Past' },
+              ]}
+            />
           </>
         }
         actions={

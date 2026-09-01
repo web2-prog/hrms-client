@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { CalendarDays, CalendarOff, Check, Plane, Plus, Sparkles, Trash2 } from 'lucide-react';
 import { api, buildQuery, type ListResult } from '../../services/api';
 import { ListingPage, useListParams } from '../../components/ListingPage';
+import { AppSelect } from '../../components/AppSelect';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '@/components/ui/button';
 import {
@@ -27,6 +28,11 @@ type Holiday = {
 };
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTHS_FULL = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function dateParts(d?: string) {
   if (!d) return null;
@@ -42,6 +48,17 @@ function rangeDays(s?: string, e?: string) {
   const b = new Date(e + 'T00:00:00').getTime();
   if (Number.isNaN(a) || Number.isNaN(b) || b < a) return 0;
   return Math.round((b - a) / 86400000) + 1;
+}
+
+function weekdayShort(d?: string) {
+  if (!d) return '';
+  const dt = new Date(d + 'T00:00:00');
+  if (Number.isNaN(dt.getTime())) return '';
+  return WEEKDAYS[dt.getDay()];
+}
+
+function holidaySortKey(h: Holiday) {
+  return h.date || h.start_date || '';
 }
 
 export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
@@ -67,7 +84,13 @@ export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
     setLoading(true);
     setError(null);
     try {
-      const q = buildQuery({ page: list.page, limit: list.limit, search: list.search, year, type: list.get('type') });
+      const q = buildQuery({
+        page: 1,
+        limit: 'all',
+        search: list.search,
+        year,
+        type: list.get('type'),
+      });
       const res = await api<ListResult<Holiday>>(`/holidays${q}`);
       setData(res.data);
       setTotal(res.total);
@@ -87,7 +110,7 @@ export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
     }
   };
 
-  useEffect(() => { load(); }, [list.page, list.limit, list.search, list.params]);
+  useEffect(() => { load(); }, [list.search, list.params, year]);
 
   // Local today (YYYY-MM-DD) — holidays that ended before this are "completed".
   const now = new Date();
@@ -98,31 +121,29 @@ export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
     return !!end && end < todayStr;
   };
 
-  // Reverse-chronological month groups (newest month first; within a month,
-  // newest date first). Vacations group under their start month.
+  // Full year, December → January. Within a month, earliest date first.
   const groups = useMemo(() => {
-    const sorted = [...data].sort((a, b) => {
-      const da = a.date || a.start_date || '';
-      const db = b.date || b.start_date || '';
-      return da < db ? 1 : da > db ? -1 : 0;
-    });
-    const map = new Map<string, Holiday[]>();
-    for (const h of sorted) {
+    const y = Number(year);
+    const buckets: Holiday[][] = Array.from({ length: 12 }, () => []);
+    for (const h of data) {
       const p = dateParts(h.date || h.start_date);
-      if (!p) continue;
-      const key = `${p.y}-${String(p.m).padStart(2, '0')}`;
-      const arr = map.get(key) || [];
-      arr.push(h);
-      map.set(key, arr);
+      if (!p || p.m < 1 || p.m > 12) continue;
+      buckets[p.m - 1].push(h);
     }
-    return [...map.entries()]
-      .sort((a, b) => b[0].localeCompare(a[0]))
-      .map(([key, items]) => ({
-      key,
-      label: `${MONTHS[Number(key.split('-')[1]) - 1]} ${key.split('-')[0]}`,
-      items,
-    }));
-  }, [data]);
+    for (const items of buckets) {
+      items.sort((a, b) => holidaySortKey(a).localeCompare(holidaySortKey(b)));
+    }
+    const hideEmpty = Boolean(list.search || list.get('type'));
+    return [11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]
+      .map((m) => ({
+        key: `${y}-${String(m + 1).padStart(2, '0')}`,
+        monthIndex: m,
+        label: MONTHS_FULL[m],
+        short: MONTHS[m],
+        items: buckets[m],
+      }))
+      .filter((g) => !hideEmpty || g.items.length > 0);
+  }, [data, year, list.search, list.params]);
 
   useEffect(() => { loadWd(); }, [year]);
 
@@ -159,29 +180,41 @@ export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
       ? `${h.name || 'Vacation'} (${h.start_date} → ${h.end_date})`
       : `${h.name || 'Alternate Saturday'} (${h.date})`;
 
+  const viewYear = Number(year);
+  const currentMonth = now.getFullYear() === viewYear ? now.getMonth() : -1;
+
   return (
     <>
       <ListingPage
         title="Holidays"
-        subtitle="Official off days and holidays across the year"
+        subtitle={`${year} calendar · December to January`}
+        searchPlaceholder="Search holidays…"
+        hidePagination
         loading={loading}
         error={error}
         empty={!data.length}
         total={total}
-        onRefresh={load}
+        onRefresh={() => { load(); loadWd(); }}
         filters={
-          <select className="select select-year" value={year} onChange={(e) => list.setFilter('year', e.target.value)}>
-            {[2026, 2027, 2028].map((y) => <option key={y} value={y}>{y}</option>)}
-          </select>
+          <AppSelect
+            className="select-year"
+            value={year}
+            onChange={(v) => list.setFilter('year', v || year)}
+            options={[2026, 2027, 2028].map((y) => ({ value: String(y), label: String(y) }))}
+          />
         }
         typeFilters={
-          <select className="select" value={list.get('type')} onChange={(e) => list.setFilter('type', e.target.value)}>
-            <option value="">All types</option>
-            <option value="Festival">Festival</option>
-            <option value="Saturday">Saturday</option>
-            <option value="Vacation">Vacation</option>
-            <option value="Manual">Manual</option>
-          </select>
+          <AppSelect
+            value={list.get('type')}
+            onChange={(v) => list.setFilter('type', v)}
+            options={[
+              { value: '', label: 'All types' },
+              { value: 'Festival', label: 'Festival' },
+              { value: 'Saturday', label: 'Saturday' },
+              { value: 'Vacation', label: 'Vacation' },
+              { value: 'Manual', label: 'Manual' },
+            ]}
+          />
         }
         actions={
           manage ? (
@@ -194,17 +227,17 @@ export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
         prepend={
           wd && (
             <div className="page-stats">
-              <div className="card emp-stat card-accent">
+              <div className="card emp-stat">
                 <div className="stat-card">
                   <span className="stat-icon blue"><CalendarDays size={20} /></span>
                   <div>
-                    <span className="label">Holidays {year}</span>
+                    <span className="label">Off days {year}</span>
                     <div className="emp-stat-value">{counts.total}</div>
-                    <span className="emp-stat-hint">Counted off days</span>
+                    <span className="emp-stat-hint">Counted across the year</span>
                   </div>
                 </div>
               </div>
-              <div className="card emp-stat card-accent violet">
+              <div className="card emp-stat">
                 <div className="stat-card">
                   <span className="stat-icon violet"><Sparkles size={20} /></span>
                   <div>
@@ -214,23 +247,23 @@ export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
                   </div>
                 </div>
               </div>
-              <div className="card emp-stat card-accent amber">
+              <div className="card emp-stat">
                 <div className="stat-card">
                   <span className="stat-icon amber"><CalendarOff size={20} /></span>
                   <div>
                     <span className="label">Saturdays</span>
                     <div className="emp-stat-value">{counts.Saturday}</div>
-                    <span className="emp-stat-hint">Weekend offs</span>
+                    <span className="emp-stat-hint">Alternate weekends</span>
                   </div>
                 </div>
               </div>
-              <div className="card emp-stat card-accent teal">
+              <div className="card emp-stat">
                 <div className="stat-card">
                   <span className="stat-icon teal"><Plane size={20} /></span>
                   <div>
                     <span className="label">Vacation days</span>
                     <div className="emp-stat-value">{counts.Vacation}</div>
-                    <span className="emp-stat-hint">Off days in vacations</span>
+                    <span className="emp-stat-hint">Days inside vacations</span>
                   </div>
                 </div>
               </div>
@@ -238,72 +271,99 @@ export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
           )
         }
       >
-        {groups.map((g) => (
-          <section className="hol-month" key={g.key}>
-            <div className="hol-month-head">
-              <h3>{g.label}</h3>
-              <span>{g.items.length} {g.items.length === 1 ? 'holiday' : 'holidays'}</span>
-            </div>
-            <div className="hol-grid">
-              {g.items.map((h) => {
-                const start = dateParts(h.date || h.start_date);
-                const end = dateParts(h.end_date);
-                const typeClass = h.type.toLowerCase();
-                const isRange = h.type === 'Vacation';
-                const past = isPast(h);
-                return (
-                  <div className={`hol-card${past ? ' is-past' : ''}`} key={h._id}>
-                    <div className={`hol-date is-${typeClass}`}>
-                      {start && (
-                        <>
-                          <strong>
-                            {isRange && end && end.day !== start.day
-                              ? `${start.day}–${end.day}`
-                              : start.day}
-                          </strong>
-                          <span>{MONTHS[start.m - 1].toUpperCase()}</span>
-                        </>
-                      )}
-                    </div>
-                    <div className="hol-body">
-                      <h3 className="hol-title">{h.name || 'Alternate Saturday'}</h3>
-                      <p className="hol-sub">
-                        {isRange
-                          ? `${MONTHS[start!.m - 1]} ${start!.day} – ${MONTHS[end!.m - 1]} ${end!.day} · ${h.year}`
-                          : `${h.type === 'Saturday' ? 'Saturday' : h.day || '—'} · ${h.year}`}
-                      </p>
-                      <div className="hol-chips">
-                        <span className={`hol-chip is-${typeClass}`}>{h.type}</span>
-                        {isRange && (
-                          <span className="hol-chip is-neutral">{rangeDays(h.start_date, h.end_date)} days</span>
-                        )}
-                        {past && (
-                          <span className="hol-chip is-past"><Check size={12} /> Completed</span>
-                        )}
-                      </div>
-                    </div>
-                    {manage && (
-                      <div className="hol-actions">
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="dept-card-action danger"
-                          title="Delete holiday"
-                          onClick={() => {
-                            setDeleteErr('');
-                            setDeleting(h);
-                          }}
-                        >
-                          <Trash2 size={15} />
-                        </Button>
-                      </div>
-                    )}
+        <div className="hol-year-bar">
+          <span>Newest month first</span>
+          <strong>{data.length} {data.length === 1 ? 'holiday' : 'holidays'}</strong>
+        </div>
+        <div className="hol-year">
+          {groups.map((g) => {
+            const isCurrent = g.monthIndex === currentMonth;
+            const isEmpty = g.items.length === 0;
+            return (
+              <section
+                className={`hol-month${isCurrent ? ' is-current' : ''}${isEmpty ? ' is-empty' : ''}`}
+                key={g.key}
+              >
+                <div className="hol-month-rail">
+                  <strong>{g.label}</strong>
+                  <em>{g.items.length ? `${g.items.length} ${g.items.length === 1 ? 'holiday' : 'holidays'}` : 'None'}</em>
+                  {isCurrent && <span className="hol-now">This month</span>}
+                </div>
+                {isEmpty ? (
+                  <p className="hol-empty">No holidays in {g.short}</p>
+                ) : (
+                  <div className="hol-grid">
+                    {g.items.map((h) => {
+                      const start = dateParts(h.date || h.start_date);
+                      const end = dateParts(h.end_date);
+                      const typeClass = h.type.toLowerCase();
+                      const isRange = h.type === 'Vacation';
+                      const past = isPast(h);
+                      const startKey = h.date || h.start_date || '';
+                      const upcoming = !past && startKey > todayStr;
+                      const ongoing = !past && isRange && !!h.start_date && !!h.end_date
+                        && h.start_date <= todayStr && h.end_date >= todayStr;
+                      const dayLabel = h.type === 'Saturday'
+                        ? 'Sat'
+                        : weekdayShort(h.date || h.start_date);
+                      return (
+                        <div className={`hol-card${past ? ' is-past' : ''}${ongoing ? ' is-ongoing' : ''}`} key={h._id}>
+                          <div className={`hol-date is-${typeClass}`}>
+                            {start && (
+                              <>
+                                <strong>{start.day}</strong>
+                                <span>{dayLabel}</span>
+                              </>
+                            )}
+                          </div>
+                          <div className="hol-body">
+                            <h3 className="hol-title">{h.name || 'Alternate Saturday'}</h3>
+                            <p className="hol-sub">
+                              {isRange && start && end
+                                ? `${MONTHS[start.m - 1]} ${start.day} – ${MONTHS[end.m - 1]} ${end.day}`
+                                : `${dayLabel}${start ? ` · ${MONTHS[start.m - 1]} ${start.day}` : ''}`}
+                            </p>
+                            <div className="hol-chips">
+                              <span className={`hol-chip is-${typeClass}`}>{h.type}</span>
+                              {isRange && (
+                                <span className="hol-chip is-neutral">{rangeDays(h.start_date, h.end_date)} days</span>
+                              )}
+                              {ongoing && (
+                                <span className="hol-chip is-ongoing">Ongoing</span>
+                              )}
+                              {upcoming && (
+                                <span className="hol-chip is-upcoming">Upcoming</span>
+                              )}
+                              {past && (
+                                <span className="hol-chip is-past"><Check size={12} /> Done</span>
+                              )}
+                            </div>
+                          </div>
+                          {manage && (
+                            <div className="hol-actions">
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                className="dept-card-action danger"
+                                title="Delete holiday"
+                                onClick={() => {
+                                  setDeleteErr('');
+                                  setDeleting(h);
+                                }}
+                              >
+                                <Trash2 size={15} />
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
-            </div>
-          </section>
-        ))}
+                )}
+              </section>
+            );
+          })}
+        </div>
       </ListingPage>
 
       {showAdd && (

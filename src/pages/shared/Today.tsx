@@ -1,15 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, buildQuery, type ListResult } from '../../services/api';
 import { ListingPage, useListParams } from '../../components/ListingPage';
-import { StatusBadge, formatHours } from '../../components/StatusBadge';
+import { StatusBadge } from '../../components/StatusBadge';
 import {
+  addSecondsToTime,
   displayClock,
-  formatBreakMinutes,
   formatClockInput,
+  formatDurationMinutes,
+  nowHMS,
   parseBreakMinutes,
   to24HourClock,
   LATE_CHECKIN_PENALTY_MINUTES,
 } from '../../utils/timeFormat';
+import { liveAttendanceClock, startClockBeat } from '../../utils/attendanceLive';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -45,7 +48,8 @@ type TodayRow = {
   late_minutes?: number;
   penalty_minutes?: number;
   late_penalty_rule_minutes?: number;
-  shift?: { shift_start?: string; shift_end?: string; working_hours_per_day?: number };
+  late_buffer_minutes?: number;
+  shift?: { shift_start?: string; shift_end?: string; working_hours_per_day?: number; late_buffer_minutes?: number };
 };
 
 type TodayResult = ListResult<TodayRow> & {
@@ -109,6 +113,9 @@ export function TodayAttendancePage() {
   const [depts, setDepts] = useState<{ _id: string; name: string }[]>([]);
   const [edit, setEdit] = useState<EditState | null>(null);
   const [saving, setSaving] = useState(false);
+  const [tick, setTick] = useState(() => new Date());
+  const [serverNow, setServerNow] = useState<string | null>(null);
+  const [fetchedAt, setFetchedAt] = useState(() => Date.now());
 
   const load = async () => {
     setLoading(true);
@@ -126,6 +133,8 @@ export function TodayAttendancePage() {
       setTotal(res.total || 0);
       setCounts(res.counts || {});
       setDate(res.date || '');
+      setServerNow(res.now || null);
+      setFetchedAt(Date.now());
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed');
     } finally {
@@ -139,6 +148,40 @@ export function TodayAttendancePage() {
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [list.page, list.limit, list.search, list.params]);
+
+  useEffect(() => startClockBeat(setTick), []);
+
+  const liveNow = serverNow
+    ? addSecondsToTime(serverNow, Math.max(0, Math.round((tick.getTime() - fetchedAt) / 1000)))
+    : nowHMS(tick);
+
+  const liveRows = useMemo(
+    () =>
+      data.map((r) => {
+        if (r.check_out) return r;
+        const clock = liveAttendanceClock({
+          checkIn: r.check_in,
+          checkOut: r.check_out,
+          breakTotal: r.break_total,
+          breakStartedAt: r.break_started_at,
+          status: r.status,
+          workStart: r.work_start,
+          shiftStart: r.shift?.shift_start,
+          penaltyWaived: !!r.penalty_waived,
+          lateBufferMinutes: r.late_buffer_minutes ?? r.shift?.late_buffer_minutes,
+          penaltyMinutesOverride: r.penalty_minutes_override ?? null,
+          now: liveNow,
+        });
+        return {
+          ...r,
+          live_work_minutes: clock.workMins,
+          live_break_minutes: clock.breakMins,
+          working_hours: clock.workMins / 60,
+          live_status: clock.onBreak ? 'OnBreak' : r.live_status,
+        };
+      }),
+    [data, liveNow]
+  );
 
   useEffect(() => {
     api<ListResult<{ _id: string; name: string }>>('/departments?limit=50')
@@ -305,7 +348,7 @@ export function TodayAttendancePage() {
               </tr>
             </thead>
             <tbody>
-              {data.map((r) => (
+              {liveRows.map((r) => (
                 <tr key={r.employee._id}>
                   <td>
                     <div>{r.employee.name}</div>
@@ -319,12 +362,12 @@ export function TodayAttendancePage() {
                     {r.auto_checkout ? <div className="label">Auto 11:55 PM</div> : null}
                   </td>
                   <td>
-                    {formatBreakMinutes(r.live_break_minutes ?? r.break_total ?? 0)}
-                    {r.break_started_at ? (
+                    {formatDurationMinutes(r.live_break_minutes ?? r.break_total ?? 0)}
+                    {r.break_started_at && !r.check_out ? (
                       <div className="label">since {displayClock(r.break_started_at)}</div>
                     ) : null}
                   </td>
-                  <td>{formatHours(r.working_hours)}</td>
+                  <td>{formatDurationMinutes(r.live_work_minutes ?? (Number(r.working_hours) || 0) * 60)}</td>
                   <td>
                     <StatusBadge status={r.live_status} />
                   </td>

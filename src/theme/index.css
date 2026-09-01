@@ -2277,6 +2277,29 @@ table.data.salary-table .salary-actions > button {
   gap: 1rem;
 }
 
+button.emp-stat-toggle {
+  display: block;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  border-style: solid;
+}
+
+button.emp-stat-toggle:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+button.emp-stat-toggle.is-selected {
+  box-shadow: 0 0 0 2px var(--blue);
+}
+
+.attendance-clock.is-break {
+  color: var(--warn-ink);
+}
+
 .emp-stat-value {
   font-family: var(--font-heading);
   font-size: 1.6rem;

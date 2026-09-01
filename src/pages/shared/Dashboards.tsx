@@ -38,6 +38,7 @@ import {
   LATE_CHECKIN_PENALTY_MINUTES,
   displayDateTime,
 } from '../../utils/timeFormat';
+import { liveAttendanceClock, startClockBeat } from '../../utils/attendanceLive';
 
 export function EmployeeDashboard() {
   return (
@@ -47,7 +48,7 @@ export function EmployeeDashboard() {
   );
 }
 
-function PersonalAttendanceBody({ title }: { title: string }) {
+function PersonalAttendanceBody({ title: _title }: { title: string }) {
   const [data, setData] = useState<any>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -66,6 +67,7 @@ function PersonalAttendanceBody({ title }: { title: string }) {
   const [coverBusy, setCoverBusy] = useState(false);
   const [tick, setTick] = useState(() => new Date());
   const [dataLoadedAt, setDataLoadedAt] = useState(() => Date.now());
+  const [heroMode, setHeroMode] = useState<'work' | 'break'>('work');
 
   const load = () =>
     api('/attendance/me/today')
@@ -79,20 +81,50 @@ function PersonalAttendanceBody({ title }: { title: string }) {
     load();
   }, []);
 
-  useEffect(() => {
-    const id = window.setInterval(() => setTick(new Date()), 1000);
-    return () => window.clearInterval(id);
-  }, []);
+  useEffect(() => startClockBeat(setTick), []);
+
+  const patchAttendance = (partial: Record<string, unknown>, now = nowHMS()) => {
+    setData((prev: any) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        now,
+        attendance: { ...prev.attendance, ...partial },
+      };
+    });
+    setDataLoadedAt(Date.now());
+  };
 
   const action = async (path: string) => {
     setBusy(true);
     setErr('');
     setEarlyOpen(false);
+    const clock = nowHMS();
+    const att = data?.attendance;
+    if (path.endsWith('/check-in')) {
+      patchAttendance({ check_in: clock, status: 'Working', auto_checkout: false }, clock);
+      setHeroMode('work');
+    } else if (path.endsWith('/start-break') && att) {
+      patchAttendance({ status: 'OnBreak', break_started_at: clock }, clock);
+      setHeroMode('break');
+    } else if (path.endsWith('/end-break') && att) {
+      const session = minutesBetween(att.break_started_at, clock);
+      patchAttendance(
+        {
+          status: 'Working',
+          break_started_at: null,
+          break_total: Number(att.break_total || 0) + Math.max(0, session),
+        },
+        clock
+      );
+      setHeroMode('work');
+    }
     try {
       await api(path, { method: 'POST', body: {} });
       await load();
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Failed');
+      await load();
     } finally {
       setBusy(false);
     }
@@ -125,49 +157,41 @@ function PersonalAttendanceBody({ title }: { title: string }) {
     if (!data) return null;
     const att = data.attendance;
     const shift = data.shift || {};
-    // Prefer server clock (same TZ as stored check-in/break times) and advance locally.
     const elapsedSec = Math.max(0, Math.round((tick.getTime() - dataLoadedAt) / 1000));
     const now = data.now ? addSecondsToTime(data.now, elapsedSec) : nowHMS(tick);
     const checkedIn = !!att.check_in;
     const checkedOut = !!att.check_out;
-    const onBreak = att.status === 'OnBreak' || !!att.break_started_at;
+    const clock = liveAttendanceClock({
+      checkIn: att.check_in,
+      checkOut: att.check_out,
+      breakTotal: att.break_total,
+      breakStartedAt: att.break_started_at,
+      status: att.status,
+      workStart: data.work_start,
+      shiftStart: shift.shift_start,
+      penaltyWaived: !!att.penalty_waived,
+      lateBufferMinutes: shift.late_buffer_minutes,
+      penaltyMinutesOverride: att.penalty_minutes_override ?? null,
+      now,
+    });
+    const { onBreak, breakMins, breakSessionMins, workMins } = clock;
+    const rawWorkMins = workMins;
 
-    let breakMins = Number(att.break_total || 0);
-    let breakSessionMins = 0;
-    if (onBreak && att.break_started_at && !checkedOut) {
-      breakSessionMins = minutesBetween(att.break_started_at, now);
-      breakMins = Number(att.break_total || 0) + breakSessionMins;
-    }
-
-    let workMins = 0;
-    let rawWorkMins = 0;
-    if (checkedIn) {
-      const end = checkedOut ? att.check_out : now;
-      const start =
-        data.work_start ||
-        effectiveWorkStart(
-          att.check_in,
-          shift.shift_start,
-          !!att.penalty_waived,
-          shift.late_buffer_minutes,
-          att.penalty_minutes_override ?? null
-        ) ||
-        att.check_in;
-      const span = minutesBetween(start, end);
-      workMins = Math.max(0, span - breakMins);
-      rawWorkMins = workMins;
-    }
-
-    const threshold = Number(shift.working_hours_per_day || 8);
+    const isHalfDay = data.today_leave_day_type === 'Half Day';
+    const fullHours = Number(shift.working_hours_per_day || 8);
+    const checkoutHours = Number(
+      data.checkout_hours ?? (isHalfDay ? shift.half_day_hours : fullHours) ?? fullHours
+    );
     const workHours = workMins / 60;
     const rawWorkHours = rawWorkMins / 60;
-    const overtimeMins = Math.max(0, workMins - threshold * 60);
-    const shortfallMins = Math.max(0, threshold * 60 - workMins);
-    const coverMins = Math.max(0, rawWorkMins - threshold * 60);
-    const dailyTargetMet = workHours + 1 / 120 >= threshold;
+    const overtimeMins = Math.max(0, workMins - fullHours * 60);
+    const shortfallMins = Math.max(0, checkoutHours * 60 - workMins);
+    const coverMins = Math.max(0, rawWorkMins - fullHours * 60);
+    const dailyTargetMet = workHours + 1 / 120 >= checkoutHours;
+    const fullDayMet = workHours + 1 / 120 >= fullHours;
     const shiftEndSec = timeToSeconds(shift.shift_end);
     const nowSec = timeToSeconds(now)!;
-    const shiftEnded = shiftEndSec == null || nowSec >= shiftEndSec;
+    const shiftEnded = isHalfDay || shiftEndSec == null || nowSec >= shiftEndSec;
     const canCheckoutNormally = shiftEnded && dailyTargetMet;
     const penaltyMinutes = Number(data.penalty_minutes || 0);
     const lateMinutes = Number(data.late_minutes || 0);
@@ -185,7 +209,10 @@ function PersonalAttendanceBody({ title }: { title: string }) {
       shortfallMins,
       coverMins,
       dailyTargetMet,
-      threshold,
+      fullDayMet,
+      threshold: checkoutHours,
+      fullHours,
+      isHalfDay,
       shiftEnded,
       canCheckoutNormally,
       onBreak,
@@ -207,6 +234,11 @@ function PersonalAttendanceBody({ title }: { title: string }) {
     };
   }, [data, tick, dataLoadedAt]);
 
+  useEffect(() => {
+    if (!live) return;
+    setHeroMode(live.onBreak ? 'break' : 'work');
+  }, [live?.onBreak]);
+
   if (!data || !live) return <div className="state-box">{err || 'Loading…'}</div>;
 
   const att = data.attendance;
@@ -219,12 +251,6 @@ function PersonalAttendanceBody({ title }: { title: string }) {
   const monthCounted = Number(summary?.monthly_counted_hours || 0);
   const monthPending = Number(summary?.pending_hours || 0);
   const monthPct = monthTarget > 0 ? Math.min(100, Math.round((monthCounted / monthTarget) * 100)) : 0;
-  const workedSeconds = Math.max(0, Math.round(live.workMins * 60));
-  const workedClock = {
-    hours: pad2(Math.floor(workedSeconds / 3600)),
-    minutes: pad2(Math.floor((workedSeconds % 3600) / 60)),
-    seconds: pad2(workedSeconds % 60),
-  };
   const activeCover = ctr && (ctr.status === 'Pending' || ctr.status === 'Approved');
   const coverReadyToCheckout = !activeCover || live.coverMins >= coverMinHours * 60 - 0.5;
   const earlyApproved =
@@ -239,7 +265,7 @@ function PersonalAttendanceBody({ title }: { title: string }) {
   const canRequestOt =
     live.checkedIn &&
     !live.checkedOut &&
-    live.dailyTargetMet;
+    live.fullDayMet;
   const canRequestCover =
     canRequestOt &&
     monthPending + 0.001 >= coverMinHours &&
@@ -377,10 +403,22 @@ function PersonalAttendanceBody({ title }: { title: string }) {
       return;
     }
     if (!live.canCheckoutNormally && !earlyApproved) {
-      setErr('Complete your shift and daily working hours before checkout, or request early checkout.');
+      setErr(
+        live.isHalfDay
+          ? 'Complete your half-day working hours before checkout, or request early checkout.'
+          : 'Complete your shift and daily working hours before checkout, or request early checkout.'
+      );
       return;
     }
     action('/attendance/me/check-out');
+  };
+
+  const heroIsBreak = heroMode === 'break' && live.onBreak;
+  const heroSeconds = Math.max(0, Math.round((heroIsBreak ? live.breakMins : live.workMins) * 60));
+  const heroClock = {
+    hours: pad2(Math.floor(heroSeconds / 3600)),
+    minutes: pad2(Math.floor((heroSeconds % 3600) / 60)),
+    seconds: pad2(heroSeconds % 60),
   };
 
   return (
@@ -394,13 +432,13 @@ function PersonalAttendanceBody({ title }: { title: string }) {
 
         <div className="attendance-widget-main">
           <div className="attendance-work-timer">
-            <span className="attendance-eyebrow">Work Timer</span>
-            <div className="attendance-clock" aria-label={`${workedClock.hours} hours, ${workedClock.minutes} minutes, ${workedClock.seconds} seconds`}>
-              <div><strong>{workedClock.hours}</strong><span>hours</span></div>
+            <span className="attendance-eyebrow">{heroIsBreak ? 'Break Timer' : 'Work Timer'}</span>
+            <div className={`attendance-clock${heroIsBreak ? ' is-break' : ''}`} aria-label={`${heroClock.hours} hours, ${heroClock.minutes} minutes, ${heroClock.seconds} seconds`}>
+              <div><strong>{heroClock.hours}</strong><span>hours</span></div>
               <b>:</b>
-              <div><strong>{workedClock.minutes}</strong><span>minutes</span></div>
+              <div><strong>{heroClock.minutes}</strong><span>minutes</span></div>
               <b>:</b>
-              <div><strong>{workedClock.seconds}</strong><span>seconds</span></div>
+              <div><strong>{heroClock.seconds}</strong><span>seconds</span></div>
             </div>
           </div>
 
@@ -529,17 +567,32 @@ function PersonalAttendanceBody({ title }: { title: string }) {
       </section>
 
       <div className="emp-dash-stats">
-        <div className="card emp-stat card-accent">
+        <button
+          type="button"
+          className={`card emp-stat card-accent emp-stat-toggle${!heroIsBreak ? ' is-selected' : ''}`}
+          disabled={!live.checkedIn}
+          onClick={() => setHeroMode('work')}
+        >
           <div className="stat-card">
             <span className="stat-icon blue"><Clock3 size={20} /></span>
             <div>
               <span className="label">Worked today</span>
               <div className="emp-stat-value">{formatDurationMinutes(live.workMins)}</div>
-              <span className="emp-stat-hint">Live · breaks excluded</span>
+              <span className="emp-stat-hint">
+                {live.onBreak && !live.checkedOut ? 'Paused on break · tap to show here' : 'Live · breaks excluded'}
+              </span>
             </div>
           </div>
-        </div>
-        <div className="card emp-stat card-accent amber">
+        </button>
+        <button
+          type="button"
+          className={`card emp-stat card-accent amber emp-stat-toggle${heroIsBreak ? ' is-selected' : ''}`}
+          disabled={!live.checkedIn || live.checkedOut}
+          onClick={() => {
+            setHeroMode('break');
+            if (!live.onBreak) action('/attendance/me/start-break');
+          }}
+        >
           <div className="stat-card">
             <span className="stat-icon amber"><Coffee size={20} /></span>
             <div>
@@ -547,14 +600,16 @@ function PersonalAttendanceBody({ title }: { title: string }) {
               <div className="emp-stat-value">{formatDurationMinutes(live.breakMins)}</div>
               <span className="emp-stat-hint">
                 {live.onBreak && !live.checkedOut
-                  ? `Live session · total today`
-                  : live.breakMins > 0
-                    ? 'Total for current day'
-                    : 'No break yet'}
+                  ? 'Live session · showing on timer'
+                  : live.checkedIn && !live.checkedOut
+                    ? 'Tap to start break'
+                    : live.breakMins > 0
+                      ? 'Total for current day'
+                      : 'No break yet'}
               </span>
             </div>
           </div>
-        </div>
+        </button>
         <div className="card emp-stat card-accent coral">
           <div className="stat-card">
             <span className="stat-icon coral"><Timer size={20} /></span>
@@ -568,7 +623,7 @@ function PersonalAttendanceBody({ title }: { title: string }) {
                     : formatHours(live.threshold)}
               </div>
               <span className="emp-stat-hint">
-                {live.overtimeMins > 0 ? 'Above daily target' : live.checkedIn ? 'To hit daily target' : 'Target hours'}
+                {live.overtimeMins > 0 ? 'Above full-day target' : live.checkedIn ? (live.isHalfDay ? 'To hit half-day target' : 'To hit daily target') : live.isHalfDay ? 'Half-day target' : 'Target hours'}
               </span>
             </div>
           </div>
@@ -625,8 +680,10 @@ function PersonalAttendanceBody({ title }: { title: string }) {
             <DialogTitle>Early Checkout Request</DialogTitle>
             <DialogDescription>
               {live.shiftEnded
-                ? `You still need ${formatDurationMinutes(live.shortfallMins)} to complete today's ${formatHours(live.threshold)}.`
-                : `Your shift ends at ${displayClock(shift.shift_end)} and the current time is ${displayClock(live.clock)}.`}{' '}
+                ? `You still need ${formatDurationMinutes(live.shortfallMins)} to complete today's ${formatHours(live.threshold)}${live.isHalfDay ? ' half-day' : ''}.`
+                : live.isHalfDay
+                  ? `Half-day leave: checkout after ${formatHours(live.threshold)} worked. Current time ${displayClock(live.clock)}.`
+                  : `Your shift ends at ${displayClock(shift.shift_end)} and the current time is ${displayClock(live.clock)}.`}{' '}
               Leave a note so HR/Admin can approve your request — you&apos;ll stay checked in until they decide.
             </DialogDescription>
           </DialogHeader>
