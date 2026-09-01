@@ -44,18 +44,6 @@ function fmtDate(d?: string) {
   };
 }
 
-function monthBounds(year: string, month: string) {
-  const y = Number(year);
-  const m = Number(month);
-  if (!y || !m) return { from: '', to: '' };
-  const last = new Date(y, m, 0).getDate();
-  const mm = String(m).padStart(2, '0');
-  return {
-    from: `${y}-${mm}-01`,
-    to: `${y}-${mm}-${String(last).padStart(2, '0')}`,
-  };
-}
-
 export function AttendancePage(_props: { allowBulk?: boolean }) {
   const list = useListParams();
   const { user } = useAuth();
@@ -73,43 +61,35 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
   const today = todayISO();
   const year = list.get('year') || String(Math.max(2026, Number(today.slice(0, 4))));
   const month = list.get('month') || String(Number(today.slice(5, 7)));
-  const dateFrom = list.get('from');
-  const dateTo = list.get('to');
-  const hasDateRange = !!(dateFrom || dateTo);
+  const selectedDate = list.get('date');
+  const hasDateFilter = !!selectedDate;
 
-  const dateQuery = hasDateRange
-    ? { from: dateFrom || undefined, to: dateTo || undefined }
-    : { month, year };
+  const dateQuery = hasDateFilter ? { date: selectedDate } : { month, year };
 
-  const setDateRange = (from: string, to: string) => {
+  const setSelectedDate = (date: string) => {
     const next = new URLSearchParams(list.params);
-    if (from) next.set('from', from);
-    else next.delete('from');
-    if (to) next.set('to', to);
-    else next.delete('to');
-    // Keep month/year aligned with the selected range for a coherent UI.
-    const anchor = from || to;
-    if (anchor && /^\d{4}-\d{2}-\d{2}$/.test(anchor)) {
-      next.set('year', anchor.slice(0, 4));
-      next.set('month', String(Number(anchor.slice(5, 7))));
+    next.delete('from');
+    next.delete('to');
+    if (date) {
+      next.set('date', date);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        next.set('year', date.slice(0, 4));
+        next.set('month', String(Number(date.slice(5, 7))));
+      }
+    } else {
+      next.delete('date');
     }
     next.set('page', '1');
     list.setParams(next);
   };
 
-  const clearDateRange = () => {
-    const next = new URLSearchParams(list.params);
-    next.delete('from');
-    next.delete('to');
-    next.set('page', '1');
-    list.setParams(next);
-  };
+  const clearDateFilter = () => setSelectedDate('');
 
   const setMonthYear = (nextMonth: string, nextYear: string) => {
     const next = new URLSearchParams(list.params);
     next.set('month', nextMonth);
     next.set('year', nextYear);
-    // Switching month/year exits explicit date-range mode.
+    next.delete('date');
     next.delete('from');
     next.delete('to');
     next.set('page', '1');
@@ -169,7 +149,7 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
   };
 
   useEffect(() => { load(); }, [list.page, list.limit, list.search, list.params]);
-  useEffect(() => { loadSummary(); }, [month, year, dateFrom, dateTo, list.params]);
+  useEffect(() => { loadSummary(); }, [month, year, selectedDate, list.params]);
   useEffect(() => {
     if (!isStaff) return;
     api<ListResult<any>>('/departments?limit=50').then((r) => setDepts(r.data));
@@ -186,13 +166,9 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
     });
   };
 
-  const periodLabel = (() => {
-    if (dateFrom && dateTo && dateFrom === dateTo) return fmtDate(dateFrom).main;
-    if (dateFrom && dateTo) return `${fmtDate(dateFrom).main} â€“ ${fmtDate(dateTo).main}`;
-    if (dateFrom) return `From ${fmtDate(dateFrom).main}`;
-    if (dateTo) return `Until ${fmtDate(dateTo).main}`;
-    return `${MONTH_NAMES[Number(month) - 1]} ${year}`;
-  })();
+  const periodLabel = selectedDate
+    ? fmtDate(selectedDate).main
+    : `${MONTH_NAMES[Number(month) - 1]} ${year}`;
 
   return (
     <>
@@ -209,63 +185,26 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
         filters={
           <>
             <label className="att-date-filter">
-              <span className="label">From</span>
+              <span className="label">Date</span>
               <input
                 className="input att-date-input"
                 type="date"
-                value={dateFrom}
-                max={dateTo || undefined}
-                onChange={(e) => {
-                  const from = e.target.value;
-                  let to = dateTo;
-                  if (from && to && to < from) to = from;
-                  if (from && !to) to = from;
-                  setDateRange(from, to);
-                }}
-                aria-label="From date"
-              />
-            </label>
-            <label className="att-date-filter">
-              <span className="label">To</span>
-              <input
-                className="input att-date-input"
-                type="date"
-                value={dateTo}
-                min={dateFrom || undefined}
-                onChange={(e) => {
-                  const to = e.target.value;
-                  let from = dateFrom;
-                  if (to && from && to < from) from = to;
-                  if (to && !from) from = to;
-                  setDateRange(from, to);
-                }}
-                aria-label="To date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                aria-label="Attendance date"
               />
             </label>
             <Button
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => setDateRange(today, today)}
+              onClick={() => setSelectedDate(today)}
               title="Show today only"
             >
               Today
             </Button>
-            {hasDateRange ? (
-              <Button type="button" variant="ghost" size="sm" onClick={clearDateRange} title="Clear date range">
-                Clear dates
-              </Button>
-            ) : (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  const bounds = monthBounds(year, month);
-                  setDateRange(bounds.from, bounds.to);
-                }}
-                title="Use full selected month as date range"
-              >
+            {hasDateFilter && (
+              <Button type="button" variant="ghost" size="sm" onClick={clearDateFilter} title="Show full selected month">
                 Whole month
               </Button>
             )}
@@ -273,7 +212,7 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
               className="select select-month"
               value={month}
               onChange={(e) => setMonthYear(e.target.value, year)}
-              title={hasDateRange ? 'Changing month clears the date range' : 'Month'}
+              title={hasDateFilter ? 'Changing month clears the date filter' : 'Month'}
             >
               {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
                 <option key={m} value={m}>{MONTH_NAMES[m - 1]}</option>
@@ -283,7 +222,7 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
               className="select select-year"
               value={year}
               onChange={(e) => setMonthYear(month, e.target.value)}
-              title={hasDateRange ? 'Changing year clears the date range' : 'Year'}
+              title={hasDateFilter ? 'Changing year clears the date filter' : 'Year'}
             >
               {[2026, 2027, 2028].map((y) => <option key={y} value={y}>{y}</option>)}
             </select>

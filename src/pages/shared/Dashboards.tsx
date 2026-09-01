@@ -142,7 +142,7 @@ function PersonalAttendanceBody({ title }: { title: string }) {
     let workMins = 0;
     let rawWorkMins = 0;
     if (checkedIn) {
-      let end = checkedOut ? att.check_out : now;
+      const end = checkedOut ? att.check_out : now;
       const start =
         data.work_start ||
         effectiveWorkStart(
@@ -153,17 +153,9 @@ function PersonalAttendanceBody({ title }: { title: string }) {
           att.penalty_minutes_override ?? null
         ) ||
         att.check_in;
-      const rawSpan = minutesBetween(start, end);
-      rawWorkMins = Math.max(0, rawSpan - breakMins);
-
-      // Open session / auto-checkout: time after shift end is not General OT
-      if ((!checkedOut || att.auto_checkout) && shift.shift_end) {
-        const endSec = timeToSeconds(end);
-        const se = timeToSeconds(shift.shift_end);
-        if (endSec != null && se != null && endSec > se) end = shift.shift_end;
-      }
       const span = minutesBetween(start, end);
       workMins = Math.max(0, span - breakMins);
+      rawWorkMins = workMins;
     }
 
     const threshold = Number(shift.working_hours_per_day || 8);
@@ -172,10 +164,11 @@ function PersonalAttendanceBody({ title }: { title: string }) {
     const overtimeMins = Math.max(0, workMins - threshold * 60);
     const shortfallMins = Math.max(0, threshold * 60 - workMins);
     const coverMins = Math.max(0, rawWorkMins - threshold * 60);
-    const dailyTargetMet = rawWorkHours + 1 / 120 >= threshold;
+    const dailyTargetMet = workHours + 1 / 120 >= threshold;
     const shiftEndSec = timeToSeconds(shift.shift_end);
     const nowSec = timeToSeconds(now)!;
-    const isEarly = checkedIn && !checkedOut && shiftEndSec != null && nowSec < shiftEndSec;
+    const shiftEnded = shiftEndSec == null || nowSec >= shiftEndSec;
+    const canCheckoutNormally = shiftEnded && dailyTargetMet;
     const penaltyMinutes = Number(data.penalty_minutes || 0);
     const lateMinutes = Number(data.late_minutes || 0);
 
@@ -193,7 +186,8 @@ function PersonalAttendanceBody({ title }: { title: string }) {
       coverMins,
       dailyTargetMet,
       threshold,
-      isEarly,
+      shiftEnded,
+      canCheckoutNormally,
       onBreak,
       checkedIn,
       checkedOut,
@@ -236,7 +230,12 @@ function PersonalAttendanceBody({ title }: { title: string }) {
   const earlyApproved =
     ecr?.status === 'Approved' && live.checkedIn && !live.checkedOut;
   const needsEarlyRequest =
-    live.isEarly && !activeCover && !earlyApproved && ecr?.status !== 'Pending';
+    live.checkedIn &&
+    !live.checkedOut &&
+    !earlyApproved &&
+    !live.canCheckoutNormally &&
+    ecr?.status !== 'Pending' &&
+    !(activeCover && !coverReadyToCheckout);
   const canRequestOt =
     live.checkedIn &&
     !live.checkedOut &&
@@ -373,9 +372,12 @@ function PersonalAttendanceBody({ title }: { title: string }) {
       setErr(`Cover time requires at least ${Math.round(coverMinHours * 60)} minutes before checkout.`);
       return;
     }
-    // Early leave needs HR approval first; once approved, employee checks out themselves.
     if (needsEarlyRequest) {
       setEarlyOpen(true);
+      return;
+    }
+    if (!live.canCheckoutNormally && !earlyApproved) {
+      setErr('Complete your shift and daily working hours before checkout, or request early checkout.');
       return;
     }
     action('/attendance/me/check-out');
@@ -622,8 +624,10 @@ function PersonalAttendanceBody({ title }: { title: string }) {
           <DialogHeader>
             <DialogTitle>Early Checkout Request</DialogTitle>
             <DialogDescription>
-              Your shift ends at {displayClock(shift.shift_end)} and the current time is {displayClock(live.clock)}. Leave a note so
-              HR/Admin can approve your request — you'll stay checked in until they decide.
+              {live.shiftEnded
+                ? `You still need ${formatDurationMinutes(live.shortfallMins)} to complete today's ${formatHours(live.threshold)}.`
+                : `Your shift ends at ${displayClock(shift.shift_end)} and the current time is ${displayClock(live.clock)}.`}{' '}
+              Leave a note so HR/Admin can approve your request — you&apos;ll stay checked in until they decide.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-1.5">
