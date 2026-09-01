@@ -28,6 +28,9 @@ export const SALARY_COMPANIES: Record<
   },
 };
 
+/** Fixed calendar divisor for per-day salary (leave / LOP deductions). */
+export const SALARY_DAYS_PER_MONTH = 30.42;
+
 export const MONTH_NAMES = [
   'January',
   'February',
@@ -145,19 +148,16 @@ export const calculateYtdTotalDeductions = (form: SalarySlipFormData) =>
   Number(form.ytdTds || 0) +
   (form.customDeductions || []).reduce((sum, item) => sum + (Number(item.ytd) || 0), 0);
 
-export const slipDailyRate = (form: Pick<SalarySlipFormData, 'basic' | 'workingDays' | 'paidDays' | 'lopDays'>) => {
-  const days =
-    Number(form.workingDays) ||
-    Number(form.paidDays) + Number(form.lopDays) ||
-    0;
-  return days > 0 ? Number(form.basic) / days : 0;
+export const slipDailyRate = (form: Pick<SalarySlipFormData, 'basic'>) => {
+  const salary = Number(form.basic) || 0;
+  return salary > 0 ? salary / SALARY_DAYS_PER_MONTH : 0;
 };
 
-/** LOP days → leave deduction amount (per-day rate × unpaid days). Approved leave is display-only. */
+/** LOP days → leave deduction amount (salary / 30.42 × unpaid days). Approved leave is display-only. */
 export const applyLopDays = (form: SalarySlipFormData, lopDays: number): SalarySlipFormData => {
   const days = Math.max(0, Number(lopDays) || 0);
   const workingDays = Number(form.workingDays) || Number(form.paidDays) + Number(form.lopDays) || 0;
-  const amount = Math.round(days * slipDailyRate({ ...form, lopDays: days, workingDays }) * 100) / 100;
+  const amount = Math.round(days * slipDailyRate(form) * 100) / 100;
   const next = patchYtd({ ...form, workingDays }, 'leaveDeduction', 'ytdLeaveDeduction', amount);
   return {
     ...next,
@@ -366,7 +366,6 @@ export const formToAdjustPayload = (form: SalarySlipFormData) => ({
   paid_days: form.paidDays,
   leave_days: form.leaveDays,
   lop_days: form.lopDays,
-  base_salary: form.basic,
   overtime_amount: form.overtime,
   overtime_hours: form.overtimeHours,
   deduction_amount: form.shortfallDeduction,

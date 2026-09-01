@@ -216,19 +216,7 @@ export function SalarySlipPreview({ form, previewRef, editable = false, disabled
 
   const renderAmountCell = (row: Row | undefined, side: 'earn' | 'ded') => {
     if (!row) return '';
-    if (!editable || !onChange) return formatSlipAmount(row.amount, true);
-    if (row.key === 'basic') {
-      return (
-        <AmountField
-          value={form.basic}
-          disabled={disabled}
-          onChange={(v) => {
-            const next = patchAmount(form, 'basic', 'ytdBasic', v);
-            update(form.lopDays > 0 ? applyLopDays(next, form.lopDays) : next);
-          }}
-        />
-      );
-    }
+    if (!editable || !onChange || row.key === 'basic') return formatSlipAmount(row.amount, true);
     if (row.key === 'overtime') {
       return (
         <AmountField
