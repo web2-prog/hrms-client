@@ -539,32 +539,6 @@ textarea {
   overflow: hidden;
 }
 
-.card-accent::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, var(--primary), var(--link));
-}
-
-.card-accent.teal::before {
-  background: var(--success);
-}
-
-.card-accent.violet::before {
-  background: var(--primary-deep);
-}
-
-.card-accent.amber::before {
-  background: var(--warn);
-}
-
-.card-accent.coral::before {
-  background: var(--error);
-}
-
 .stat-card {
   display: flex;
   gap: 0.9rem;
@@ -948,7 +922,8 @@ textarea {
   box-shadow: var(--shadow-focus);
 }
 
-.select {
+/* Native <select> only — Radix AppSelect already renders its own chevron. */
+select.select {
   padding-right: 2.35rem;
   cursor: pointer;
   appearance: none;
@@ -956,6 +931,13 @@ textarea {
   background-repeat: no-repeat;
   background-position: right 0.7rem center;
   background-size: 16px;
+}
+
+/* Radix / AppSelect trigger: one icon only, no CSS background arrow */
+button.select,
+[data-slot="select-trigger"].select {
+  padding-right: 0.85rem;
+  background-image: none;
 }
 
 .label {

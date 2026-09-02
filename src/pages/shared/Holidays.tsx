@@ -133,7 +133,7 @@ export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
     for (const items of buckets) {
       items.sort((a, b) => holidaySortKey(a).localeCompare(holidaySortKey(b)));
     }
-    const hideEmpty = Boolean(list.search || list.get('type'));
+    // Only render months that have holidays — empty months stay hidden until one is added.
     return [11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]
       .map((m) => ({
         key: `${y}-${String(m + 1).padStart(2, '0')}`,
@@ -142,7 +142,7 @@ export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
         short: MONTHS[m],
         items: buckets[m],
       }))
-      .filter((g) => !hideEmpty || g.items.length > 0);
+      .filter((g) => g.items.length > 0);
   }, [data, year, list.search, list.params]);
 
   useEffect(() => { loadWd(); }, [year]);
@@ -276,23 +276,24 @@ export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
           <strong>{data.length} {data.length === 1 ? 'holiday' : 'holidays'}</strong>
         </div>
         <div className="hol-year">
+          {groups.length === 0 && !loading ? (
+            <p className="hol-empty" style={{ padding: '1.25rem 0' }}>
+              No holidays in this view yet. Add one to see it listed by month.
+            </p>
+          ) : null}
           {groups.map((g) => {
             const isCurrent = g.monthIndex === currentMonth;
-            const isEmpty = g.items.length === 0;
             return (
               <section
-                className={`hol-month${isCurrent ? ' is-current' : ''}${isEmpty ? ' is-empty' : ''}`}
+                className={`hol-month${isCurrent ? ' is-current' : ''}`}
                 key={g.key}
               >
                 <div className="hol-month-rail">
                   <strong>{g.label}</strong>
-                  <em>{g.items.length ? `${g.items.length} ${g.items.length === 1 ? 'holiday' : 'holidays'}` : 'None'}</em>
+                  <em>{`${g.items.length} ${g.items.length === 1 ? 'holiday' : 'holidays'}`}</em>
                   {isCurrent && <span className="hol-now">This month</span>}
                 </div>
-                {isEmpty ? (
-                  <p className="hol-empty">No holidays in {g.short}</p>
-                ) : (
-                  <div className="hol-grid">
+                <div className="hol-grid">
                     {g.items.map((h) => {
                       const start = dateParts(h.date || h.start_date);
                       const end = dateParts(h.end_date);
@@ -359,7 +360,6 @@ export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
                       );
                     })}
                   </div>
-                )}
               </section>
             );
           })}
