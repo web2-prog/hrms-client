@@ -255,6 +255,11 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
   const coverReadyToCheckout = !activeCover || live.coverMins >= coverMinHours * 60 - 0.5;
   const earlyApproved =
     ecr?.status === 'Approved' && live.checkedIn && !live.checkedOut;
+  const canShowCheckout =
+    live.checkedIn &&
+    !live.checkedOut &&
+    (live.canCheckoutNormally || earlyApproved) &&
+    coverReadyToCheckout;
   const needsEarlyRequest =
     live.checkedIn &&
     !live.checkedOut &&
@@ -398,15 +403,11 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
       setErr(`Cover time requires at least ${Math.round(coverMinHours * 60)} minutes before checkout.`);
       return;
     }
-    if (needsEarlyRequest) {
-      setEarlyOpen(true);
-      return;
-    }
     if (!live.canCheckoutNormally && !earlyApproved) {
       setErr(
         live.isHalfDay
           ? 'Complete your half-day working hours before checkout, or request early checkout.'
-          : 'Complete your shift and daily working hours before checkout, or request early checkout.'
+          : 'Checkout unlocks after shift end and daily working hours are complete, or request early checkout.'
       );
       return;
     }
@@ -469,27 +470,41 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
                     <Timer size={16} /> Overtime Request
                   </Button>
                 )}
-                <Button
-                  className="attendance-action attendance-action-primary"
-                  disabled={busy || ecr?.status === 'Pending' || (activeCover && !coverReadyToCheckout)}
-                  onClick={() => requestCheckout()}
-                >
-                  {ecr?.status === 'Pending'
-                    ? 'Early Checkout Pending'
-                    : activeCover && !coverReadyToCheckout
-                      ? `Cover ${Math.round(coverMinHours * 60)}m required`
-                      : earlyApproved
-                        ? 'Check Out'
-                        : needsEarlyRequest
-                          ? 'Early Checkout Request'
-                          : 'Check Out'}
-                </Button>
-                {ecr?.status === 'Pending' && (
-                  <button className="attendance-cancel" disabled={busy} onClick={cancelEarlyRequest}>
-                    Cancel request
-                  </button>
+                {canShowCheckout && (
+                  <Button
+                    className="attendance-action attendance-action-primary"
+                    disabled={busy}
+                    onClick={() => requestCheckout()}
+                  >
+                    Check Out
+                  </Button>
                 )}
-                {ctr?.status === 'Pending' && (
+                {(live.canCheckoutNormally || earlyApproved) && activeCover && !coverReadyToCheckout && (
+                  <Button className="attendance-action attendance-action-primary" disabled>
+                    Cover {Math.round(coverMinHours * 60)}m required
+                  </Button>
+                )}
+                {needsEarlyRequest && (
+                  <Button
+                    variant="outline"
+                    className="attendance-action"
+                    disabled={busy}
+                    onClick={() => setEarlyOpen(true)}
+                  >
+                    Early Checkout Request
+                  </Button>
+                )}
+                {ecr?.status === 'Pending' && (
+                  <>
+                    <Button className="attendance-action attendance-action-primary" disabled>
+                      Early Checkout Pending
+                    </Button>
+                    <button className="attendance-cancel" disabled={busy} onClick={cancelEarlyRequest}>
+                      Cancel request
+                    </button>
+                  </>
+                )}
+                {ecr?.status !== 'Pending' && ctr?.status === 'Pending' && (
                   <button className="attendance-cancel" disabled={busy} onClick={cancelCoverRequest}>
                     Cancel cover request
                   </button>
@@ -532,6 +547,32 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
           </div>
         </div>
 
+        {live.checkedIn && !live.checkedOut && !canShowCheckout && ecr?.status !== 'Pending' && !earlyApproved && (
+          <div className="attendance-notice">
+            {!live.canCheckoutNormally && (
+              <>
+                {!live.shiftEnded && !live.dailyTargetMet && (
+                  <>
+                    Checkout unlocks after shift ends ({displayClock(shift.shift_end)}) and{' '}
+                    {formatHours(live.threshold)} worked. You may keep working past shift end.
+                  </>
+                )}
+                {!live.shiftEnded && live.dailyTargetMet && (
+                  <>
+                    Daily hours complete. Checkout unlocks when your shift ends at {displayClock(shift.shift_end)}.
+                    You may keep working until then and beyond.
+                  </>
+                )}
+                {live.shiftEnded && !live.dailyTargetMet && (
+                  <>
+                    Shift ended. Complete {formatDurationMinutes(live.shortfallMins)} more to unlock checkout — you
+                    can continue working.
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        )}
         {ecr?.status === 'Rejected' && (
           <div className="attendance-notice is-error">
             <strong>Early checkout request declined.</strong>{' '}
