@@ -2277,23 +2277,18 @@ table.data.salary-table .salary-actions > button {
   gap: 1rem;
 }
 
-button.emp-stat-toggle {
-  display: block;
-  width: 100%;
-  text-align: left;
-  cursor: pointer;
-  font: inherit;
-  color: inherit;
-  border-style: solid;
-}
-
-button.emp-stat-toggle:disabled {
+.emp-dash-stats .card.emp-stat {
   cursor: default;
-  opacity: 1;
 }
 
-button.emp-stat-toggle.is-selected {
-  box-shadow: 0 0 0 2px var(--blue);
+.emp-dash-stats .card.emp-stat:hover {
+  border-color: var(--hairline);
+  box-shadow: var(--shadow);
+  transform: none;
+}
+
+.emp-dash-stats .card.emp-stat:hover .stat-icon {
+  transform: none;
 }
 
 .attendance-clock.is-break {

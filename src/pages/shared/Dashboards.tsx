@@ -67,7 +67,6 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
   const [coverBusy, setCoverBusy] = useState(false);
   const [tick, setTick] = useState(() => new Date());
   const [dataLoadedAt, setDataLoadedAt] = useState(() => Date.now());
-  const [heroMode, setHeroMode] = useState<'work' | 'break'>('work');
 
   const load = () =>
     api('/attendance/me/today')
@@ -103,10 +102,8 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
     const att = data?.attendance;
     if (path.endsWith('/check-in')) {
       patchAttendance({ check_in: clock, status: 'Working', auto_checkout: false }, clock);
-      setHeroMode('work');
     } else if (path.endsWith('/start-break') && att) {
       patchAttendance({ status: 'OnBreak', break_started_at: clock }, clock);
-      setHeroMode('break');
     } else if (path.endsWith('/end-break') && att) {
       const session = minutesBetween(att.break_started_at, clock);
       patchAttendance(
@@ -117,7 +114,6 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
         },
         clock
       );
-      setHeroMode('work');
     }
     try {
       await api(path, { method: 'POST', body: {} });
@@ -233,11 +229,6 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
       latePenaltyRule: Number(data.late_penalty_rule_minutes || LATE_CHECKIN_PENALTY_MINUTES),
     };
   }, [data, tick, dataLoadedAt]);
-
-  useEffect(() => {
-    if (!live) return;
-    setHeroMode(live.onBreak ? 'break' : 'work');
-  }, [live?.onBreak]);
 
   if (!data || !live) return <div className="state-box">{err || 'Loading…'}</div>;
 
@@ -414,7 +405,7 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
     action('/attendance/me/check-out');
   };
 
-  const heroIsBreak = heroMode === 'break' && live.onBreak;
+  const heroIsBreak = live.onBreak && !live.checkedOut;
   const heroSeconds = Math.max(0, Math.round((heroIsBreak ? live.breakMins : live.workMins) * 60));
   const heroClock = {
     hours: pad2(Math.floor(heroSeconds / 3600)),
@@ -608,32 +599,19 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
       </section>
 
       <div className="emp-dash-stats">
-        <button
-          type="button"
-          className={`card emp-stat card-accent emp-stat-toggle${!heroIsBreak ? ' is-selected' : ''}`}
-          disabled={!live.checkedIn}
-          onClick={() => setHeroMode('work')}
-        >
+        <div className="card emp-stat card-accent">
           <div className="stat-card">
             <span className="stat-icon blue"><Clock3 size={20} /></span>
             <div>
               <span className="label">Worked today</span>
               <div className="emp-stat-value">{formatDurationMinutes(live.workMins)}</div>
               <span className="emp-stat-hint">
-                {live.onBreak && !live.checkedOut ? 'Paused on break · tap to show here' : 'Live · breaks excluded'}
+                {live.onBreak && !live.checkedOut ? 'Paused on break · live' : 'Live · breaks excluded'}
               </span>
             </div>
           </div>
-        </button>
-        <button
-          type="button"
-          className={`card emp-stat card-accent amber emp-stat-toggle${heroIsBreak ? ' is-selected' : ''}`}
-          disabled={!live.checkedIn || live.checkedOut}
-          onClick={() => {
-            setHeroMode('break');
-            if (!live.onBreak) action('/attendance/me/start-break');
-          }}
-        >
+        </div>
+        <div className="card emp-stat card-accent amber">
           <div className="stat-card">
             <span className="stat-icon amber"><Coffee size={20} /></span>
             <div>
@@ -641,16 +619,14 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
               <div className="emp-stat-value">{formatDurationMinutes(live.breakMins)}</div>
               <span className="emp-stat-hint">
                 {live.onBreak && !live.checkedOut
-                  ? 'Live session · showing on timer'
-                  : live.checkedIn && !live.checkedOut
-                    ? 'Tap to start break'
-                    : live.breakMins > 0
-                      ? 'Total for current day'
-                      : 'No break yet'}
+                  ? 'Live session'
+                  : live.breakMins > 0
+                    ? 'Total for current day'
+                    : 'Use Break button above'}
               </span>
             </div>
           </div>
-        </button>
+        </div>
         <div className="card emp-stat card-accent coral">
           <div className="stat-card">
             <span className="stat-icon coral"><Timer size={20} /></span>

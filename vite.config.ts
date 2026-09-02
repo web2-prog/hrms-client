@@ -65,7 +65,7 @@ export default defineConfig({
   preview: {
     port: 6005,
     host: "127.0.0.1",
-    allowedHosts: ["hrms.kriraai.com"]
+    allowedHosts: ["hrms.kriraai.com","*"]
   },
 
   build: {
