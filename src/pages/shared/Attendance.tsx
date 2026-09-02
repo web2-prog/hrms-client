@@ -5,6 +5,7 @@ import { ListingPage, ListPagination, PAGE_SIZE, useListParams } from '../../com
 import { StatusBadge, hoursBadge, formatHours } from '../../components/StatusBadge';
 import { EmpCell } from '../../components/EmpCell';
 import { useAuth } from '../../context/AuthContext';
+import { canManageAttendanceTime } from '../../lib/staffPermissions';
 import { displayClock, formatBreakMinutes, formatClockInput, parseBreakMinutes, to24HourClock, todayISO } from '../../utils/timeFormat';
 import { Button } from '@/components/ui/button';
 import {
@@ -26,7 +27,12 @@ type Att = {
   working_hours?: number;
   status?: string;
   surplus_shortfall?: number;
-  employee_id?: { _id: string; name: string; department_id?: { name: string } };
+  employee_id?: {
+    _id: string;
+    name: string;
+    role?: 'admin' | 'hr' | 'employee' | string;
+    department_id?: { name: string };
+  };
 };
 
 type EditState = Att & { break_display?: string };
@@ -332,7 +338,13 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
                     <td className="num-cell">{formatHours(r.working_hours)}</td>
                     <td>{hoursBadge(r.surplus_shortfall, r.status === 'OnBreak' ? 'Working' : r.status)}</td>
                     {isStaff && (
-                      <td><Button variant="outline" onClick={() => openEdit(r)}>Manage</Button></td>
+                      <td>
+                        {canManageAttendanceTime(user, r.employee_id) ? (
+                          <Button variant="outline" onClick={() => openEdit(r)}>Manage</Button>
+                        ) : (
+                          <span className="label">Admin only</span>
+                        )}
+                      </td>
                     )}
                   </tr>
                 );

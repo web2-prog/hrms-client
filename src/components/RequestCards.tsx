@@ -4,6 +4,8 @@ import { ListPagination, PAGE_SIZE } from './ListingPage';
 import { StatusBadge, formatHours } from './StatusBadge';
 import { EmpCell } from './EmpCell';
 import { displayClock } from '../utils/timeFormat';
+import { useAuth } from '../context/AuthContext';
+import { canDecideRequest } from '../lib/staffPermissions';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -14,6 +16,13 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 
+type EmpRef = {
+  _id?: string;
+  name: string;
+  role?: 'admin' | 'hr' | 'employee' | string;
+  department_id?: { name: string };
+};
+
 type EcRequest = {
   _id: string;
   date: string;
@@ -21,7 +30,7 @@ type EcRequest = {
   reason: string;
   status: string;
   decision_note?: string;
-  employee_id?: { name: string; department_id?: { name: string } };
+  employee_id?: EmpRef;
 };
 
 type CtRequest = {
@@ -32,7 +41,7 @@ type CtRequest = {
   reason?: string;
   status: string;
   decision_note?: string;
-  employee_id?: { name: string; department_id?: { name: string } };
+  employee_id?: EmpRef;
 };
 
 type OtRequest = {
@@ -42,7 +51,7 @@ type OtRequest = {
   reason?: string;
   status: string;
   decision_note?: string;
-  employee_id?: { name: string; department_id?: { name: string } };
+  employee_id?: EmpRef;
 };
 
 type Leave = {
@@ -52,7 +61,7 @@ type Leave = {
   day_type?: 'Full Day' | 'Half Day';
   reason?: string;
   status: string;
-  employee_id?: { name: string; department_id?: { name: string } };
+  employee_id?: EmpRef;
 };
 
 function todayYmd() {
@@ -78,6 +87,7 @@ function leaveUrgencyChip(l: Leave, today: string) {
 
 /** HR/Admin approval queue for early checkout requests. */
 export function EarlyCheckoutRequestsCard() {
+  const { user } = useAuth();
   const [pending, setPending] = useState<EcRequest[]>([]);
   const [pendingTotal, setPendingTotal] = useState(0);
   const [pendingPage, setPendingPage] = useState(1);
@@ -182,20 +192,26 @@ export function EarlyCheckoutRequestsCard() {
                     <td>{r.date}</td>
                     <td style={{ maxWidth: 320 }}>{r.reason || '—'}</td>
                     <td className="row-actions">
-                      <Button size="sm" disabled={busyId === r._id} onClick={() => decide(r, 'Approved')}>
-                        Approve
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={busyId === r._id}
-                        onClick={() => {
-                          setRejecting(r);
-                          setNote('');
-                        }}
-                      >
-                        Reject
-                      </Button>
+                      {canDecideRequest(user, r.employee_id) ? (
+                        <>
+                          <Button size="sm" disabled={busyId === r._id} onClick={() => decide(r, 'Approved')}>
+                            Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={busyId === r._id}
+                            onClick={() => {
+                              setRejecting(r);
+                              setNote('');
+                            }}
+                          >
+                            Reject
+                          </Button>
+                        </>
+                      ) : (
+                        <span className="label">Admin only</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -272,6 +288,7 @@ export function EarlyCheckoutRequestsCard() {
 
 /** HR/Admin approval queue for cover time requests. */
 export function CoverTimeRequestsCard() {
+  const { user } = useAuth();
   const [pending, setPending] = useState<CtRequest[]>([]);
   const [pendingTotal, setPendingTotal] = useState(0);
   const [pendingPage, setPendingPage] = useState(1);
@@ -378,20 +395,26 @@ export function CoverTimeRequestsCard() {
                     <td>{r.date}</td>
                     <td style={{ maxWidth: 320 }}>{r.reason || '—'}</td>
                     <td className="row-actions">
-                      <Button size="sm" disabled={busyId === r._id} onClick={() => decide(r, 'Approved')}>
-                        Approve
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={busyId === r._id}
-                        onClick={() => {
-                          setRejecting(r);
-                          setNote('');
-                        }}
-                      >
-                        Reject
-                      </Button>
+                      {canDecideRequest(user, r.employee_id) ? (
+                        <>
+                          <Button size="sm" disabled={busyId === r._id} onClick={() => decide(r, 'Approved')}>
+                            Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={busyId === r._id}
+                            onClick={() => {
+                              setRejecting(r);
+                              setNote('');
+                            }}
+                          >
+                            Reject
+                          </Button>
+                        </>
+                      ) : (
+                        <span className="label">Admin only</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -468,6 +491,7 @@ export function CoverTimeRequestsCard() {
 
 /** HR/Admin approval queue for management overtime requests. */
 export function OvertimeRequestsCard() {
+  const { user } = useAuth();
   const [pending, setPending] = useState<OtRequest[]>([]);
   const [pendingTotal, setPendingTotal] = useState(0);
   const [pendingPage, setPendingPage] = useState(1);
@@ -575,20 +599,26 @@ export function OvertimeRequestsCard() {
                     <td className="num-cell"><strong>{formatHours(r.hours)}</strong></td>
                     <td style={{ maxWidth: 320 }}>{r.reason || '—'}</td>
                     <td className="row-actions">
-                      <Button size="sm" disabled={busyId === r._id} onClick={() => decide(r, 'Approved')}>
-                        Approve
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={busyId === r._id}
-                        onClick={() => {
-                          setRejecting(r);
-                          setNote('');
-                        }}
-                      >
-                        Reject
-                      </Button>
+                      {canDecideRequest(user, r.employee_id) ? (
+                        <>
+                          <Button size="sm" disabled={busyId === r._id} onClick={() => decide(r, 'Approved')}>
+                            Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={busyId === r._id}
+                            onClick={() => {
+                              setRejecting(r);
+                              setNote('');
+                            }}
+                          >
+                            Reject
+                          </Button>
+                        </>
+                      ) : (
+                        <span className="label">Admin only</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -661,6 +691,7 @@ export function OvertimeRequestsCard() {
 
 /** HR/Admin approval queue for leave requests. */
 export function LeaveRequestsCard() {
+  const { user } = useAuth();
   const today = useMemo(() => todayYmd(), []);
   const [pending, setPending] = useState<Leave[]>([]);
   const [pendingTotal, setPendingTotal] = useState(0);
@@ -771,20 +802,26 @@ export function LeaveRequestsCard() {
                     </td>
                     <td style={{ maxWidth: 280 }}>{l.reason || '—'}</td>
                     <td className="row-actions">
-                      <Button size="sm" disabled={busyId === l._id} onClick={() => decide(l, 'Approved')}>
-                        Approve
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={busyId === l._id}
-                        onClick={() => {
-                          setRejecting(l);
-                          setNote('');
-                        }}
-                      >
-                        Reject
-                      </Button>
+                      {canDecideRequest(user, l.employee_id) ? (
+                        <>
+                          <Button size="sm" disabled={busyId === l._id} onClick={() => decide(l, 'Approved')}>
+                            Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={busyId === l._id}
+                            onClick={() => {
+                              setRejecting(l);
+                              setNote('');
+                            }}
+                          >
+                            Reject
+                          </Button>
+                        </>
+                      ) : (
+                        <span className="label">Admin only</span>
+                      )}
                     </td>
                   </tr>
                 ))}
