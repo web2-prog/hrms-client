@@ -117,4 +117,25 @@
       radial-gradient(ellipse 60% 40% at 100% 0%, rgba(13, 148, 136, 0.05), transparent);
     background-attachment: fixed;
   }
+
+  /* Pointer cursor on every clickable button / button-like control */
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  input[type='button']:not(:disabled),
+  input[type='submit']:not(:disabled),
+  input[type='reset']:not(:disabled),
+  [data-slot='button']:not(:disabled),
+  .btn:not(:disabled) {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  [role='button'][aria-disabled='true'],
+  input[type='button']:disabled,
+  input[type='submit']:disabled,
+  input[type='reset']:disabled,
+  [data-slot='button']:disabled,
+  .btn:disabled {
+    cursor: not-allowed;
+  }
 }
