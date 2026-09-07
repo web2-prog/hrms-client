@@ -156,13 +156,15 @@ export function LeavesPage() {
   useEffect(() => { loadSummary(); }, [month, year, list.params]);
 
   const afterApply = () => {
-    // Clear Approved/Rejected filter so the new Pending leave is visible
+    // Clear status filter so the new leave is visible (Pending or Approved).
     const next = new URLSearchParams(list.params);
     next.delete('status');
     next.set('when', 'upcoming');
     next.set('page', '1');
     list.setParams(next);
     setShowApply(false);
+    loadUpcoming();
+    loadSummary();
   };
 
   const periodLabel =
@@ -230,7 +232,7 @@ export function LeavesPage() {
 
       <ListingPage
         title="Leaves"
-        subtitle={isStaff ? 'Leave history — approve pending requests in Requests' : 'Your leave applications'}
+        subtitle={isStaff ? 'Leave history — add manual leaves or approve pending in Requests' : 'Your leave applications'}
         loading={loading}
         error={error}
         empty={!data.length}
@@ -297,7 +299,7 @@ export function LeavesPage() {
         }
         actions={
           <Button onClick={() => setShowApply(true)}>
-            Apply Leave
+            {isStaff ? 'Add Leave' : 'Apply Leave'}
           </Button>
         }
         prepend={
@@ -400,6 +402,7 @@ export function LeavesPage() {
       </ListingPage>
       {showApply && (
         <ApplyLeaveModal
+          isStaff={isStaff}
           onClose={() => setShowApply(false)}
           onSaved={() => {
             afterApply();
@@ -410,20 +413,93 @@ export function LeavesPage() {
   );
 }
 
-function ApplyLeaveModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+type EmpOption = { _id: string; name: string; department_id?: { name?: string } | null };
+
+function ApplyLeaveModal({
+  isStaff,
+  onClose,
+  onSaved,
+}: {
+  isStaff: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [employees, setEmployees] = useState<EmpOption[]>([]);
+  const [employee_id, setEmployeeId] = useState('');
   const [from_date, setFrom] = useState('');
   const [to_date, setTo] = useState('');
   const [day_type, setDayType] = useState<'Full Day' | 'Half Day'>('Full Day');
   const [reason, setReason] = useState('');
+  const [approveNow, setApproveNow] = useState(true);
+  const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+
+  useEffect(() => {
+    if (!isStaff) return;
+    api<ListResult<EmpOption>>('/employees?limit=10000&status=active&role=employee')
+      .then((r) => {
+        const rows = [...(r.data || [])].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        setEmployees(rows);
+      })
+      .catch(() => setEmployees([]));
+  }, [isStaff]);
+
+  const submit = async () => {
+    try {
+      if (isStaff && !employee_id) {
+        setErr('Please select an employee');
+        return;
+      }
+      if (!from_date) {
+        setErr('Please select From date');
+        return;
+      }
+      const to = day_type === 'Half Day' ? from_date : to_date;
+      if (!to) {
+        setErr('Please select To date');
+        return;
+      }
+      setBusy(true);
+      setErr('');
+      const body: Record<string, string> = { from_date, to_date: to, day_type, reason };
+      if (isStaff && employee_id) {
+        body.employee_id = employee_id;
+        body.status = approveNow ? 'Approved' : 'Pending';
+      }
+      await api('/leaves', { method: 'POST', body });
+      onSaved();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Apply for leave</DialogTitle>
+          <DialogTitle>{isStaff ? 'Add employee leave' : 'Apply for leave'}</DialogTitle>
         </DialogHeader>
         <div className="form-grid">
+          {isStaff && (
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label className="label">Employee</label>
+              <select
+                className="select"
+                value={employee_id}
+                onChange={(e) => setEmployeeId(e.target.value)}
+              >
+                <option value="">Select employee…</option>
+                {employees.map((e) => (
+                  <option key={e._id} value={e._id}>
+                    {e.name}
+                    {e.department_id?.name ? ` · ${e.department_id.name}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div style={{ gridColumn: '1 / -1' }}>
             <label className="label">Day Type</label>
             <select
@@ -459,32 +535,29 @@ function ApplyLeaveModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
             <label className="label">Reason</label>
             <textarea className="textarea" value={reason} onChange={(e) => setReason(e.target.value)} />
           </div>
+          {isStaff && (
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label className="label" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={approveNow}
+                  onChange={(e) => setApproveNow(e.target.checked)}
+                />
+                Approve immediately (manual leave)
+              </label>
+              <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--muted-foreground, #64748b)' }}>
+                Uncheck to create a Pending request that still needs approval in Requests.
+              </p>
+            </div>
+          )}
         </div>
         {err && <p style={{ color: 'var(--error)' }}>{err}</p>}
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
+          <Button variant="outline" onClick={onClose} disabled={busy}>
             Cancel
           </Button>
-          <Button
-            onClick={async () => {
-              try {
-                if (!from_date) {
-                  setErr('Please select From date');
-                  return;
-                }
-                const to = day_type === 'Half Day' ? from_date : to_date;
-                if (!to) {
-                  setErr('Please select To date');
-                  return;
-                }
-                await api('/leaves', { method: 'POST', body: { from_date, to_date: to, day_type, reason } });
-                onSaved();
-              } catch (e) {
-                setErr(e instanceof Error ? e.message : 'Failed');
-              }
-            }}
-          >
-            Submit
+          <Button onClick={submit} disabled={busy}>
+            {busy ? 'Saving…' : isStaff ? 'Add Leave' : 'Submit'}
           </Button>
         </DialogFooter>
       </DialogContent>

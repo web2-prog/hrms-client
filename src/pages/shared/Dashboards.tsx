@@ -101,6 +101,14 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
     const clock = nowHMS();
     const att = data?.attendance;
     if (path.endsWith('/check-in')) {
+      const shiftStart = data?.shift?.shift_start || '09:30';
+      const startSec = timeToSeconds(shiftStart);
+      const clockSec = timeToSeconds(data?.now ? addSecondsToTime(data.now, Math.max(0, Math.round((Date.now() - dataLoadedAt) / 1000))) : clock);
+      if (startSec != null && clockSec != null && clockSec < startSec) {
+        setBusy(false);
+        setErr(`Check-in unlocks at shift start (${displayClock(shiftStart)}).`);
+        return;
+      }
       patchAttendance({ check_in: clock, status: 'Working', auto_checkout: false }, clock);
     } else if (path.endsWith('/start-break') && att) {
       patchAttendance({ status: 'OnBreak', break_started_at: clock }, clock);
@@ -185,9 +193,14 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
     const coverMins = Math.max(0, rawWorkMins - fullHours * 60);
     const dailyTargetMet = workHours + 1 / 120 >= checkoutHours;
     const fullDayMet = workHours + 1 / 120 >= fullHours;
-    const shiftEndSec = timeToSeconds(shift.shift_end);
-    const nowSec = timeToSeconds(now)!;
-    const shiftEnded = isHalfDay || shiftEndSec == null || nowSec >= shiftEndSec;
+    const shiftStartSec = timeToSeconds(shift.shift_start || '09:30');
+    const shiftEndSec = timeToSeconds(shift.shift_end || '17:30');
+    const nowSec = timeToSeconds(now) ?? 0;
+    // Check-in unlocks at/after shift start. Never treat missing times as "already started/ended".
+    const shiftStarted = shiftStartSec != null && nowSec >= shiftStartSec;
+    // Half-day leave skips wall-clock shift-end; full day requires now >= shift_end.
+    const shiftEnded =
+      isHalfDay || (shiftEndSec != null && shiftEndSec > 0 && nowSec >= shiftEndSec);
     const canCheckoutNormally = shiftEnded && dailyTargetMet;
     const penaltyMinutes = Number(data.penalty_minutes || 0);
     const lateMinutes = Number(data.late_minutes || 0);
@@ -209,6 +222,7 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
       threshold: checkoutHours,
       fullHours,
       isHalfDay,
+      shiftStarted,
       shiftEnded,
       canCheckoutNormally,
       onBreak,
@@ -436,9 +450,14 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
 
           <div className="attendance-actions">
             {err && <p className="att-controls-error">{err}</p>}
-            {!live.checkedIn && (
+            {!live.checkedIn && live.shiftStarted && (
               <Button className="attendance-action attendance-action-primary" disabled={busy} onClick={() => action('/attendance/me/check-in')}>
                 <LogIn size={16} /> Check In
+              </Button>
+            )}
+            {!live.checkedIn && !live.shiftStarted && (
+              <Button className="attendance-action attendance-action-primary" disabled>
+                Check In unlocks at {displayClock(shift.shift_start || '09:30')}
               </Button>
             )}
             {live.checkedIn && !live.checkedOut && (
@@ -538,19 +557,25 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
           </div>
         </div>
 
+        {!live.checkedIn && !live.shiftStarted && (
+          <div className="attendance-notice">
+            Check-in unlocks when your shift starts at {displayClock(shift.shift_start || '09:30')}. Current time is{' '}
+            {displayClock(live.clock)}.
+          </div>
+        )}
         {live.checkedIn && !live.checkedOut && !canShowCheckout && ecr?.status !== 'Pending' && !earlyApproved && (
           <div className="attendance-notice">
             {!live.canCheckoutNormally && (
               <>
                 {!live.shiftEnded && !live.dailyTargetMet && (
                   <>
-                    Checkout unlocks after shift ends ({displayClock(shift.shift_end)}) and{' '}
+                    Checkout unlocks after shift ends ({displayClock(shift.shift_end || '17:30')}) and{' '}
                     {formatHours(live.threshold)} worked. You may keep working past shift end.
                   </>
                 )}
                 {!live.shiftEnded && live.dailyTargetMet && (
                   <>
-                    Daily hours complete. Checkout unlocks when your shift ends at {displayClock(shift.shift_end)}.
+                    Daily hours complete. Checkout unlocks when your shift ends at {displayClock(shift.shift_end || '17:30')}.
                     You may keep working until then and beyond.
                   </>
                 )}

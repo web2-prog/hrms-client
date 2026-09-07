@@ -74,7 +74,7 @@ export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteErr, setDeleteErr] = useState('');
 
-  const year = list.get('year') || '2026';
+  const year = list.get('year') || String(new Date().getFullYear());
 
   // Year working-days summary (single source of truth for the strip — same
   // numbers as the Admin dashboard: non-overlapping off-day counts).
@@ -121,7 +121,8 @@ export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
     return !!end && end < todayStr;
   };
 
-  // Full year, December → January. Within a month, earliest date first.
+  // Current month first (when viewing this year), then remaining months wrapping forward.
+  // Other years: January → December. Within a month, earliest date first.
   const groups = useMemo(() => {
     const y = Number(year);
     const buckets: Holiday[][] = Array.from({ length: 12 }, () => []);
@@ -133,8 +134,11 @@ export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
     for (const items of buckets) {
       items.sort((a, b) => holidaySortKey(a).localeCompare(holidaySortKey(b)));
     }
+    const isCurrentYear = now.getFullYear() === y;
+    const startMonth = isCurrentYear ? now.getMonth() : 0;
+    const monthOrder = Array.from({ length: 12 }, (_, i) => (startMonth + i) % 12);
     // Only render months that have holidays — empty months stay hidden until one is added.
-    return [11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]
+    return monthOrder
       .map((m) => ({
         key: `${y}-${String(m + 1).padStart(2, '0')}`,
         monthIndex: m,
@@ -187,7 +191,7 @@ export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
     <>
       <ListingPage
         title="Holidays"
-        subtitle={`${year} calendar · December to January`}
+        subtitle={`${year} calendar · current month first`}
         searchPlaceholder="Search holidays…"
         hidePagination
         loading={loading}
@@ -272,7 +276,7 @@ export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
         }
       >
         <div className="hol-year-bar">
-          <span>Newest month first</span>
+          <span>{currentMonth >= 0 ? 'Current month first' : 'January → December'}</span>
           <strong>{data.length} {data.length === 1 ? 'holiday' : 'holidays'}</strong>
         </div>
         <div className="hol-year">
