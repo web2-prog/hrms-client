@@ -714,7 +714,7 @@ function CoverTimeRequestsCard() {
           <h3 style={{ margin: 0 }}>Cover Time Requests</h3>
           <p className="emp-action-help" style={{ margin: '4px 0 0' }}>
             Employees making up shortfall hours after completing daily working hours. Approved cover time counts toward
-            monthly working hours (not overtime). Minimum 45 minutes.
+            monthly working hours (not overtime). Minimum 45m.
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>

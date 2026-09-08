@@ -7,7 +7,7 @@ import { ConfirmClearData } from '../../components/ConfirmClearData';
 import { BondSalaryManager } from '../../components/BondSalaryManager';
 import { NumberInput } from '../../components/NumberInput';
 import { useAuth } from '../../context/AuthContext';
-import { formatClockInput, to24HourClock } from '../../utils/timeFormat';
+import { formatClockInput, to24HourClock, formatDailyHours, parseDailyHours } from '../../utils/timeFormat';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -230,6 +230,7 @@ export function EmployeeManagePage({ basePath }: { basePath: string }) {
   const [clearOpen, setClearOpen] = useState(false);
   const [msg, setMsg] = useState('');
   const [useDefault, setUseDefault] = useState(true);
+  const [hoursDayInput, setHoursDayInput] = useState('');
   const [depts, setDepts] = useState<Dept[]>([]);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
@@ -297,6 +298,9 @@ export function EmployeeManagePage({ basePath }: { basePath: string }) {
       custom_shift_end: formatClockInput(e.custom_shift_end),
     });
     setUseDefault(!(e.custom_shift_start || e.custom_shift_end || e.custom_working_hours_per_day != null));
+    setHoursDayInput(
+      e.custom_working_hours_per_day != null ? formatDailyHours(e.custom_working_hours_per_day) || '' : ''
+    );
   });
 
   useEffect(() => {
@@ -448,7 +452,27 @@ export function EmployeeManagePage({ basePath }: { basePath: string }) {
           <div className="form-grid">
             <div><label className="label">Custom start</label><input className="input" value={emp.custom_shift_start || ''} onChange={(e) => set('custom_shift_start', e.target.value)} placeholder="9:00 AM" /></div>
             <div><label className="label">Custom end</label><input className="input" value={emp.custom_shift_end || ''} onChange={(e) => set('custom_shift_end', e.target.value)} placeholder="6:00 PM" /></div>
-            <div><label className="label">Hours/day</label><input className="input" type="number" step="0.25" value={emp.custom_working_hours_per_day ?? ''} onChange={(e) => set('custom_working_hours_per_day', e.target.value === '' ? null : Number(e.target.value))} /></div>
+            <div>
+              <label className="label">Hours/day</label>
+              <input
+                className="input"
+                value={hoursDayInput}
+                onChange={(e) => setHoursDayInput(e.target.value)}
+                onBlur={() => {
+                  const raw = hoursDayInput.trim();
+                  if (!raw) {
+                    set('custom_working_hours_per_day', null);
+                    setHoursDayInput('');
+                    return;
+                  }
+                  const parsed = parseDailyHours(raw);
+                  if (parsed == null) return;
+                  set('custom_working_hours_per_day', parsed);
+                  setHoursDayInput(formatDailyHours(parsed) || raw);
+                }}
+                placeholder="8h15m"
+              />
+            </div>
           </div>
         )}
       </div>

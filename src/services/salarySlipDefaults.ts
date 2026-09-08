@@ -203,15 +203,15 @@ export const formatSlipAmount = (value: number, withSymbol = false) => {
   return withSymbol ? `₹${formatted}` : formatted;
 };
 
-/** Decimal hours → H:MM:SS for payslip breakdown */
+/** Decimal hours → compact "45m" / "1h30m" / "8h15m" for payslip breakdown */
 export const formatSlipHours = (n?: number) => {
-  if (n == null || Number.isNaN(n)) return '0:00:00';
-  const totalSec = Math.round(Math.abs(n) * 3600);
-  const h = Math.floor(totalSec / 3600);
-  const m = Math.floor((totalSec % 3600) / 60);
-  const s = totalSec % 60;
-  const pad = (x: number) => String(x).padStart(2, '0');
-  return `${h}:${pad(m)}:${pad(s)}`;
+  if (n == null || Number.isNaN(n)) return '0m';
+  const totalMins = Math.round(Math.abs(n) * 60);
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h${m}m`;
 };
 
 const ones = [

@@ -123,7 +123,7 @@ function DepartmentsInner() {
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [formErr, setFormErr] = useState('');
   const [deleteErr, setDeleteErr] = useState('');
-  const [hoursInput, setHoursInput] = useState('8h 15m');
+  const [hoursInput, setHoursInput] = useState('8h15m');
   const [halfDayInput, setHalfDayInput] = useState('4h 7.5m');
   const [halfDayManual, setHalfDayManual] = useState(false);
 
@@ -189,8 +189,8 @@ function DepartmentsInner() {
     setFormErr('');
     const full = dept.working_hours_per_day ?? 8.25;
     const half = dept.half_day_hours ?? defaultHalfDayHours(full);
-    setHoursInput(formatDailyHours(full) || '8h 15m');
-    setHalfDayInput(formatDailyHours(half) || '4h 7.5m');
+    setHoursInput(formatDailyHours(full) || '8h15m');
+    setHalfDayInput(formatDailyHours(half) || '4h8m');
     setHalfDayManual(false);
     setEditing(dept);
   };
@@ -199,7 +199,7 @@ function DepartmentsInner() {
     if (!editing || !editing.name?.trim()) return;
     const workingHours = parseDailyHours(hoursInput);
     if (workingHours == null || workingHours <= 0) {
-      setFormErr('Enter daily hours as 8h 15m (or 8:15).');
+      setFormErr('Enter daily hours as 8h15m (or 8:15).');
       return;
     }
     const halfDayHours = parseDailyHours(halfDayInput);
@@ -482,9 +482,9 @@ function DepartmentsInner() {
                       setHoursInput(e.target.value);
                       if (!halfDayManual) syncHalfDayDefault(e.target.value);
                     }}
-                    placeholder="8h 15m"
+                    placeholder="8h15m"
                   />
-                  <p className="field-hint">Use hours and minutes, e.g. 8h 15m or 8:15</p>
+                  <p className="field-hint">Use hours and minutes, e.g. 8h15m or 8:15</p>
                 </div>
                 <div className="grid gap-1.5">
                   <Label htmlFor="dept-half-hours">Half day</Label>
@@ -498,7 +498,7 @@ function DepartmentsInner() {
                     placeholder="4h 7.5m"
                   />
                   <p className="field-hint">
-                    Default is half of full day (8h 15m → 4h 7.5m). Used for half-day leave day counting.
+                    Default is half of full day (8h15m → 4h8m). Used for half-day leave day counting.
                   </p>
                 </div>
                 <div className="grid gap-1.5">

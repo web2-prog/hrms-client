@@ -19,6 +19,7 @@ type OtRequest = {
   source?: 'request' | 'attendance';
   date: string;
   hours: number;
+  minutes?: number;
   reason?: string;
   status: string;
   ot_type?: 'General' | 'Management' | 'Attendance' | null;
@@ -224,7 +225,8 @@ export function OvertimePage() {
       >
         <p className="listing-note">
           General OT is automatic when checkout hours exceed the daily target (status Extra, no request).
-          Management OT is requested by employees after daily target and approved by HR/Admin.
+          Management OT is requested with date and reason only — hours are counted from daily working hours through
+          checkout and approved by HR/Admin.
         </p>
         <div className="table-wrap">
           <table className="data">
@@ -247,7 +249,7 @@ export function OvertimePage() {
                     </td>
                   )}
                   <td>{row.date}</td>
-                  <td className="num-cell"><strong>{formatHours(row.hours)}</strong></td>
+                  <td className="num-cell"><strong>{formatHours(row.minutes != null ? row.minutes / 60 : row.hours)}</strong></td>
                   <td style={{ maxWidth: 280 }}>{row.reason || '—'}</td>
                   <td>
                     <StatusBadge status={row.status} />
@@ -282,57 +284,61 @@ function todayYmd() {
 function ApplyOtModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
   const [date, setDate] = useState(todayYmd());
   const [hours, setHours] = useState<number | null>(null);
-  const [coverHours, setCoverHours] = useState(0);
-  const [dailySurplus, setDailySurplus] = useState(0);
-  const [shortfall, setShortfall] = useState(0);
-  const [hoursHint, setHoursHint] = useState('Loading hours from attendance…');
   const [eligible, setEligible] = useState(false);
+  const [hint, setHint] = useState('Select a date to load Management OT');
+  const [loadingHours, setLoadingHours] = useState(false);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
   useEffect(() => {
     let cancelled = false;
-    const loadHours = async () => {
+    const loadEligible = async () => {
       if (!date) {
         setHours(null);
         setEligible(false);
-        setHoursHint('Select a date');
+        setHint('Select a date');
         return;
       }
-      setHoursHint('Calculating surplus split…');
+      setLoadingHours(true);
+      setHint('Loading Management OT from attendance…');
       try {
         const res = await api<{
-          hours: number;
           eligible: boolean;
           message?: string | null;
           work_hours?: number;
           full_hours?: number | null;
-          daily_surplus?: number;
-          cover_hours?: number;
           management_ot_hours?: number;
-          monthly_shortfall?: number;
+          daily_surplus?: number;
+          checked_out?: boolean;
+          cover_hours?: number;
+          claimed_cover_hours?: number;
         }>(`/overtime/eligible-hours?date=${encodeURIComponent(date)}`);
         if (cancelled) return;
-        setHours(Number(res.management_ot_hours ?? res.hours) || 0);
-        setCoverHours(Number(res.cover_hours) || 0);
-        setDailySurplus(Number(res.daily_surplus) || 0);
-        setShortfall(Number(res.monthly_shortfall) || 0);
+        const otHours = Number(res.management_ot_hours) || 0;
+        setHours(otHours);
         setEligible(!!res.eligible);
-        setHoursHint(
-          res.eligible
-            ? `Surplus ${formatHours(res.daily_surplus)} → Cover ${formatHours(res.cover_hours)} + Mgmt OT ${formatHours(res.management_ot_hours)} (worked ${formatHours(res.work_hours)} / target ${formatHours(res.full_hours ?? 0)})`
-            : res.message || 'No Management OT surplus for this date'
-        );
+        if (res.eligible) {
+          const claimedCover = Number(res.claimed_cover_hours) || 0;
+          setHint(
+            `Auto from attendance: worked ${formatHours(res.work_hours)} − daily ${formatHours(res.full_hours ?? 0)}` +
+              (claimedCover > 0.01 ? ` − cover ${formatHours(claimedCover)}` : '') +
+              (res.checked_out ? ' · through checkout' : ' · live until checkout')
+          );
+        } else {
+          setHint(res.message || 'No Management OT for this date yet');
+        }
       } catch (e) {
         if (cancelled) return;
         setHours(null);
         setEligible(false);
-        setHoursHint(e instanceof Error ? e.message : 'Could not load hours');
+        setHint(e instanceof Error ? e.message : 'Could not load Management OT');
+      } finally {
+        if (!cancelled) setLoadingHours(false);
       }
     };
-    loadHours();
-    const id = window.setInterval(loadHours, 15000);
+    loadEligible();
+    const id = window.setInterval(loadEligible, 15000);
     return () => {
       cancelled = true;
       window.clearInterval(id);
@@ -346,8 +352,7 @@ function ApplyOtModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
           <DialogTitle>Request Management OT</DialogTitle>
         </DialogHeader>
         <p style={{ color: 'var(--muted)', fontSize: '0.9rem', marginBottom: 12 }}>
-          Cover Time takes surplus first (up to monthly shortfall). Only the leftover is Management OT — same minutes
-          are never double-counted. Hours are calculated on the server.
+          Pick a date to see Management OT automatically (daily working hours through checkout). You only add a reason.
         </p>
         <div className="form-grid">
           <div>
@@ -361,21 +366,21 @@ function ApplyOtModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
             />
           </div>
           <div>
-            <label className="label">Management OT hours (auto)</label>
+            <label className="label">Management OT</label>
             <input
               className="input"
               type="text"
               readOnly
-              value={hours == null ? '—' : formatHours(hours)}
+              value={
+                loadingHours
+                  ? 'Calculating…'
+                  : hours == null
+                    ? '—'
+                    : formatHours(hours)
+              }
               aria-readonly="true"
             />
-            <span className="emp-stat-hint">{hoursHint}</span>
-          </div>
-          <div style={{ gridColumn: '1 / -1' }}>
-            <span className="emp-stat-hint">
-              Split: surplus {formatHours(dailySurplus)} · cover {formatHours(coverHours)} · shortfall{' '}
-              {formatHours(shortfall)}
-            </span>
+            <span className="emp-stat-hint">{hint}</span>
           </div>
           <div style={{ gridColumn: '1 / -1' }}>
             <label className="label">Reason</label>
@@ -393,12 +398,12 @@ function ApplyOtModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
             Cancel
           </Button>
           <Button
-            disabled={busy || !eligible}
+            disabled={busy || !eligible || !(hours && hours > 0)}
             onClick={async () => {
               try {
                 if (!date) return setErr('Date required');
                 if (!eligible || !(hours && hours > 0)) {
-                  return setErr('No Management OT hours available for this date yet');
+                  return setErr('No Management OT available for this date yet');
                 }
                 if (!reason.trim()) return setErr('Reason required');
                 setBusy(true);

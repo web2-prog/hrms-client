@@ -37,7 +37,9 @@ type CtRequest = {
   _id: string;
   date: string;
   requested_hours: number;
+  requested_minutes?: number;
   actual_cover_hours?: number;
+  actual_cover_minutes?: number;
   reason?: string;
   status: string;
   decision_note?: string;
@@ -48,6 +50,7 @@ type OtRequest = {
   _id: string;
   date: string;
   hours: number;
+  minutes?: number;
   reason?: string;
   status: string;
   decision_note?: string;
@@ -354,7 +357,7 @@ export function CoverTimeRequestsCard() {
           <h3 style={{ margin: 0 }}>Cover Time Requests</h3>
           <p className="emp-action-help" style={{ margin: '4px 0 0' }}>
             Employees making up shortfall hours after completing daily working hours. Approved cover time counts toward
-            monthly working hours (not overtime). Minimum 45 minutes.
+            monthly working hours (not overtime). Minimum 45m.
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -596,7 +599,7 @@ export function OvertimeRequestsCard() {
                       <EmpCell name={r.employee_id?.name} dept={r.employee_id?.department_id?.name} />
                     </td>
                     <td>{r.date}</td>
-                    <td className="num-cell"><strong>{formatHours(r.hours)}</strong></td>
+                    <td className="num-cell"><strong>{formatHours(r.minutes != null ? r.minutes / 60 : r.hours)}</strong></td>
                     <td style={{ maxWidth: 320 }}>{r.reason || '—'}</td>
                     <td className="row-actions">
                       {canDecideRequest(user, r.employee_id) ? (

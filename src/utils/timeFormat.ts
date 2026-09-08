@@ -192,17 +192,27 @@ export function effectiveWorkStart(
   return checkIn;
 }
 
-/** Decimal hours → compact daily target e.g. 8.25 → "8h 15m", 4.125 → "4h 7.5m" */
+/**
+ * Decimal hours → compact duration for display/apply UI.
+ * 0.75 → "45m", 1.5 → "1h30m", 8.25 → "8h15m" (no decimal hours).
+ */
+export function formatHours(n?: number | null) {
+  if (n == null || Number.isNaN(n)) return '—';
+  const sign = n < 0 ? '-' : '';
+  const totalMins = Math.round(Math.abs(Number(n)) * 60);
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+  if (h === 0 && m === 0) return `${sign}0m`;
+  if (h === 0) return `${sign}${m}m`;
+  if (m === 0) return `${sign}${h}h`;
+  return `${sign}${h}h${m}m`;
+}
+
+/** Alias used for department daily targets — same compact style as formatHours. */
 export function formatDailyHours(n?: number | null) {
   if (n == null || Number.isNaN(n)) return '';
-  const totalSec = Math.round(Number(n) * 3600);
-  const h = Math.floor(totalSec / 3600);
-  const rem = totalSec % 3600;
-  const mWhole = Math.floor(rem / 60);
-  const s = rem % 60;
-  if (s === 0) return `${h}h ${mWhole}m`;
-  if (s === 30) return `${h}h ${mWhole}.5m`;
-  return `${h}h ${mWhole}m ${s}s`;
+  const out = formatHours(n);
+  return out === '—' ? '' : out;
 }
 
 /** Default half-day duration from a full-day target (8h 15m → 4h 7.5m). */
@@ -210,7 +220,7 @@ export function defaultHalfDayHours(fullDayHours: number) {
   return Math.round((Number(fullDayHours) / 2) * 10000) / 10000;
 }
 
-/** Parse "8h 15m", "4h 7.5m", "8:15", or "8.25" → decimal hours; null if invalid */
+/** Parse "8h15m", "8h 15m", "45m", "8:15", or "8.25" → decimal hours; null if invalid */
 export function parseDailyHours(value?: string | number | null): number | null {
   if (value == null || value === '') return null;
   if (typeof value === 'number') return Number.isFinite(value) && value > 0 ? value : null;
@@ -227,6 +237,9 @@ export function parseDailyHours(value?: string | number | null): number | null {
 
   const hOnly = str.match(/^(\d+(?:\.\d+)?)\s*h(?:ours?)?$/i);
   if (hOnly) return Number(hOnly[1]);
+
+  const mOnly = str.match(/^(\d+(?:\.\d+)?)\s*m(?:in(?:ute)?s?)?$/i);
+  if (mOnly) return Number(mOnly[1]) / 60;
 
   if (str.includes(':')) {
     const parts = str.split(':').map(Number);
@@ -245,24 +258,14 @@ export function parseDailyHours(value?: string | number | null): number | null {
   return null;
 }
 
-/** Decimal hours → H:MM:SS */
-export function formatHours(n?: number) {
-  if (n == null || Number.isNaN(n)) return '—';
-  const sign = n < 0 ? '-' : '';
-  const totalSec = Math.round(Math.abs(n) * 3600);
-  const h = Math.floor(totalSec / 3600);
-  const m = Math.floor((totalSec % 3600) / 60);
-  const s = totalSec % 60;
-  return `${sign}${h}:${pad2(m)}:${pad2(s)}`;
+/** Duration in (fractional) minutes → compact "45m" / "1h30m" */
+export function formatDurationMinutes(totalMinutes: number) {
+  return formatHours(Number(totalMinutes || 0) / 60);
 }
 
-/** Duration in (fractional) minutes → H:MM:SS */
-export function formatDurationMinutes(totalMinutes: number) {
-  const totalSec = Math.max(0, Math.round(Number(totalMinutes || 0) * 60));
-  const h = Math.floor(totalSec / 3600);
-  const m = Math.floor((totalSec % 3600) / 60);
-  const s = totalSec % 60;
-  return `${h}:${pad2(m)}:${pad2(s)}`;
+/** Whole / fractional minutes → compact "45m" / "1h30m" */
+export function formatMinutesCompact(mins?: number | null) {
+  return formatDurationMinutes(Number(mins || 0));
 }
 
 /**

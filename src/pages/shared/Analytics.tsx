@@ -177,7 +177,8 @@ function formatMinutes(mins?: number) {
   const h = Math.floor(m / 60);
   const r = m % 60;
   if (h <= 0) return `${r}m`;
-  return `${h}h ${r}m`;
+  if (r === 0) return `${h}h`;
+  return `${h}h${r}m`;
 }
 
 function seriesValue(row: MonthRow, type: AnalyticType, ot: OtFilter) {

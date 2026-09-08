@@ -271,18 +271,23 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
     ecr?.status !== 'Pending' &&
     !(activeCover && !coverReadyToCheckout);
 
-  // Daily surplus → Cover Time first → remaining → Management OT (no double-count).
+  // Daily surplus past working hours → Management OT (full), unless Cover already claimed.
+  // Cover potential = min(surplus, shortfall) only for Cover Time requests — does not hide Mgmt OT.
   const dailySurplusHrs = Math.max(0, live.coverMins / 60);
   const existingCoverClaim = activeCover
     ? Number(ctr?.actual_cover_hours) > 0
       ? Number(ctr.actual_cover_hours)
       : Number(ctr?.requested_hours) || 0
     : null;
-  const autoCoverHours =
+  const claimedCoverHours =
     existingCoverClaim != null && existingCoverClaim > 0
       ? Math.max(0, Math.round(Math.min(dailySurplusHrs, existingCoverClaim) * 100) / 100)
+      : 0;
+  const autoMgmtHours = Math.max(0, Math.round((dailySurplusHrs - claimedCoverHours) * 100) / 100);
+  const autoCoverHours =
+    claimedCoverHours > 0
+      ? claimedCoverHours
       : Math.max(0, Math.round(Math.min(dailySurplusHrs, monthPending) * 100) / 100);
-  const autoMgmtHours = Math.max(0, Math.round((dailySurplusHrs - autoCoverHours) * 100) / 100);
 
   const canRequestCover =
     live.checkedIn &&
@@ -336,9 +341,9 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
   const submitMgmtRequest = async () => {
     if (autoMgmtHours < 0.01) {
       setMgmtErr(
-        autoCoverHours > 0.01
-          ? 'All of today\'s surplus is allocated to Cover Time. Work more past daily hours for Management OT, or submit Cover Time first.'
-          : 'No leftover surplus for Management OT yet.'
+        claimedCoverHours > 0.01
+          ? 'Cover Time already claimed today\'s surplus. No remaining Management OT.'
+          : 'No surplus past daily working hours for Management OT yet.'
       );
       return;
     }
@@ -374,7 +379,7 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
   const submitCoverRequest = async () => {
     if (autoCoverHours + 0.001 < coverMinHours) {
       setCoverErr(
-        `Cover time unlocks after at least ${Math.round(coverMinHours * 60)} minutes past daily hours (capped by shortfall).`
+        `Cover time unlocks after at least ${formatHours(coverMinHours)} past daily hours (capped by shortfall).`
       );
       return;
     }
@@ -417,7 +422,7 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
   const requestCheckout = () => {
     if (ecr?.status === 'Pending') return;
     if (activeCover && !coverReadyToCheckout) {
-      setErr(`Cover time requires at least ${Math.round(coverMinHours * 60)} minutes before checkout.`);
+      setErr(`Cover time requires at least ${formatHours(coverMinHours)} before checkout.`);
       return;
     }
     if (!live.canCheckoutNormally && !earlyApproved) {
@@ -503,7 +508,7 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
                 )}
                 {(live.canCheckoutNormally || earlyApproved) && activeCover && !coverReadyToCheckout && (
                   <Button className="attendance-action attendance-action-primary" disabled>
-                    Cover {Math.round(coverMinHours * 60)}m required
+                    Cover {formatHours(coverMinHours)} required
                   </Button>
                 )}
                 {needsEarlyRequest && (
@@ -618,7 +623,7 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
             {formatHours(ctr.requested_hours)} to make up shortfall.
             {live.coverMins > 0
               ? ` Covered so far ${formatDurationMinutes(live.coverMins)}.`
-              : ` Stay at least ${Math.round(coverMinHours * 60)} minutes past daily hours before checkout.`}
+              : ` Stay at least ${formatHours(coverMinHours)} past daily hours before checkout.`}
             {monthPending > 0 ? ` Monthly shortfall left: ${formatHours(monthPending)}.` : ''}
           </div>
         )}
@@ -770,8 +775,8 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
           <DialogHeader>
             <DialogTitle>Overtime Request</DialogTitle>
             <DialogDescription>
-              Daily surplus is split automatically: Cover Time first (up to monthly shortfall), then leftover becomes
-              Management OT. Same minutes are never counted twice. Hours are read-only — only add a reason.
+              Management OT is counted automatically from your daily working hours through checkout. Cover Time is
+              optional when you have monthly shortfall — it only reduces Management OT after you submit a Cover request.
             </DialogDescription>
           </DialogHeader>
 
@@ -779,31 +784,17 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
             Today surplus {formatHours(dailySurplusHrs)}
             {monthPending > 0.001 ? ` · shortfall ${formatHours(monthPending)}` : ''}
             {' → '}
-            Cover {formatHours(autoCoverHours)} + Management OT {formatHours(autoMgmtHours)}
+            Management OT {formatHours(autoMgmtHours)}
+            {canRequestCover ? ` · Cover available ${formatHours(autoCoverHours)}` : ''}
+            {claimedCoverHours > 0.01 ? ` · cover claimed ${formatHours(claimedCoverHours)}` : ''}
           </p>
 
           <section className="grid gap-3" style={{ borderBottom: canRequestCover ? '1px solid var(--border)' : undefined, paddingBottom: canRequestCover ? 16 : 0 }}>
             <h4 style={{ margin: 0, fontSize: '0.95rem' }}>Management OT</h4>
             <p className="emp-stat-hint" style={{ margin: 0 }}>
-              Paid OT from leftover surplus after Cover Time
-              {autoCoverHours > 0.001 ? ` (cover takes ${formatHours(autoCoverHours)} first)` : ''}.
+              Auto {formatHours(autoMgmtHours)} from daily hours through checkout
+              {claimedCoverHours > 0.001 ? ` (after claimed cover ${formatHours(claimedCoverHours)})` : ''}. Add a reason only.
             </p>
-            <div className="grid gap-1.5">
-              <label className="label" htmlFor="mgmt-hours">
-                Hours (auto — remaining after cover)
-              </label>
-              <input
-                id="mgmt-hours"
-                className="input"
-                type="text"
-                readOnly
-                value={formatHours(autoMgmtHours)}
-                aria-readonly="true"
-              />
-              <span className="emp-stat-hint">
-                Server confirms the same split on submit. You cannot edit this.
-              </span>
-            </div>
             <div className="grid gap-1.5">
               <label className="label" htmlFor="mgmt-reason">
                 Reason <span style={{ color: 'var(--error)' }}>*</span>
@@ -826,8 +817,8 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
             <section className="grid gap-3" style={{ paddingTop: 8 }}>
               <h4 style={{ margin: 0, fontSize: '0.95rem' }}>Cover Time</h4>
               <p className="emp-stat-hint" style={{ margin: 0 }}>
-                Consumes surplus toward monthly shortfall first:{' '}
-                min(surplus, shortfall) = {formatHours(autoCoverHours)}. Leftover becomes Management OT.
+                Optional: use surplus toward monthly shortfall (
+                {formatHours(autoCoverHours)}). Submitting Cover reduces Management OT for this day.
               </p>
               <div className="grid gap-1.5">
                 <label className="label" htmlFor="cover-hours">
@@ -842,7 +833,7 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
                   aria-readonly="true"
                 />
                 <span className="emp-stat-hint">
-                  min {Math.round(coverMinHours * 60)}m · shortfall {formatHours(monthPending)} · server confirms on submit
+                  min {formatHours(coverMinHours)} · shortfall {formatHours(monthPending)} · server confirms on submit
                 </span>
               </div>
               <div className="grid gap-1.5">

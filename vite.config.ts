@@ -54,12 +54,26 @@ export default defineConfig({
   base: '/',
 
   server: {
-      port: 6004,
-      host: "127.0.0.1",
-    // Bind to 0.0.0.0 so the dev server is also reachable over the LAN.
+    port: 6004,
+    host: '127.0.0.1',
     // Fail fast with a clear error instead of silently moving to a random port
     // (a port drift is a common cause of "nothing works after refresh").
     strictPort: true,
+    // Frontend uses VITE_API_URL=/api — proxy those calls to the Express API.
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:5001',
+        changeOrigin: true,
+      },
+      '/uploads': {
+        target: 'http://127.0.0.1:5001',
+        changeOrigin: true,
+      },
+      '/health': {
+        target: 'http://127.0.0.1:5001',
+        changeOrigin: true,
+      },
+    },
   },
 
   preview: {
