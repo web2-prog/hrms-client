@@ -5,6 +5,7 @@ import { ListingPage, useListParams } from '../../components/ListingPage';
 import { StatusBadge, formatHours } from '../../components/StatusBadge';
 import { EmpCell } from '../../components/EmpCell';
 import { SurplusRequestModal } from '../../components/SurplusRequestModal';
+import { AppSelect } from '../../components/AppSelect';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '@/components/ui/button';
 
@@ -126,42 +127,52 @@ export function OvertimePage() {
         onRefresh={() => { load(); loadSummary(); }}
         filters={
           <>
-            <select className="select select-month" value={month} onChange={(e) => list.setFilter('month', e.target.value)}>
-              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                <option key={m} value={m}>
-                  {MONTH_NAMES[m - 1]}
-                </option>
-              ))}
-            </select>
-            <select className="select select-year" value={year} onChange={(e) => list.setFilter('year', e.target.value)}>
-              {[2026, 2027, 2028].map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
-              ))}
-            </select>
+            <AppSelect
+              className="select-month"
+              value={month}
+              onChange={(v) => list.setFilter('month', v)}
+              options={MONTH_NAMES.map((name, i) => ({ value: String(i + 1), label: name }))}
+            />
+            <AppSelect
+              className="select-year"
+              value={year}
+              onChange={(v) => list.setFilter('year', v)}
+              options={[2026, 2027, 2028].map((y) => ({ value: String(y), label: String(y) }))}
+            />
           </>
         }
         typeFilters={
           <>
-            <select className="select" value={source} onChange={(e) => list.setFilter('source', e.target.value === 'all' ? '' : e.target.value)}>
-              <option value="all">All OT</option>
-              <option value="attendance">General OT (auto)</option>
-              <option value="requests">Management requests</option>
-            </select>
-            <select className="select" value={list.get('status')} onChange={(e) => list.setFilter('status', e.target.value)}>
-              <option value="">Status</option>
-              <option value="Extra">Extra (auto General)</option>
-              <option value="Pending">Pending</option>
-              <option value="Approved">Approved</option>
-              <option value="Rejected">Rejected</option>
-            </select>
+            <AppSelect
+              value={source === 'all' || !source ? 'all' : source}
+              onChange={(v) => list.setFilter('source', v === 'all' ? '' : v)}
+              options={[
+                { value: 'all', label: 'All OT' },
+                { value: 'attendance', label: 'General OT (auto)' },
+                { value: 'requests', label: 'Management requests' },
+              ]}
+            />
+            <AppSelect
+              value={list.get('status')}
+              onChange={(v) => list.setFilter('status', v)}
+              options={[
+                { value: '', label: 'Status' },
+                { value: 'Extra', label: 'Extra (auto General)' },
+                { value: 'Pending', label: 'Pending' },
+                { value: 'Approved', label: 'Approved' },
+                { value: 'Rejected', label: 'Rejected' },
+              ]}
+            />
             {isManager && (
-              <select className="select" value={list.get('ot_type')} onChange={(e) => list.setFilter('ot_type', e.target.value)}>
-                <option value="">OT Type</option>
-                <option value="General">General OT</option>
-                <option value="Management">Management OT</option>
-              </select>
+              <AppSelect
+                value={list.get('ot_type')}
+                onChange={(v) => list.setFilter('ot_type', v)}
+                options={[
+                  { value: '', label: 'OT Type' },
+                  { value: 'General', label: 'General OT' },
+                  { value: 'Management', label: 'Management OT' },
+                ]}
+              />
             )}
           </>
         }

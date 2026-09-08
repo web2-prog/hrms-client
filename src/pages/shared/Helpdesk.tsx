@@ -4,6 +4,7 @@ import { api, buildQuery, type ListResult } from '../../services/api';
 import { ListingPage, useListParams } from '../../components/ListingPage';
 import { StatusBadge } from '../../components/StatusBadge';
 import { EmpCell } from '../../components/EmpCell';
+import { AppSelect } from '../../components/AppSelect';
 import { useAuth } from '../../context/AuthContext';
 import { displayDateTime } from '../../utils/timeFormat';
 import { Button } from '@/components/ui/button';
@@ -107,23 +108,33 @@ export function HelpdeskPage() {
         onRefresh={load}
         typeFilters={
           <>
-            <select className="select" value={list.get('type')} onChange={(e) => list.setFilter('type', e.target.value)}>
-              <option value="">All types</option>
-              <option value="Complaint">Complaint</option>
-              <option value="HR Request">HR Request</option>
-            </select>
-            <select className="select" value={list.get('status')} onChange={(e) => list.setFilter('status', e.target.value)}>
-              <option value="">All status</option>
-              {STATUSES.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-            <select className="select" value={list.get('priority')} onChange={(e) => list.setFilter('priority', e.target.value)}>
-              <option value="">All priority</option>
-              <option value="Low">Low</option>
-              <option value="Medium">Medium</option>
-              <option value="High">High</option>
-            </select>
+            <AppSelect
+              value={list.get('type')}
+              onChange={(v) => list.setFilter('type', v)}
+              options={[
+                { value: '', label: 'All types' },
+                { value: 'Complaint', label: 'Complaint' },
+                { value: 'HR Request', label: 'HR Request' },
+              ]}
+            />
+            <AppSelect
+              value={list.get('status')}
+              onChange={(v) => list.setFilter('status', v)}
+              options={[
+                { value: '', label: 'All status' },
+                ...STATUSES.map((s) => ({ value: s, label: s })),
+              ]}
+            />
+            <AppSelect
+              value={list.get('priority')}
+              onChange={(v) => list.setFilter('priority', v)}
+              options={[
+                { value: '', label: 'All priority' },
+                { value: 'Low', label: 'Low' },
+                { value: 'Medium', label: 'Medium' },
+                { value: 'High', label: 'High' },
+              ]}
+            />
           </>
         }
         actions={<Button onClick={() => setShowCreate(true)}><Plus size={16} /> New Ticket</Button>}
@@ -264,18 +275,28 @@ function CreateTicketModal({ onClose, onSaved }: { onClose: () => void; onSaved:
         <div className="form-grid">
           <div>
             <label className="label">Type</label>
-            <select className="select" value={type} onChange={(e) => setType(e.target.value as 'Complaint' | 'HR Request')}>
-              <option value="Complaint">Complaint</option>
-              <option value="HR Request">HR Request</option>
-            </select>
+            <AppSelect
+              fullWidth
+              value={type}
+              onChange={(v) => setType(v as 'Complaint' | 'HR Request')}
+              options={[
+                { value: 'Complaint', label: 'Complaint' },
+                { value: 'HR Request', label: 'HR Request' },
+              ]}
+            />
           </div>
           <div>
             <label className="label">Priority</label>
-            <select className="select" value={priority} onChange={(e) => setPriority(e.target.value)}>
-              <option value="Low">Low</option>
-              <option value="Medium">Medium</option>
-              <option value="High">High</option>
-            </select>
+            <AppSelect
+              fullWidth
+              value={priority}
+              onChange={(v) => setPriority(v)}
+              options={[
+                { value: 'Low', label: 'Low' },
+                { value: 'Medium', label: 'Medium' },
+                { value: 'High', label: 'High' },
+              ]}
+            />
           </div>
           <div style={{ gridColumn: '1 / -1' }}>
             <label className="label">Subject</label>
@@ -371,11 +392,12 @@ function TicketDetailModal({
           <div className="form-grid" style={{ marginTop: 16, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
             <div>
               <label className="label">Update status</label>
-              <select className="select" value={status} onChange={(e) => setStatus(e.target.value)}>
-                {STATUSES.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
+              <AppSelect
+                fullWidth
+                value={status}
+                onChange={(v) => setStatus(v)}
+                options={STATUSES.map((s) => ({ value: s, label: s }))}
+              />
             </div>
             <div style={{ gridColumn: '1 / -1' }}>
               <label className="label">Response to employee</label>

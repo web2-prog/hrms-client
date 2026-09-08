@@ -17,6 +17,7 @@ import { formatHours, hoursBadge, StatusBadge } from '../../components/StatusBad
 import { SurplusRequestModal } from '../../components/SurplusRequestModal';
 import { ListingPage, useListParams } from '../../components/ListingPage';
 import { useAuth } from '../../context/AuthContext';
+import { AppSelect } from '../../components/AppSelect';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -871,16 +872,13 @@ export function AdminDashboard() {
                 </p>
               </div>
             </div>
-            <select
-              className="select select-year"
-              value={year}
-              onChange={(e) => setYear(Number(e.target.value))}
-              aria-label="Year"
-            >
-              {[2026, 2027, 2028].map((y) => (
-                <option key={y} value={y}>{y}</option>
-              ))}
-            </select>
+            <AppSelect
+              className="select-year"
+              value={String(year)}
+              onChange={(v) => setYear(Number(v))}
+              title="Year"
+              options={[2026, 2027, 2028].map((y) => ({ value: String(y), label: String(y) }))}
+            />
           </div>
 
           <p className="dash-hero-value">{wd?.working_days ?? '…'}</p>
@@ -1314,22 +1312,36 @@ export function GlobalDataPage() {
         <div className="form-grid">
           <div>
             <label className="label">Department (optional)</label>
-            <select className="select" value={form.department_id} onChange={(e) => setForm({ ...form, department_id: e.target.value })}>
-              <option value="">All</option>
-              {depts.map((d) => <option key={d._id} value={d._id}>{d.name}</option>)}
-            </select>
+            <AppSelect
+              fullWidth
+              value={form.department_id}
+              onChange={(v) => setForm({ ...form, department_id: v })}
+              options={[
+                { value: '', label: 'All' },
+                ...depts.map((d) => ({ value: d._id, label: d.name })),
+              ]}
+            />
           </div>
           <div>
             <label className="label">Month</label>
-            <select className="select" value={form.month} onChange={(e) => setForm({ ...form, month: e.target.value })}>
-              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => <option key={m} value={m}>{m}</option>)}
-            </select>
+            <AppSelect
+              fullWidth
+              value={form.month}
+              onChange={(v) => setForm({ ...form, month: v })}
+              options={Array.from({ length: 12 }, (_, i) => i + 1).map((m) => ({
+                value: String(m),
+                label: String(m),
+              }))}
+            />
           </div>
           <div>
             <label className="label">Year</label>
-            <select className="select" value={form.year} onChange={(e) => setForm({ ...form, year: e.target.value })}>
-              {[2026, 2027, 2028].map((y) => <option key={y} value={y}>{y}</option>)}
-            </select>
+            <AppSelect
+              fullWidth
+              value={form.year}
+              onChange={(v) => setForm({ ...form, year: v })}
+              options={[2026, 2027, 2028].map((y) => ({ value: String(y), label: String(y) }))}
+            />
           </div>
         </div>
         <Button

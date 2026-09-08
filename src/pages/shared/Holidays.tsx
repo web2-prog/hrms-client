@@ -449,19 +449,20 @@ function AddHolidayDialog({ onClose, onSaved }: { onClose: () => void; onSaved: 
         <div className="form-grid">
           <div>
             <label className="label">Type</label>
-            <select
-              className="select"
+            <AppSelect
+              fullWidth
               value={type}
-              onChange={(e) => {
-                setType(e.target.value as HolidayType);
+              onChange={(v) => {
+                setType(v as HolidayType);
                 setForm({ name: '', date: '', start_date: '', end_date: '' });
               }}
-            >
-              <option value="Festival">Festival</option>
-              <option value="Saturday">Saturday</option>
-              <option value="Vacation">Vacation</option>
-              <option value="Manual">Manual</option>
-            </select>
+              options={[
+                { value: 'Festival', label: 'Festival' },
+                { value: 'Saturday', label: 'Saturday' },
+                { value: 'Vacation', label: 'Vacation' },
+                { value: 'Manual', label: 'Manual' },
+              ]}
+            />
           </div>
           {needsName && (
             <div>

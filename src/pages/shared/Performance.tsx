@@ -3,6 +3,7 @@ import { api, buildQuery, type ListResult } from '../../services/api';
 import { ListingPage, useListParams } from '../../components/ListingPage';
 import { StatusBadge, formatHours } from '../../components/StatusBadge';
 import type { SalaryCompanyKey } from '../../services/salarySlipDefaults';
+import { AppSelect } from '../../components/AppSelect';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -136,39 +137,32 @@ export function PerformancePage() {
         }
         filters={
           <>
-            <select
-              className="select select-month"
-              value={month}
-              onChange={(e) => list.setFilter('month', e.target.value)}
-            >
-              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                <option key={m} value={m}>
-                  {MONTH_NAMES[m - 1]}
-                </option>
-              ))}
-            </select>
-            <select className="select select-year" value={year} onChange={(e) => list.setFilter('year', e.target.value)}>
-              {[2026, 2027, 2028].map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
-              ))}
-            </select>
+            <AppSelect
+              className="select-month"
+              value={String(month)}
+              onChange={(v) => list.setFilter('month', v)}
+              options={Array.from({ length: 12 }, (_, i) => i + 1).map((m) => ({
+                value: String(m),
+                label: MONTH_NAMES[m - 1],
+              }))}
+            />
+            <AppSelect
+              className="select-year"
+              value={String(year)}
+              onChange={(v) => list.setFilter('year', v)}
+              options={[2026, 2027, 2028].map((y) => ({ value: String(y), label: String(y) }))}
+            />
           </>
         }
         typeFilters={
-          <select
-            className="select"
+          <AppSelect
             value={list.get('department_id')}
-            onChange={(e) => list.setFilter('department_id', e.target.value)}
-          >
-            <option value="">Department</option>
-            {depts.map((d) => (
-              <option key={d._id} value={d._id}>
-                {d.name}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => list.setFilter('department_id', v)}
+            options={[
+              { value: '', label: 'Department' },
+              ...depts.map((d) => ({ value: d._id, label: d.name })),
+            ]}
+          />
         }
       >
         <div className="table-wrap">
@@ -317,16 +311,15 @@ function ShortfallModal({
 
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, fontSize: '0.9rem' }}>
           Salary format company
-          <select
-            className="select"
-            style={{ width: 140 }}
+          <AppSelect
             value={companyKey}
             disabled={busy}
-            onChange={(e) => setCompanyKey(e.target.value as SalaryCompanyKey)}
-          >
-            <option value="kriraai">KriraAI</option>
-            <option value="ondial">Ondial</option>
-          </select>
+            onChange={(v) => setCompanyKey(v as SalaryCompanyKey)}
+            options={[
+              { value: 'kriraai', label: 'KriraAI' },
+              { value: 'ondial', label: 'Ondial' },
+            ]}
+          />
         </label>
 
         <div style={{ display: 'grid', gap: 12, marginBottom: 16 }}>

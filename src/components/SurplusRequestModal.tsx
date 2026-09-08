@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../services/api';
 import { formatHours } from './StatusBadge';
+import { AppSelect } from './AppSelect';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -242,26 +243,33 @@ export function SurplusRequestModal(props: SurplusRequestModalProps) {
             <label className="label" htmlFor="surplus-kind">
               Request type
             </label>
-            <select
+            <AppSelect
               id="surplus-kind"
-              className="select"
+              fullWidth
               value={kind}
-              onChange={(e) => {
-                setKind(e.target.value as SurplusRequestKind);
+              onChange={(v) => {
+                setKind(v as SurplusRequestKind);
                 setErr('');
               }}
-            >
-              <option value="management_ot" disabled={!canOt}>
-                Management OT
-                {otHours > 0 ? ` · ${formatHours(otHours)}` : ''}
-                {!canOt ? ' — unavailable' : ''}
-              </option>
-              <option value="cover_time" disabled={!canCover}>
-                Cover Time
-                {coverHours > 0 ? ` · ${formatHours(coverHours)}` : ''}
-                {!canCover ? ' — unavailable' : ''}
-              </option>
-            </select>
+              options={[
+                {
+                  value: 'management_ot',
+                  label:
+                    `Management OT` +
+                    (otHours > 0 ? ` · ${formatHours(otHours)}` : '') +
+                    (!canOt ? ' — unavailable' : ''),
+                  disabled: !canOt,
+                },
+                {
+                  value: 'cover_time',
+                  label:
+                    `Cover Time` +
+                    (coverHours > 0 ? ` · ${formatHours(coverHours)}` : '') +
+                    (!canCover ? ' — unavailable' : ''),
+                  disabled: !canCover,
+                },
+              ]}
+            />
           </div>
 
           {mode === 'dated' && kind === 'management_ot' && (

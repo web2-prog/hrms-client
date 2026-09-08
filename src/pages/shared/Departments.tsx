@@ -4,6 +4,7 @@ import { ArrowUpRight, Building2, Clock3, Pencil, Plus, Timer, Trash2, Users } f
 import { api, buildQuery, type ListResult } from '../../services/api';
 import { ListingPage, useListParams } from '../../components/ListingPage';
 import { StatusBadge, RequireRole } from '../../components/StatusBadge';
+import { AppSelect } from '../../components/AppSelect';
 import {
   displayClock,
   formatClockInput,
@@ -311,11 +312,15 @@ function DepartmentsInner() {
           )
         }
         typeFilters={
-          <select className="select" value={list.get('status')} onChange={(e) => list.setFilter('status', e.target.value)}>
-            <option value="">All status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
+          <AppSelect
+            value={list.get('status')}
+            onChange={(v) => list.setFilter('status', v)}
+            options={[
+              { value: '', label: 'All status' },
+              { value: 'active', label: 'Active' },
+              { value: 'inactive', label: 'Inactive' },
+            ]}
+          />
         }
         actions={
           <Button onClick={() => openEditor({
@@ -503,14 +508,16 @@ function DepartmentsInner() {
                 </div>
                 <div className="grid gap-1.5">
                   <Label htmlFor="dept-status">Status</Label>
-                  <select
-                    className="select"
+                  <AppSelect
+                    id="dept-status"
+                    fullWidth
                     value={editing.status || 'active'}
-                    onChange={(e) => setEditing({ ...editing, status: e.target.value })}
-                  >
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                  </select>
+                    onChange={(v) => setEditing({ ...editing, status: v })}
+                    options={[
+                      { value: 'active', label: 'Active' },
+                      { value: 'inactive', label: 'Inactive' },
+                    ]}
+                  />
                 </div>
                 <div className="grid gap-1.5">
                   <Label htmlFor="dept-start">Shift start</Label>

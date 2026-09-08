@@ -4,6 +4,7 @@ import { ListingPage, useListParams } from '../../components/ListingPage';
 import { StatusBadge, formatHours } from '../../components/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
 import { SalarySlipPreview } from '../../components/SalarySlipPreview';
+import { AppSelect } from '../../components/AppSelect';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -403,44 +404,37 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
         onRefresh={load}
         filters={
           <>
-            <select
-              className="select select-month"
+            <AppSelect
+              className="select-month"
               value={list.get('month')}
-              onChange={(e) => list.setFilter('month', e.target.value)}
-            >
-              <option value="">Month</option>
-              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-            <select
-              className="select select-year"
+              onChange={(v) => list.setFilter('month', v)}
+              options={[
+                { value: '', label: 'Month' },
+                ...Array.from({ length: 12 }, (_, i) => i + 1).map((m) => ({
+                  value: String(m),
+                  label: String(m),
+                })),
+              ]}
+            />
+            <AppSelect
+              className="select-year"
               value={list.get('year')}
-              onChange={(e) => list.setFilter('year', e.target.value)}
-            >
-              <option value="">Year</option>
-              {[2026, 2027, 2028].map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => list.setFilter('year', v)}
+              options={[
+                { value: '', label: 'Year' },
+                ...[2026, 2027, 2028].map((y) => ({ value: String(y), label: String(y) })),
+              ]}
+            />
             {user?.role !== 'employee' && (
               <>
-                <select
-                  className="select"
+                <AppSelect
                   value={list.get('employee_id')}
-                  onChange={(e) => list.setFilter('employee_id', e.target.value)}
-                >
-                  <option value="">All employees</option>
-                  {emps.map((e) => (
-                    <option key={e._id} value={e._id}>
-                      {e.name}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(v) => list.setFilter('employee_id', v)}
+                  options={[
+                    { value: '', label: 'All employees' },
+                    ...emps.map((e) => ({ value: e._id, label: e.name })),
+                  ]}
+                />
                 {user?._id && (
                   <Button
                     type="button"
@@ -455,69 +449,55 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
           </>
         }
         typeFilters={
-          <select
-            className="select"
+          <AppSelect
             value={list.get('company_key')}
-            onChange={(e) => list.setFilter('company_key', e.target.value)}
-          >
-            <option value="">Company</option>
-            <option value="kriraai">KriraAI</option>
-            <option value="ondial">Ondial</option>
-          </select>
+            onChange={(v) => list.setFilter('company_key', v)}
+            options={[
+              { value: '', label: 'Company' },
+              { value: 'kriraai', label: 'KriraAI' },
+              { value: 'ondial', label: 'Ondial' },
+            ]}
+          />
         }
         actions={
           user?.role !== 'employee' ? (
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <select
-                className="select"
+              <AppSelect
                 title="Salary format company"
                 value={gen.company_key}
-                onChange={(e) => setGen({ ...gen, company_key: e.target.value as SalaryCompanyKey })}
-              >
-                <option value="kriraai">KriraAI</option>
-                <option value="ondial">Ondial</option>
-              </select>
-              <select
-                className="select"
+                onChange={(v) => setGen({ ...gen, company_key: v as SalaryCompanyKey })}
+                options={[
+                  { value: 'kriraai', label: 'KriraAI' },
+                  { value: 'ondial', label: 'Ondial' },
+                ]}
+              />
+              <AppSelect
                 value={gen.employee_id}
-                onChange={(e) => setGen({ ...gen, employee_id: e.target.value })}
-              >
-                <option value="">Employee</option>
-                {emps.map((e) => (
-                  <option key={e._id} value={e._id}>
-                    {e.name}
-                  </option>
-                ))}
-              </select>
-              <select
-                className="select select-month"
+                onChange={(v) => setGen({ ...gen, employee_id: v })}
+                options={[
+                  { value: '', label: 'Employee' },
+                  ...emps.map((e) => ({ value: e._id, label: e.name })),
+                ]}
+              />
+              <AppSelect
+                className="select-month"
                 value={gen.month}
-                onChange={(e) => setGen({ ...gen, month: e.target.value })}
-              >
-                {genMonths.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
-              <select
-                className="select select-year"
+                onChange={(v) => setGen({ ...gen, month: v })}
+                options={genMonths.map((m) => ({ value: String(m), label: String(m) }))}
+              />
+              <AppSelect
+                className="select-year"
                 value={gen.year}
-                onChange={(e) => {
-                  const year = e.target.value;
+                onChange={(v) => {
+                  const year = v;
                   const months = genMonthOptions(Number(year));
                   const month = months.includes(Number(gen.month))
                     ? gen.month
                     : String(months[months.length - 1] || '');
                   setGen({ ...gen, year, month });
                 }}
-              >
-                {genYears.map((y) => (
-                  <option key={y} value={y}>
-                    {y}
-                  </option>
-                ))}
-              </select>
+                options={genYears.map((y) => ({ value: String(y), label: String(y) }))}
+              />
               <Button disabled={genBusy || !genMonths.length} onClick={handleGenerate}>
                 {genBusy ? 'Generating…' : 'Generate'}
               </Button>
@@ -666,16 +646,15 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
                 {canAdjust && showAdjust && (
                   <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.9rem' }}>
                     Company
-                    <select
-                      className="select"
-                      style={{ width: 120 }}
-                      disabled={companySaving}
+                    <AppSelect
                       value={resolveCompanyKeyFromForm(previewForm)}
-                      onChange={(e) => changePreviewCompany(e.target.value as SalaryCompanyKey)}
-                    >
-                      <option value="kriraai">KriraAI</option>
-                      <option value="ondial">Ondial</option>
-                    </select>
+                      onChange={(v) => changePreviewCompany(v as SalaryCompanyKey)}
+                      disabled={companySaving}
+                      options={[
+                        { value: 'kriraai', label: 'KriraAI' },
+                        { value: 'ondial', label: 'Ondial' },
+                      ]}
+                    />
                   </label>
                 )}
               </div>

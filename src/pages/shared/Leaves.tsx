@@ -485,35 +485,35 @@ function ApplyLeaveModal({
           {isStaff && (
             <div style={{ gridColumn: '1 / -1' }}>
               <label className="label">Employee</label>
-              <select
-                className="select"
+              <AppSelect
+                fullWidth
                 value={employee_id}
-                onChange={(e) => setEmployeeId(e.target.value)}
-              >
-                <option value="">Select employee…</option>
-                {employees.map((e) => (
-                  <option key={e._id} value={e._id}>
-                    {e.name}
-                    {e.department_id?.name ? ` · ${e.department_id.name}` : ''}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => setEmployeeId(v)}
+                options={[
+                  { value: '', label: 'Select employee…' },
+                  ...employees.map((e) => ({
+                    value: e._id,
+                    label: `${e.name}${e.department_id?.name ? ` · ${e.department_id.name}` : ''}`,
+                  })),
+                ]}
+              />
             </div>
           )}
           <div style={{ gridColumn: '1 / -1' }}>
             <label className="label">Day Type</label>
-            <select
-              className="select"
+            <AppSelect
+              fullWidth
               value={day_type}
-              onChange={(e) => {
-                const next = e.target.value as 'Full Day' | 'Half Day';
+              onChange={(v) => {
+                const next = v as 'Full Day' | 'Half Day';
                 setDayType(next);
                 if (next === 'Half Day' && from_date) setTo(from_date);
               }}
-            >
-              <option value="Full Day">Full Day</option>
-              <option value="Half Day">Half Day</option>
-            </select>
+              options={[
+                { value: 'Full Day', label: 'Full Day' },
+                { value: 'Half Day', label: 'Half Day' },
+              ]}
+            />
           </div>
           <div>
             <label className="label">From</label>

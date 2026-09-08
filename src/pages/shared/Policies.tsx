@@ -4,6 +4,7 @@ import { api, buildQuery, type ListResult } from '../../services/api';
 import { ListingPage, useListParams } from '../../components/ListingPage';
 import { StatusBadge } from '../../components/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
+import { AppSelect } from '../../components/AppSelect';
 import { displayDateTime } from '../../utils/timeFormat';
 import { Button } from '@/components/ui/button';
 import {
@@ -187,28 +188,24 @@ export function PoliciesPage({ canManage = true }: { canManage?: boolean }) {
         typeFilters={
           <>
             {manage && (
-              <select
-                className="select"
+              <AppSelect
                 value={list.get('status')}
-                onChange={(e) => list.setFilter('status', e.target.value)}
-              >
-                <option value="">All status</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
+                onChange={(v) => list.setFilter('status', v)}
+                options={[
+                  { value: '', label: 'All status' },
+                  { value: 'active', label: 'Active' },
+                  { value: 'inactive', label: 'Inactive' },
+                ]}
+              />
             )}
-            <select
-              className="select"
+            <AppSelect
               value={list.get('category')}
-              onChange={(e) => list.setFilter('category', e.target.value)}
-            >
-              <option value="">All categories</option>
-              {CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => list.setFilter('category', v)}
+              options={[
+                { value: '', label: 'All categories' },
+                ...CATEGORIES.map((c) => ({ value: c, label: c })),
+              ]}
+            />
           </>
         }
         actions={manage ? <Button onClick={() => openEdit()}>Add Policy</Button> : undefined}
@@ -336,26 +333,24 @@ export function PoliciesPage({ canManage = true }: { canManage?: boolean }) {
                 </div>
                 <div>
                   <label className="label">Category</label>
-                  <select
-                    className="select"
+                  <AppSelect
+                    fullWidth
                     value={editing.category}
-                    onChange={(e) => setEditing({ ...editing, category: e.target.value })}
-                  >
-                    {CATEGORIES.map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
+                    onChange={(v) => setEditing({ ...editing, category: v })}
+                    options={CATEGORIES.map((c) => ({ value: c, label: c }))}
+                  />
                 </div>
                 <div>
                   <label className="label">Status</label>
-                  <select
-                    className="select"
+                  <AppSelect
+                    fullWidth
                     value={editing.status}
-                    onChange={(e) => setEditing({ ...editing, status: e.target.value })}
-                  >
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                  </select>
+                    onChange={(v) => setEditing({ ...editing, status: v })}
+                    options={[
+                      { value: 'active', label: 'Active' },
+                      { value: 'inactive', label: 'Inactive' },
+                    ]}
+                  />
                 </div>
                 <div>
                   <label className="label">Effective date</label>

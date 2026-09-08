@@ -4,6 +4,7 @@ import { api, buildQuery, type ListResult } from '../../services/api';
 import { ListingPage, ListPagination, PAGE_SIZE, useListParams } from '../../components/ListingPage';
 import { StatusBadge, hoursBadge, formatHours } from '../../components/StatusBadge';
 import { EmpCell } from '../../components/EmpCell';
+import { AppSelect } from '../../components/AppSelect';
 import { useAuth } from '../../context/AuthContext';
 import { canManageAttendanceTime } from '../../lib/staffPermissions';
 import { displayClock, formatBreakMinutes, formatClockInput, parseBreakMinutes, to24HourClock, todayISO } from '../../utils/timeFormat';
@@ -214,43 +215,57 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
                 Whole month
               </Button>
             )}
-            <select
-              className="select select-month"
-              value={month}
-              onChange={(e) => setMonthYear(e.target.value, year)}
+            <AppSelect
+              className="select-month"
+              value={String(month)}
+              onChange={(v) => setMonthYear(v, year)}
               title={hasDateFilter ? 'Changing month clears the date filter' : 'Month'}
-            >
-              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                <option key={m} value={m}>{MONTH_NAMES[m - 1]}</option>
-              ))}
-            </select>
-            <select
-              className="select select-year"
-              value={year}
-              onChange={(e) => setMonthYear(month, e.target.value)}
+              options={Array.from({ length: 12 }, (_, i) => i + 1).map((m) => ({
+                value: String(m),
+                label: MONTH_NAMES[m - 1],
+              }))}
+            />
+            <AppSelect
+              className="select-year"
+              value={String(year)}
+              onChange={(v) => setMonthYear(month, v)}
               title={hasDateFilter ? 'Changing year clears the date filter' : 'Year'}
-            >
-              {[2026, 2027, 2028].map((y) => <option key={y} value={y}>{y}</option>)}
-            </select>
+              options={[2026, 2027, 2028].map((y) => ({ value: String(y), label: String(y) }))}
+            />
             {isStaff && (
               <>
-                <select className="select" value={list.get('department_id')} onChange={(e) => list.setFilter('department_id', e.target.value)}>
-                  <option value="">Department</option>
-                  {depts.map((d) => <option key={d._id} value={d._id}>{d.name}</option>)}
-                </select>
-                <select className="select" value={list.get('employee_id')} onChange={(e) => list.setFilter('employee_id', e.target.value)}>
-                  <option value="">Employee</option>
-                  {emps.map((e) => <option key={e._id} value={e._id}>{e.name}</option>)}
-                </select>
+                <AppSelect
+                  value={list.get('department_id')}
+                  onChange={(v) => list.setFilter('department_id', v)}
+                  options={[
+                    { value: '', label: 'Department' },
+                    ...depts.map((d) => ({ value: d._id, label: d.name })),
+                  ]}
+                />
+                <AppSelect
+                  value={list.get('employee_id')}
+                  onChange={(v) => list.setFilter('employee_id', v)}
+                  options={[
+                    { value: '', label: 'Employee' },
+                    ...emps.map((e) => ({ value: e._id, label: e.name })),
+                  ]}
+                />
               </>
             )}
           </>
         }
         typeFilters={
-          <select className="select" value={list.get('status')} onChange={(e) => list.setFilter('status', e.target.value)}>
-            <option value="">Status</option>
-            {['Extra', 'Low', 'OnTime', 'Working', 'OnBreak', 'Absent'].map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
+          <AppSelect
+            value={list.get('status')}
+            onChange={(v) => list.setFilter('status', v)}
+            options={[
+              { value: '', label: 'Status' },
+              ...['Extra', 'Low', 'OnTime', 'Working', 'OnBreak', 'Absent'].map((s) => ({
+                value: s,
+                label: s,
+              })),
+            ]}
+          />
         }
         prepend={
           summary && (

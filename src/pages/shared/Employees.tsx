@@ -6,6 +6,7 @@ import { StatusBadge } from '../../components/StatusBadge';
 import { ConfirmClearData } from '../../components/ConfirmClearData';
 import { BondSalaryManager } from '../../components/BondSalaryManager';
 import { NumberInput } from '../../components/NumberInput';
+import { AppSelect } from '../../components/AppSelect';
 import { useAuth } from '../../context/AuthContext';
 import { formatClockInput, to24HourClock, formatDailyHours, parseDailyHours } from '../../utils/timeFormat';
 import { Button } from '@/components/ui/button';
@@ -83,26 +84,36 @@ export function EmployeesPage({ basePath }: { basePath: string }) {
         total={total}
         onRefresh={load}
         filters={
-          <select className="select" value={list.get('department_id')} onChange={(e) => list.setFilter('department_id', e.target.value)}>
-            <option value="">All depts</option>
-            {depts.map((d) => (
-              <option key={d._id} value={d._id}>{d.name}</option>
-            ))}
-          </select>
+          <AppSelect
+            value={list.get('department_id')}
+            onChange={(v) => list.setFilter('department_id', v)}
+            options={[
+              { value: '', label: 'All depts' },
+              ...depts.map((d) => ({ value: d._id, label: d.name })),
+            ]}
+          />
         }
         typeFilters={
           <>
-            <select className="select" value={list.get('role')} onChange={(e) => list.setFilter('role', e.target.value)}>
-              <option value="">All roles</option>
-              <option value="admin">Admin</option>
-              <option value="hr">HR</option>
-              <option value="employee">Employee</option>
-            </select>
-            <select className="select" value={list.get('status')} onChange={(e) => list.setFilter('status', e.target.value)}>
-              <option value="">All status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
+            <AppSelect
+              value={list.get('role')}
+              onChange={(v) => list.setFilter('role', v)}
+              options={[
+                { value: '', label: 'All roles' },
+                { value: 'admin', label: 'Admin' },
+                { value: 'hr', label: 'HR' },
+                { value: 'employee', label: 'Employee' },
+              ]}
+            />
+            <AppSelect
+              value={list.get('status')}
+              onChange={(v) => list.setFilter('status', v)}
+              options={[
+                { value: '', label: 'All status' },
+                { value: 'active', label: 'Active' },
+                { value: 'inactive', label: 'Inactive' },
+              ]}
+            />
           </>
         }
         actions={
@@ -170,19 +181,29 @@ function AddEmployeeModal({ depts, canSetRole, onClose, onSaved }: { depts: Dept
           ))}
           <div>
             <label className="label">Department</label>
-            <select className="select" value={form.department_id} onChange={(e) => setForm({ ...form, department_id: e.target.value })}>
-              <option value="">Select</option>
-              {depts.map((d) => <option key={d._id} value={d._id}>{d.name}</option>)}
-            </select>
+            <AppSelect
+              fullWidth
+              value={form.department_id}
+              onChange={(v) => setForm({ ...form, department_id: v })}
+              options={[
+                { value: '', label: 'Select' },
+                ...depts.map((d) => ({ value: d._id, label: d.name })),
+              ]}
+            />
           </div>
           {canSetRole && (
             <div>
               <label className="label">Role</label>
-              <select className="select" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
-                <option value="employee">Employee</option>
-                <option value="hr">HR</option>
-                <option value="admin">Admin</option>
-              </select>
+              <AppSelect
+                fullWidth
+                value={form.role}
+                onChange={(v) => setForm({ ...form, role: v })}
+                options={[
+                  { value: 'employee', label: 'Employee' },
+                  { value: 'hr', label: 'HR' },
+                  { value: 'admin', label: 'Admin' },
+                ]}
+              />
             </div>
           )}
           <div>
@@ -416,22 +437,30 @@ export function EmployeeManagePage({ basePath }: { basePath: string }) {
           <div><label className="label">Phone</label><input className="input" value={emp.phone || ''} onChange={(e) => set('phone', e.target.value)} /></div>
           <div>
             <label className="label">Department</label>
-            <select className="select" value={emp.department_id?._id || emp.department_id || ''} onChange={(e) => set('department_id', e.target.value)}>
-              <option value="">Select</option>
-              {depts.map((d) => (
-                <option key={d._id} value={d._id}>{d.name}</option>
-              ))}
-            </select>
+            <AppSelect
+              fullWidth
+              value={emp.department_id?._id || emp.department_id || ''}
+              onChange={(v) => set('department_id', v)}
+              options={[
+                { value: '', label: 'Select' },
+                ...depts.map((d) => ({ value: d._id, label: d.name })),
+              ]}
+            />
           </div>
           <div>
             <label className="label">Joining date</label>
             <input className="input" type="date" value={(emp.joining_date || '').toString().slice(0, 10)} onChange={(e) => set('joining_date', e.target.value || null)} />
           </div>
           <div><label className="label">Status</label>
-            <select className="select" value={emp.status} onChange={(e) => set('status', e.target.value)}>
-              <option value="active">active</option>
-              <option value="inactive">inactive</option>
-            </select>
+            <AppSelect
+              fullWidth
+              value={emp.status}
+              onChange={(v) => set('status', v)}
+              options={[
+                { value: 'active', label: 'active' },
+                { value: 'inactive', label: 'inactive' },
+              ]}
+            />
           </div>
           <div>
             <label className="label">Base salary (current)</label>
@@ -489,12 +518,17 @@ export function EmployeeManagePage({ basePath }: { basePath: string }) {
           </div>
           <div>
             <label className="label">Gender</label>
-            <select className="select" value={emp.profile_details?.gender || ''} onChange={(e) => set('profile_details.gender', e.target.value)}>
-              <option value="">Select</option>
-              <option value="Male">Male</option>
-              <option value="Female">Female</option>
-              <option value="Other">Other</option>
-            </select>
+            <AppSelect
+              fullWidth
+              value={emp.profile_details?.gender || ''}
+              onChange={(v) => set('profile_details.gender', v)}
+              options={[
+                { value: '', label: 'Select' },
+                { value: 'Male', label: 'Male' },
+                { value: 'Female', label: 'Female' },
+                { value: 'Other', label: 'Other' },
+              ]}
+            />
           </div>
           <div>
             <label className="label">Personal email</label>

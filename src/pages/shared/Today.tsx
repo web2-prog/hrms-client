@@ -13,6 +13,7 @@ import {
   LATE_CHECKIN_PENALTY_MINUTES,
 } from '../../utils/timeFormat';
 import { liveAttendanceClock, startClockBeat } from '../../utils/attendanceLive';
+import { AppSelect } from '../../components/AppSelect';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -304,31 +305,21 @@ export function TodayAttendancePage() {
         total={total}
         onRefresh={load}
         filters={
-          <select
-            className="select"
+          <AppSelect
             value={list.get('department_id')}
-            onChange={(e) => list.setFilter('department_id', e.target.value)}
-          >
-            <option value="">Department</option>
-            {depts.map((d) => (
-              <option key={d._id} value={d._id}>
-                {d.name}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => list.setFilter('department_id', v)}
+            options={[
+              { value: '', label: 'Department' },
+              ...depts.map((d) => ({ value: d._id, label: d.name })),
+            ]}
+          />
         }
         typeFilters={
-          <select
-            className="select"
+          <AppSelect
             value={list.get('live_status')}
-            onChange={(e) => list.setFilter('live_status', e.target.value)}
-          >
-            {LIVE_STATUSES.map((s) => (
-              <option key={s.value || 'all'} value={s.value}>
-                {s.label}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => list.setFilter('live_status', v)}
+            options={LIVE_STATUSES.map((s) => ({ value: s.value, label: s.label }))}
+          />
         }
       >
         <div className="table-wrap">

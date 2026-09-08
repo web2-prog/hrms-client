@@ -11,6 +11,7 @@ import { api, buildQuery, type ListResult } from '../../services/api';
 import { ListPagination, PAGE_SIZE } from '../../components/ListingPage';
 import { formatHours } from '../../components/StatusBadge';
 import { RequireRole } from '../../components/StatusBadge';
+import { AppSelect } from '../../components/AppSelect';
 import { Button } from '@/components/ui/button';
 
 type AnalyticType =
@@ -552,44 +553,35 @@ function AnalyticsInner() {
           </div>
         </div>
         <div className="an-toolbar-filters">
-          <select
-            className="select select-month"
+          <AppSelect
+            className="select-month"
             value={month}
-            onChange={(e) => setMonth(e.target.value)}
-            aria-label="Month"
-          >
-            <option value="">All months</option>
-            {MONTH_OPTIONS.map((m) => (
-              <option key={m.value} value={m.value}>
-                {m.label}
-              </option>
-            ))}
-          </select>
-          <select
-            className="select select-year"
-            value={year}
-            onChange={(e) => setYear(Number(e.target.value))}
-            aria-label="Year"
-          >
-            {[2026, 2027, 2028, 2029].map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
-          <select
-            className="select"
+            onChange={(v) => setMonth(v)}
+            title="Month"
+            options={[
+              { value: '', label: 'All months' },
+              ...MONTH_OPTIONS.map((m) => ({ value: String(m.value), label: m.label })),
+            ]}
+          />
+          <AppSelect
+            className="select-year"
+            value={String(year)}
+            onChange={(v) => setYear(Number(v))}
+            title="Year"
+            options={[2026, 2027, 2028, 2029].map((y) => ({
+              value: String(y),
+              label: String(y),
+            }))}
+          />
+          <AppSelect
             value={departmentId}
-            onChange={(e) => setDepartmentId(e.target.value)}
-            aria-label="Department"
-          >
-            <option value="">All departments</option>
-            {depts.map((d) => (
-              <option key={d._id} value={d._id}>
-                {d.name}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => setDepartmentId(v)}
+            title="Department"
+            options={[
+              { value: '', label: 'All departments' },
+              ...depts.map((d) => ({ value: d._id, label: d.name })),
+            ]}
+          />
         </div>
       </div>
 

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ListPagination, PAGE_SIZE } from './ListingPage';
 import { NumberInput } from './NumberInput';
+import { AppSelect } from './AppSelect';
 
 export type Bond = {
   _id?: string;
@@ -217,10 +218,15 @@ export function BondSalaryManager({ bonds, salarySchedule, baseSalary, onChange 
             <div className="form-grid">
               <div>
                 <label className="label">Bond type</label>
-                <select className="select" value={bondForm.type} onChange={(e) => setBondForm({ ...bondForm, type: e.target.value })}>
-                  <option value="Job">Job</option>
-                  <option value="Internship">Internship</option>
-                </select>
+                <AppSelect
+                  fullWidth
+                  value={bondForm.type}
+                  onChange={(v) => setBondForm({ ...bondForm, type: v })}
+                  options={[
+                    { value: 'Job', label: 'Job' },
+                    { value: 'Internship', label: 'Internship' },
+                  ]}
+                />
               </div>
               <div>
                 <label className="label">Start date</label>
@@ -236,11 +242,12 @@ export function BondSalaryManager({ bonds, salarySchedule, baseSalary, onChange 
               </div>
               <div>
                 <label className="label">Joining proof</label>
-                <select className="select" value={bondForm.proof_type} onChange={(e) => setBondForm({ ...bondForm, proof_type: e.target.value })}>
-                  {PROOF_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
-                </select>
+                <AppSelect
+                  fullWidth
+                  value={bondForm.proof_type}
+                  onChange={(v) => setBondForm({ ...bondForm, proof_type: v })}
+                  options={PROOF_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+                />
               </div>
               {bondForm.proof_type === 'salary_deduction' && (
                 <div>
@@ -257,11 +264,16 @@ export function BondSalaryManager({ bonds, salarySchedule, baseSalary, onChange 
               )}
               <div>
                 <label className="label">Status</label>
-                <select className="select" value={bondForm.status} onChange={(e) => setBondForm({ ...bondForm, status: e.target.value })}>
-                  <option value="Active">Active</option>
-                  <option value="Completed">Completed</option>
-                  <option value="Waived">Waived</option>
-                </select>
+                <AppSelect
+                  fullWidth
+                  value={bondForm.status}
+                  onChange={(v) => setBondForm({ ...bondForm, status: v })}
+                  options={[
+                    { value: 'Active', label: 'Active' },
+                    { value: 'Completed', label: 'Completed' },
+                    { value: 'Waived', label: 'Waived' },
+                  ]}
+                />
               </div>
               <div>
                 <label className="label">Notes</label>
@@ -323,18 +335,19 @@ export function BondSalaryManager({ bonds, salarySchedule, baseSalary, onChange 
                 {list.map((b, i) => (
                   <tr key={b._id || i}>
                     <td>
-                      <select
-                        className="select"
+                      <AppSelect
+                        fullWidth
                         value={b.type || 'Job'}
-                        onChange={(e) => {
+                        onChange={(v) => {
                           const next = [...list];
-                          next[i] = { ...b, type: e.target.value };
+                          next[i] = { ...b, type: v };
                           setBonds(next);
                         }}
-                      >
-                        <option value="Job">Job</option>
-                        <option value="Internship">Internship</option>
-                      </select>
+                        options={[
+                          { value: 'Job', label: 'Job' },
+                          { value: 'Internship', label: 'Internship' },
+                        ]}
+                      />
                     </td>
                     <td>
                       <input
@@ -361,12 +374,12 @@ export function BondSalaryManager({ bonds, salarySchedule, baseSalary, onChange 
                       />
                     </td>
                     <td>
-                      <select
-                        className="select"
+                      <AppSelect
+                        fullWidth
                         value={b.proof_type || ''}
-                        onChange={(e) => {
+                        onChange={(v) => {
                           const next = [...list];
-                          const proof_type = e.target.value;
+                          const proof_type = v;
                           next[i] = {
                             ...b,
                             proof_type,
@@ -376,12 +389,11 @@ export function BondSalaryManager({ bonds, salarySchedule, baseSalary, onChange 
                           };
                           setBonds(next);
                         }}
-                      >
-                        <option value="">None</option>
-                        {PROOF_OPTIONS.map((o) => (
-                          <option key={o.value} value={o.value}>{o.label}</option>
-                        ))}
-                      </select>
+                        options={[
+                          { value: '', label: 'None' },
+                          ...PROOF_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
+                        ]}
+                      />
                       {b.proof_type === 'salary_deduction' && (
                         <input
                           className="input"
@@ -400,13 +412,13 @@ export function BondSalaryManager({ bonds, salarySchedule, baseSalary, onChange 
                       )}
                     </td>
                     <td>
-                      <select
-                        className="select"
+                      <AppSelect
+                        fullWidth
                         value={b.proof_status || ''}
                         disabled={!b.proof_type}
-                        onChange={(e) => {
+                        onChange={(v) => {
                           const next = [...list];
-                          const proof_status = e.target.value;
+                          const proof_status = v;
                           next[i] = {
                             ...b,
                             proof_status,
@@ -417,19 +429,20 @@ export function BondSalaryManager({ bonds, salarySchedule, baseSalary, onChange 
                           };
                           setBonds(next);
                         }}
-                      >
-                        <option value="">—</option>
-                        <option value="Held">Held by company</option>
-                        <option value="Returned">Returned to employee</option>
-                      </select>
+                        options={[
+                          { value: '', label: '—' },
+                          { value: 'Held', label: 'Held by company' },
+                          { value: 'Returned', label: 'Returned to employee' },
+                        ]}
+                      />
                     </td>
                     <td>
-                      <select
-                        className="select"
+                      <AppSelect
+                        fullWidth
                         value={b.status || 'Active'}
-                        onChange={(e) => {
+                        onChange={(v) => {
                           const next = [...list];
-                          const status = e.target.value;
+                          const status = v;
                           next[i] = {
                             ...b,
                             status,
@@ -439,11 +452,12 @@ export function BondSalaryManager({ bonds, salarySchedule, baseSalary, onChange 
                           };
                           setBonds(next);
                         }}
-                      >
-                        <option value="Active">Active</option>
-                        <option value="Completed">Completed</option>
-                        <option value="Waived">Waived</option>
-                      </select>
+                        options={[
+                          { value: 'Active', label: 'Active' },
+                          { value: 'Completed', label: 'Completed' },
+                          { value: 'Waived', label: 'Waived' },
+                        ]}
+                      />
                     </td>
                     <td>
                       <Button

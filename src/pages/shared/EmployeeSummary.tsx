@@ -15,6 +15,7 @@ import { ListPagination, PAGE_SIZE } from '../../components/ListingPage';
 import { api, buildQuery, type ListResult } from '../../services/api';
 import { formatHours, hoursBadge, StatusBadge } from '../../components/StatusBadge';
 import { RequireRole } from '../../components/StatusBadge';
+import { AppSelect } from '../../components/AppSelect';
 import {
   displayClock,
   formatBreakMinutes,
@@ -345,47 +346,42 @@ function EmployeeSummaryInner() {
           <span className="esum-pick-icon" aria-hidden>
             <UserRound size={18} />
           </span>
-          <select
-            className="select esum-employee-select"
+          <AppSelect
+            className="esum-employee-select"
             value={employeeId}
-            onChange={(e) => setFilter('employee', e.target.value)}
-            aria-label="Select employee"
-          >
-            <option value="">Select employee…</option>
-            {emps.map((e) => (
-              <option key={e._id} value={e._id}>
-                {e.name}
-                {e.employee_id ? ` (${e.employee_id})` : ''}
-                {deptName(e) ? ` · ${deptName(e)}` : ''}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => setFilter('employee', v)}
+            title="Select employee"
+            options={[
+              { value: '', label: 'Select employee…' },
+              ...emps.map((e) => ({
+                value: e._id,
+                label: `${e.name}${e.employee_id ? ` (${e.employee_id})` : ''}${deptName(e) ? ` · ${deptName(e)}` : ''}`,
+              })),
+            ]}
+          />
         </div>
 
         {(period === 'month' || period === 'year') && (
           <div className="esum-date-picks">
             {period === 'month' && (
-              <select
-                className="select select-month"
-                value={month}
-                onChange={(e) => setFilter('month', e.target.value)}
-                aria-label="Month"
-              >
-                {MONTHS.map((name, i) => (
-                  <option key={name} value={i + 1}>{name}</option>
-                ))}
-              </select>
+              <AppSelect
+                className="select-month"
+                value={String(month)}
+                onChange={(v) => setFilter('month', v)}
+                title="Month"
+                options={MONTHS.map((name, i) => ({ value: String(i + 1), label: name }))}
+              />
             )}
-            <select
-              className="select select-year"
-              value={year}
-              onChange={(e) => setFilter('year', e.target.value)}
-              aria-label="Year"
-            >
-              {[2026, 2027, 2028, 2029].map((y) => (
-                <option key={y} value={y}>{y}</option>
-              ))}
-            </select>
+            <AppSelect
+              className="select-year"
+              value={String(year)}
+              onChange={(v) => setFilter('year', v)}
+              title="Year"
+              options={[2026, 2027, 2028, 2029].map((y) => ({
+                value: String(y),
+                label: String(y),
+              }))}
+            />
           </div>
         )}
 

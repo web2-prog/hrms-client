@@ -3,6 +3,7 @@ import { Clock3, Coffee, Timer, TrendingUp } from 'lucide-react';
 import { api, buildQuery, type ListResult } from '../../services/api';
 import { ListingPage, useListParams } from '../../components/ListingPage';
 import { StatusBadge, hoursBadge, formatHours } from '../../components/StatusBadge';
+import { AppSelect } from '../../components/AppSelect';
 import { displayClock, formatDurationMinutes } from '../../utils/timeFormat';
 import { useAuth } from '../../context/AuthContext';
 
@@ -144,31 +145,35 @@ export function AttendanceHistoryPage() {
         onRefresh={load}
         filters={
           <>
-            <select className="select select-month" value={month} onChange={(e) => list.setFilter('month', e.target.value)}>
-              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                <option key={m} value={m}>
-                  {MONTH_NAMES[m - 1]}
-                </option>
-              ))}
-            </select>
-            <select className="select select-year" value={year} onChange={(e) => list.setFilter('year', e.target.value)}>
-              {[2026, 2027, 2028].map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
-              ))}
-            </select>
+            <AppSelect
+              className="select-month"
+              value={String(month)}
+              onChange={(v) => list.setFilter('month', v)}
+              options={Array.from({ length: 12 }, (_, i) => i + 1).map((m) => ({
+                value: String(m),
+                label: MONTH_NAMES[m - 1],
+              }))}
+            />
+            <AppSelect
+              className="select-year"
+              value={String(year)}
+              onChange={(v) => list.setFilter('year', v)}
+              options={[2026, 2027, 2028].map((y) => ({ value: String(y), label: String(y) }))}
+            />
           </>
         }
         typeFilters={
-          <select className="select" value={list.get('status')} onChange={(e) => list.setFilter('status', e.target.value)}>
-            <option value="">All statuses</option>
-            {['Extra', 'Low', 'OnTime', 'Working', 'OnBreak', 'Absent'].map((s) => (
-              <option key={s} value={s}>
-                {s === 'OnTime' ? 'On time' : s === 'OnBreak' ? 'On break' : s}
-              </option>
-            ))}
-          </select>
+          <AppSelect
+            value={list.get('status')}
+            onChange={(v) => list.setFilter('status', v)}
+            options={[
+              { value: '', label: 'All statuses' },
+              ...['Extra', 'Low', 'OnTime', 'Working', 'OnBreak', 'Absent'].map((s) => ({
+                value: s,
+                label: s === 'OnTime' ? 'On time' : s === 'OnBreak' ? 'On break' : s,
+              })),
+            ]}
+          />
         }
       >
         <div className="table-wrap">
