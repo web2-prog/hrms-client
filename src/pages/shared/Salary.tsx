@@ -545,7 +545,7 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
                 <th>Counted</th>
                 <th>Mgmt OT</th>
                 <th>Total leave / deduct</th>
-                <th>Early checkout / deduct</th>
+                <th title="Informational only — add manual deductions on the slip via + Add Deduction">Early checkout</th>
                 <th title="Held from salary when joining proof is salary deduction (until returned)">Bond hold</th>
                 <th>Net</th>
                 <th>Status</th>
@@ -575,11 +575,7 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
                   </td>
                   <td>
                     <div>{Math.round(Number(s.early_checkout_minutes || 0))} min</div>
-                    <span className="emp-stat-hint">
-                      {s.early_checkout_deduction_amount
-                        ? `₹${Number(s.early_checkout_deduction_amount).toLocaleString('en-IN')}`
-                        : 'No deduction'}
-                    </span>
+                    <span className="emp-stat-hint">Manual deduct on slip</span>
                   </td>
                   <td>
                     {s.bond_security_deduction
@@ -665,22 +661,25 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
             <DialogHeader>
               <DialogTitle>Salary Slip Preview</DialogTitle>
             </DialogHeader>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              {canAdjust && showAdjust && (
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.9rem' }}>
-                  Company
-                  <select
-                    className="select"
-                    style={{ width: 120 }}
-                    disabled={companySaving}
-                    value={resolveCompanyKeyFromForm(previewForm)}
-                    onChange={(e) => changePreviewCompany(e.target.value as SalaryCompanyKey)}
-                  >
-                    <option value="kriraai">KriraAI</option>
-                    <option value="ondial">Ondial</option>
-                  </select>
-                </label>
-              )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                {canAdjust && showAdjust && (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.9rem' }}>
+                    Company
+                    <select
+                      className="select"
+                      style={{ width: 120 }}
+                      disabled={companySaving}
+                      value={resolveCompanyKeyFromForm(previewForm)}
+                      onChange={(e) => changePreviewCompany(e.target.value as SalaryCompanyKey)}
+                    >
+                      <option value="kriraai">KriraAI</option>
+                      <option value="ondial">Ondial</option>
+                    </select>
+                  </label>
+                )}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               {canAdjust && (
                 <>
                   <Button variant="outline" onClick={() => setShowAdjust((v) => !v)}>
@@ -707,6 +706,7 @@ export function SalaryPage({ allowBulk }: { allowBulk?: boolean }) {
               <Button variant="outline" onClick={closePreview}>
                 Close
               </Button>
+              </div>
             </div>
             <div style={{ overflowX: 'auto' }}>
               <SalarySlipPreview

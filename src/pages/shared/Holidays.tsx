@@ -277,7 +277,9 @@ export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
       >
         <div className="hol-year-bar">
           <span>{currentMonth >= 0 ? 'Current month first' : 'January → December'}</span>
-          <strong>{data.length} {data.length === 1 ? 'holiday' : 'holidays'}</strong>
+          <strong>
+            {data.length} {data.length === 1 ? 'holiday' : 'holidays'}
+          </strong>
         </div>
         <div className="hol-year">
           {groups.length === 0 && !loading ? (
@@ -287,6 +289,7 @@ export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
           ) : null}
           {groups.map((g) => {
             const isCurrent = g.monthIndex === currentMonth;
+            const countLabel = `${g.items.length} ${g.items.length === 1 ? 'holiday' : 'holidays'}`;
             return (
               <section
                 className={`hol-month${isCurrent ? ' is-current' : ''}`}
@@ -294,7 +297,7 @@ export function HolidaysPage({ canManage = true }: { canManage?: boolean }) {
               >
                 <div className="hol-month-rail">
                   <strong>{g.label}</strong>
-                  <em>{`${g.items.length} ${g.items.length === 1 ? 'holiday' : 'holidays'}`}</em>
+                  <em>{countLabel}</em>
                   {isCurrent && <span className="hol-now">This month</span>}
                 </div>
                 <div className="hol-grid">

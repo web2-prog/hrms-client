@@ -57,11 +57,9 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
   const [earlyErr, setEarlyErr] = useState('');
   const [earlyBusy, setEarlyBusy] = useState(false);
   const [otRequestOpen, setOtRequestOpen] = useState(false);
-  const [mgmtHours, setMgmtHours] = useState('');
   const [mgmtReason, setMgmtReason] = useState('');
   const [mgmtErr, setMgmtErr] = useState('');
   const [mgmtBusy, setMgmtBusy] = useState(false);
-  const [coverHours, setCoverHours] = useState('0.75');
   const [coverReason, setCoverReason] = useState('');
   const [coverErr, setCoverErr] = useState('');
   const [coverBusy, setCoverBusy] = useState(false);
@@ -272,14 +270,32 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
     !live.canCheckoutNormally &&
     ecr?.status !== 'Pending' &&
     !(activeCover && !coverReadyToCheckout);
+
+  // Daily surplus → Cover Time first → remaining → Management OT (no double-count).
+  const dailySurplusHrs = Math.max(0, live.coverMins / 60);
+  const existingCoverClaim = activeCover
+    ? Number(ctr?.actual_cover_hours) > 0
+      ? Number(ctr.actual_cover_hours)
+      : Number(ctr?.requested_hours) || 0
+    : null;
+  const autoCoverHours =
+    existingCoverClaim != null && existingCoverClaim > 0
+      ? Math.max(0, Math.round(Math.min(dailySurplusHrs, existingCoverClaim) * 100) / 100)
+      : Math.max(0, Math.round(Math.min(dailySurplusHrs, monthPending) * 100) / 100);
+  const autoMgmtHours = Math.max(0, Math.round((dailySurplusHrs - autoCoverHours) * 100) / 100);
+
+  const canRequestCover =
+    live.checkedIn &&
+    !live.checkedOut &&
+    live.fullDayMet &&
+    monthPending + 0.001 >= coverMinHours &&
+    autoCoverHours + 0.001 >= coverMinHours &&
+    !activeCover;
   const canRequestOt =
     live.checkedIn &&
     !live.checkedOut &&
-    live.fullDayMet;
-  const canRequestCover =
-    canRequestOt &&
-    monthPending + 0.001 >= coverMinHours &&
-    !activeCover;
+    live.fullDayMet &&
+    autoMgmtHours >= 0.01;
 
   const submitEarlyRequest = async () => {
     if (!earlyReason.trim()) {
@@ -318,9 +334,12 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
   };
 
   const submitMgmtRequest = async () => {
-    const hrs = Number(mgmtHours);
-    if (!Number.isFinite(hrs) || hrs <= 0) {
-      setMgmtErr('Enter valid management OT hours.');
+    if (autoMgmtHours < 0.01) {
+      setMgmtErr(
+        autoCoverHours > 0.01
+          ? 'All of today\'s surplus is allocated to Cover Time. Work more past daily hours for Management OT, or submit Cover Time first.'
+          : 'No leftover surplus for Management OT yet.'
+      );
       return;
     }
     if (!mgmtReason.trim()) {
@@ -331,9 +350,10 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
     setMgmtErr('');
     try {
       const today = att.date || new Date().toISOString().slice(0, 10);
+      // Hours are computed on the server from today's attendance surplus.
       await api('/overtime', {
         method: 'POST',
-        body: { date: today, hours: hrs, reason: mgmtReason, ot_type: 'Management' },
+        body: { date: today, reason: mgmtReason, ot_type: 'Management' },
       });
       setMgmtReason('');
       setOtRequestOpen(false);
@@ -348,22 +368,14 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
   const openOtRequestModal = () => {
     setMgmtErr('');
     setCoverErr('');
-    const surplusHrs = Math.max(0, Math.round((live.overtimeMins / 60) * 100) / 100);
-    setMgmtHours(surplusHrs > 0 ? String(surplusHrs) : '0.5');
-    if (canRequestCover) {
-      const suggested = Math.max(
-        coverMinHours,
-        Math.min(monthPending, Math.max(coverMinHours, Number(coverHours) || coverMinHours))
-      );
-      setCoverHours(String(Math.round(Math.min(monthPending, suggested) * 100) / 100));
-    }
     setOtRequestOpen(true);
   };
 
   const submitCoverRequest = async () => {
-    const hrs = Number(coverHours);
-    if (!Number.isFinite(hrs) || hrs < coverMinHours) {
-      setCoverErr(`Cover time must be at least ${Math.round(coverMinHours * 60)} minutes.`);
+    if (autoCoverHours + 0.001 < coverMinHours) {
+      setCoverErr(
+        `Cover time unlocks after at least ${Math.round(coverMinHours * 60)} minutes past daily hours (capped by shortfall).`
+      );
       return;
     }
     if (!coverReason.trim()) {
@@ -373,12 +385,12 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
     setCoverBusy(true);
     setCoverErr('');
     try {
+      // Hours are computed on the server from surplus past daily hours (capped by shortfall).
       await api('/attendance/me/cover-time-request', {
         method: 'POST',
-        body: { hours: hrs, reason: coverReason },
+        body: { reason: coverReason },
       });
       setCoverReason('');
-      setCoverHours(String(coverMinHours));
       setOtRequestOpen(false);
       await load();
     } catch (e) {
@@ -470,7 +482,7 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
                 >
                   <Coffee size={16} /> {live.onBreak ? 'End Break' : 'Break'}
                 </Button>
-                {canRequestOt && (
+                {(canRequestOt || canRequestCover) && (
                   <Button
                     variant="outline"
                     className="attendance-action"
@@ -758,29 +770,39 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
           <DialogHeader>
             <DialogTitle>Overtime Request</DialogTitle>
             <DialogDescription>
-              You have completed today&apos;s {formatHours(live.threshold)}. General OT is counted automatically at checkout.
-              Request Management OT (paid) or Cover Time (monthly shortfall) below.
+              Daily surplus is split automatically: Cover Time first (up to monthly shortfall), then leftover becomes
+              Management OT. Same minutes are never counted twice. Hours are read-only — only add a reason.
             </DialogDescription>
           </DialogHeader>
 
-          <section className="grid gap-3" style={{ borderBottom: '1px solid var(--border)', paddingBottom: 16 }}>
+          <p className="emp-stat-hint" style={{ margin: '0 0 8px' }}>
+            Today surplus {formatHours(dailySurplusHrs)}
+            {monthPending > 0.001 ? ` · shortfall ${formatHours(monthPending)}` : ''}
+            {' → '}
+            Cover {formatHours(autoCoverHours)} + Management OT {formatHours(autoMgmtHours)}
+          </p>
+
+          <section className="grid gap-3" style={{ borderBottom: canRequestCover ? '1px solid var(--border)' : undefined, paddingBottom: canRequestCover ? 16 : 0 }}>
             <h4 style={{ margin: 0, fontSize: '0.95rem' }}>Management OT</h4>
             <p className="emp-stat-hint" style={{ margin: 0 }}>
-              Company-paid overtime for actual extra work today (+{formatDurationMinutes(live.overtimeMins)} so far).
+              Paid OT from leftover surplus after Cover Time
+              {autoCoverHours > 0.001 ? ` (cover takes ${formatHours(autoCoverHours)} first)` : ''}.
             </p>
             <div className="grid gap-1.5">
               <label className="label" htmlFor="mgmt-hours">
-                Hours <span style={{ color: 'var(--error)' }}>*</span>
+                Hours (auto — remaining after cover)
               </label>
               <input
                 id="mgmt-hours"
                 className="input"
-                type="number"
-                min="0.25"
-                step="0.25"
-                value={mgmtHours}
-                onChange={(e) => setMgmtHours(e.target.value)}
+                type="text"
+                readOnly
+                value={formatHours(autoMgmtHours)}
+                aria-readonly="true"
               />
+              <span className="emp-stat-hint">
+                Server confirms the same split on submit. You cannot edit this.
+              </span>
             </div>
             <div className="grid gap-1.5">
               <label className="label" htmlFor="mgmt-reason">
@@ -795,7 +817,7 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
               />
             </div>
             {mgmtErr && <p style={{ color: 'var(--error)', margin: 0 }}>{mgmtErr}</p>}
-            <Button disabled={mgmtBusy} onClick={submitMgmtRequest}>
+            <Button disabled={mgmtBusy || autoMgmtHours < 0.01} onClick={submitMgmtRequest}>
               {mgmtBusy ? 'Sending…' : 'Submit Management OT'}
             </Button>
           </section>
@@ -804,25 +826,23 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
             <section className="grid gap-3" style={{ paddingTop: 8 }}>
               <h4 style={{ margin: 0, fontSize: '0.95rem' }}>Cover Time</h4>
               <p className="emp-stat-hint" style={{ margin: 0 }}>
-                Cover {formatHours(monthPending)} monthly shortfall. Counts toward working hours, not overtime. Stay at least{' '}
-                {Math.round(coverMinHours * 60)} minutes past daily hours before checkout.
+                Consumes surplus toward monthly shortfall first:{' '}
+                min(surplus, shortfall) = {formatHours(autoCoverHours)}. Leftover becomes Management OT.
               </p>
               <div className="grid gap-1.5">
                 <label className="label" htmlFor="cover-hours">
-                  Hours to cover <span style={{ color: 'var(--error)' }}>*</span>
+                  Hours (auto from surplus → shortfall)
                 </label>
                 <input
                   id="cover-hours"
                   className="input"
-                  type="number"
-                  min={coverMinHours}
-                  max={Math.max(coverMinHours, monthPending)}
-                  step="0.25"
-                  value={coverHours}
-                  onChange={(e) => setCoverHours(e.target.value)}
+                  type="text"
+                  readOnly
+                  value={formatHours(autoCoverHours)}
+                  aria-readonly="true"
                 />
                 <span className="emp-stat-hint">
-                  Minimum {Math.round(coverMinHours * 60)} minutes · max {formatHours(monthPending)}
+                  min {Math.round(coverMinHours * 60)}m · shortfall {formatHours(monthPending)} · server confirms on submit
                 </span>
               </div>
               <div className="grid gap-1.5">
@@ -838,7 +858,11 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
                 />
               </div>
               {coverErr && <p style={{ color: 'var(--error)', margin: 0 }}>{coverErr}</p>}
-              <Button variant="outline" disabled={coverBusy} onClick={submitCoverRequest}>
+              <Button
+                variant="outline"
+                disabled={coverBusy || autoCoverHours + 0.001 < coverMinHours}
+                onClick={submitCoverRequest}
+              >
                 {coverBusy ? 'Sending…' : 'Submit Cover Time'}
               </Button>
             </section>

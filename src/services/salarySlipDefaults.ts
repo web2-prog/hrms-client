@@ -126,10 +126,29 @@ export const calculateGrossEarnings = (form: SalarySlipFormData) =>
 export const calculateTotalDeductions = (form: SalarySlipFormData) =>
   form.shortfallDeduction +
   form.leaveDeduction +
-  form.earlyCheckoutDeduction +
   form.bondSecurity +
-  form.tds +
   (form.customDeductions || []).reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+
+/**
+ * Keep payslip form consistent for display/edit:
+ * - never auto-apply early checkout money
+ * - if LOP days are set but leave deduction amount is 0, derive amount from salary/30.42
+ */
+export function normalizePayslipForm(form: SalarySlipFormData): SalarySlipFormData {
+  let next: SalarySlipFormData = {
+    ...form,
+    earlyCheckoutDeduction: 0,
+    ytdEarlyCheckoutDeduction: 0,
+    tds: 0,
+    ytdTds: 0,
+  };
+  const lop = Number(next.lopDays) || 0;
+  const leaveAmt = Number(next.leaveDeduction) || 0;
+  if (lop > 0 && leaveAmt <= 0) {
+    next = applyLopDays(next, lop);
+  }
+  return next;
+}
 
 export const calculateNetPay = (form: SalarySlipFormData) =>
   calculateGrossEarnings(form) - calculateTotalDeductions(form);
@@ -143,9 +162,7 @@ export const calculateYtdGrossEarnings = (form: SalarySlipFormData) =>
 export const calculateYtdTotalDeductions = (form: SalarySlipFormData) =>
   Number(form.ytdShortfallDeduction || 0) +
   Number(form.ytdLeaveDeduction || 0) +
-  Number(form.ytdEarlyCheckoutDeduction || 0) +
   Number(form.ytdBondSecurity || 0) +
-  Number(form.ytdTds || 0) +
   (form.customDeductions || []).reduce((sum, item) => sum + (Number(item.ytd) || 0), 0);
 
 export const slipDailyRate = (form: Pick<SalarySlipFormData, 'basic'>) => {
@@ -294,7 +311,7 @@ export const apiPayslipToForm = (p: Partial<SalarySlipFormData> & Record<string,
     Number(p.shortfallRate) ||
     (shortfallHours > 0 ? Math.round((shortfallDeduction / shortfallHours) * 100) / 100 : hourlyRate);
 
-  return {
+  return normalizePayslipForm({
     companyKey,
     companyName: String(p.companyName || company.companyName),
     companyAddress: String(p.companyAddress || company.companyAddress),
@@ -320,8 +337,8 @@ export const apiPayslipToForm = (p: Partial<SalarySlipFormData> & Record<string,
     leaveDeduction: Number(p.leaveDeduction) || 0,
     ytdLeaveDeduction: Number(p.ytdLeaveDeduction) || 0,
     earlyCheckoutMinutes: Number(p.earlyCheckoutMinutes) || 0,
-    earlyCheckoutDeduction: Number(p.earlyCheckoutDeduction) || 0,
-    ytdEarlyCheckoutDeduction: Number(p.ytdEarlyCheckoutDeduction) || 0,
+    earlyCheckoutDeduction: 0,
+    ytdEarlyCheckoutDeduction: 0,
     bondSecurity: Number(p.bondSecurity) || 0,
     bondSecurityPercent: Number(p.bondSecurityPercent) || 0,
     ytdBondSecurity: Number(p.ytdBondSecurity) || 0,
@@ -355,14 +372,12 @@ export const apiPayslipToForm = (p: Partial<SalarySlipFormData> & Record<string,
     hourlyRate,
     overtimeRate,
     shortfallRate,
-  };
+  });
 };
 
 export const formToAdjustPayload = (form: SalarySlipFormData) => ({
+  base_salary: form.basic,
   pay_date: form.payDate,
-  pf_no: form.pfNo,
-  uan: form.uan,
-  tds: form.tds,
   paid_days: form.paidDays,
   leave_days: form.leaveDays,
   lop_days: form.lopDays,
@@ -370,9 +385,10 @@ export const formToAdjustPayload = (form: SalarySlipFormData) => ({
   overtime_hours: form.overtimeHours,
   deduction_amount: form.shortfallDeduction,
   leave_deduction_amount: form.leaveDeduction,
-  early_checkout_deduction_amount: form.earlyCheckoutDeduction,
+  early_checkout_deduction_amount: 0,
   bond_security_deduction: form.bondSecurity,
   bond_security_percent: form.bondSecurityPercent,
+  tds: 0,
   custom_earnings: (form.customEarnings || []).map((item) => ({ label: item.label, amount: item.amount })),
   custom_deductions: (form.customDeductions || []).map((item) => ({ label: item.label, amount: item.amount })),
 });

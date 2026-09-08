@@ -274,11 +274,70 @@ export function OvertimePage() {
   );
 }
 
+function todayYmd() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function ApplyOtModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
-  const [date, setDate] = useState('');
-  const [hours, setHours] = useState('');
+  const [date, setDate] = useState(todayYmd());
+  const [hours, setHours] = useState<number | null>(null);
+  const [coverHours, setCoverHours] = useState(0);
+  const [dailySurplus, setDailySurplus] = useState(0);
+  const [shortfall, setShortfall] = useState(0);
+  const [hoursHint, setHoursHint] = useState('Loading hours from attendance…');
+  const [eligible, setEligible] = useState(false);
   const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadHours = async () => {
+      if (!date) {
+        setHours(null);
+        setEligible(false);
+        setHoursHint('Select a date');
+        return;
+      }
+      setHoursHint('Calculating surplus split…');
+      try {
+        const res = await api<{
+          hours: number;
+          eligible: boolean;
+          message?: string | null;
+          work_hours?: number;
+          full_hours?: number | null;
+          daily_surplus?: number;
+          cover_hours?: number;
+          management_ot_hours?: number;
+          monthly_shortfall?: number;
+        }>(`/overtime/eligible-hours?date=${encodeURIComponent(date)}`);
+        if (cancelled) return;
+        setHours(Number(res.management_ot_hours ?? res.hours) || 0);
+        setCoverHours(Number(res.cover_hours) || 0);
+        setDailySurplus(Number(res.daily_surplus) || 0);
+        setShortfall(Number(res.monthly_shortfall) || 0);
+        setEligible(!!res.eligible);
+        setHoursHint(
+          res.eligible
+            ? `Surplus ${formatHours(res.daily_surplus)} → Cover ${formatHours(res.cover_hours)} + Mgmt OT ${formatHours(res.management_ot_hours)} (worked ${formatHours(res.work_hours)} / target ${formatHours(res.full_hours ?? 0)})`
+            : res.message || 'No Management OT surplus for this date'
+        );
+      } catch (e) {
+        if (cancelled) return;
+        setHours(null);
+        setEligible(false);
+        setHoursHint(e instanceof Error ? e.message : 'Could not load hours');
+      }
+    };
+    loadHours();
+    const id = window.setInterval(loadHours, 15000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [date]);
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -287,53 +346,76 @@ function ApplyOtModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
           <DialogTitle>Request Management OT</DialogTitle>
         </DialogHeader>
         <p style={{ color: 'var(--muted)', fontSize: '0.9rem', marginBottom: 12 }}>
-          General OT is counted automatically at checkout when you work beyond your daily hours.
-          Use this form only for Management OT (company-paid overtime).
+          Cover Time takes surplus first (up to monthly shortfall). Only the leftover is Management OT — same minutes
+          are never double-counted. Hours are calculated on the server.
         </p>
         <div className="form-grid">
           <div>
             <label className="label">Date</label>
-            <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          </div>
-          <div>
-            <label className="label">Hours</label>
             <input
               className="input"
-              type="number"
-              min="0.25"
-              step="0.25"
-              placeholder="e.g. 1.5"
-              value={hours}
-              onChange={(e) => setHours(e.target.value)}
+              type="date"
+              value={date}
+              max={todayYmd()}
+              onChange={(e) => setDate(e.target.value)}
             />
+          </div>
+          <div>
+            <label className="label">Management OT hours (auto)</label>
+            <input
+              className="input"
+              type="text"
+              readOnly
+              value={hours == null ? '—' : formatHours(hours)}
+              aria-readonly="true"
+            />
+            <span className="emp-stat-hint">{hoursHint}</span>
+          </div>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <span className="emp-stat-hint">
+              Split: surplus {formatHours(dailySurplus)} · cover {formatHours(coverHours)} · shortfall{' '}
+              {formatHours(shortfall)}
+            </span>
           </div>
           <div style={{ gridColumn: '1 / -1' }}>
             <label className="label">Reason</label>
-            <textarea className="textarea" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why is management overtime needed?" />
+            <textarea
+              className="textarea"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Why is management overtime needed?"
+            />
           </div>
         </div>
         {err && <p style={{ color: 'var(--error)' }}>{err}</p>}
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
+          <Button variant="outline" onClick={onClose} disabled={busy}>
             Cancel
           </Button>
           <Button
+            disabled={busy || !eligible}
             onClick={async () => {
               try {
                 if (!date) return setErr('Date required');
-                if (!hours || Number(hours) <= 0) return setErr('Hours required');
+                if (!eligible || !(hours && hours > 0)) {
+                  return setErr('No Management OT hours available for this date yet');
+                }
                 if (!reason.trim()) return setErr('Reason required');
+                setBusy(true);
+                setErr('');
                 await api('/overtime', {
                   method: 'POST',
-                  body: { date, hours: Number(hours), reason, ot_type: 'Management' },
+                  body: { date, reason, ot_type: 'Management' },
                 });
                 onSaved();
               } catch (e) {
                 setErr(e instanceof Error ? e.message : 'Failed');
+              } finally {
+                setBusy(false);
               }
             }}
           >
-            Submit Management OT
+            {busy ? 'Sending…' : 'Submit Management OT'}
           </Button>
         </DialogFooter>
       </DialogContent>
