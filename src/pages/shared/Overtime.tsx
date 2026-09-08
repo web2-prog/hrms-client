@@ -4,15 +4,9 @@ import { api, buildQuery, type ListResult } from '../../services/api';
 import { ListingPage, useListParams } from '../../components/ListingPage';
 import { StatusBadge, formatHours } from '../../components/StatusBadge';
 import { EmpCell } from '../../components/EmpCell';
+import { SurplusRequestModal } from '../../components/SurplusRequestModal';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 
 type OtRequest = {
   _id: string;
@@ -173,7 +167,7 @@ export function OvertimePage() {
         }
         actions={
           isEmployee ? (
-            <Button onClick={() => setShowApply(true)}>Request Management OT</Button>
+            <Button onClick={() => setShowApply(true)}>Request OT / Cover</Button>
           ) : null
         }
         prepend={
@@ -225,8 +219,8 @@ export function OvertimePage() {
       >
         <p className="listing-note">
           General OT is automatic when checkout hours exceed the daily target (status Extra, no request).
-          Management OT is requested with date and reason only — hours are counted from daily working hours through
-          checkout and approved by HR/Admin.
+          Management OT and Cover Time use one request form — pick the type in the dropdown; duration is counted from
+          daily working hours through checkout.
         </p>
         <div className="table-wrap">
           <table className="data">
@@ -262,168 +256,16 @@ export function OvertimePage() {
         </div>
       </ListingPage>
 
-      {showApply && (
-        <ApplyOtModal
-          onClose={() => setShowApply(false)}
-          onSaved={() => {
-            setShowApply(false);
-            load();
-            loadSummary();
-          }}
-        />
-      )}
+      <SurplusRequestModal
+        mode="dated"
+        open={showApply}
+        onClose={() => setShowApply(false)}
+        onSaved={() => {
+          setShowApply(false);
+          load();
+          loadSummary();
+        }}
+      />
     </>
-  );
-}
-
-function todayYmd() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function ApplyOtModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
-  const [date, setDate] = useState(todayYmd());
-  const [hours, setHours] = useState<number | null>(null);
-  const [eligible, setEligible] = useState(false);
-  const [hint, setHint] = useState('Select a date to load Management OT');
-  const [loadingHours, setLoadingHours] = useState(false);
-  const [reason, setReason] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState('');
-
-  useEffect(() => {
-    let cancelled = false;
-    const loadEligible = async () => {
-      if (!date) {
-        setHours(null);
-        setEligible(false);
-        setHint('Select a date');
-        return;
-      }
-      setLoadingHours(true);
-      setHint('Loading Management OT from attendance…');
-      try {
-        const res = await api<{
-          eligible: boolean;
-          message?: string | null;
-          work_hours?: number;
-          full_hours?: number | null;
-          management_ot_hours?: number;
-          daily_surplus?: number;
-          checked_out?: boolean;
-          cover_hours?: number;
-          claimed_cover_hours?: number;
-        }>(`/overtime/eligible-hours?date=${encodeURIComponent(date)}`);
-        if (cancelled) return;
-        const otHours = Number(res.management_ot_hours) || 0;
-        setHours(otHours);
-        setEligible(!!res.eligible);
-        if (res.eligible) {
-          const claimedCover = Number(res.claimed_cover_hours) || 0;
-          setHint(
-            `Auto from attendance: worked ${formatHours(res.work_hours)} − daily ${formatHours(res.full_hours ?? 0)}` +
-              (claimedCover > 0.01 ? ` − cover ${formatHours(claimedCover)}` : '') +
-              (res.checked_out ? ' · through checkout' : ' · live until checkout')
-          );
-        } else {
-          setHint(res.message || 'No Management OT for this date yet');
-        }
-      } catch (e) {
-        if (cancelled) return;
-        setHours(null);
-        setEligible(false);
-        setHint(e instanceof Error ? e.message : 'Could not load Management OT');
-      } finally {
-        if (!cancelled) setLoadingHours(false);
-      }
-    };
-    loadEligible();
-    const id = window.setInterval(loadEligible, 15000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-    };
-  }, [date]);
-
-  return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Request Management OT</DialogTitle>
-        </DialogHeader>
-        <p style={{ color: 'var(--muted)', fontSize: '0.9rem', marginBottom: 12 }}>
-          Pick a date to see Management OT automatically (daily working hours through checkout). You only add a reason.
-        </p>
-        <div className="form-grid">
-          <div>
-            <label className="label">Date</label>
-            <input
-              className="input"
-              type="date"
-              value={date}
-              max={todayYmd()}
-              onChange={(e) => setDate(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="label">Management OT</label>
-            <input
-              className="input"
-              type="text"
-              readOnly
-              value={
-                loadingHours
-                  ? 'Calculating…'
-                  : hours == null
-                    ? '—'
-                    : formatHours(hours)
-              }
-              aria-readonly="true"
-            />
-            <span className="emp-stat-hint">{hint}</span>
-          </div>
-          <div style={{ gridColumn: '1 / -1' }}>
-            <label className="label">Reason</label>
-            <textarea
-              className="textarea"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="Why is management overtime needed?"
-            />
-          </div>
-        </div>
-        {err && <p style={{ color: 'var(--error)' }}>{err}</p>}
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={busy}>
-            Cancel
-          </Button>
-          <Button
-            disabled={busy || !eligible || !(hours && hours > 0)}
-            onClick={async () => {
-              try {
-                if (!date) return setErr('Date required');
-                if (!eligible || !(hours && hours > 0)) {
-                  return setErr('No Management OT available for this date yet');
-                }
-                if (!reason.trim()) return setErr('Reason required');
-                setBusy(true);
-                setErr('');
-                await api('/overtime', {
-                  method: 'POST',
-                  body: { date, reason, ot_type: 'Management' },
-                });
-                onSaved();
-              } catch (e) {
-                setErr(e instanceof Error ? e.message : 'Failed');
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            {busy ? 'Sending…' : 'Submit Management OT'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }

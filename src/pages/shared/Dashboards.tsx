@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { api, apiUrl } from '../../services/api';
 import { formatHours, hoursBadge, StatusBadge } from '../../components/StatusBadge';
+import { SurplusRequestModal } from '../../components/SurplusRequestModal';
 import { ListingPage, useListParams } from '../../components/ListingPage';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -57,12 +58,6 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
   const [earlyErr, setEarlyErr] = useState('');
   const [earlyBusy, setEarlyBusy] = useState(false);
   const [otRequestOpen, setOtRequestOpen] = useState(false);
-  const [mgmtReason, setMgmtReason] = useState('');
-  const [mgmtErr, setMgmtErr] = useState('');
-  const [mgmtBusy, setMgmtBusy] = useState(false);
-  const [coverReason, setCoverReason] = useState('');
-  const [coverErr, setCoverErr] = useState('');
-  const [coverBusy, setCoverBusy] = useState(false);
   const [tick, setTick] = useState(() => new Date());
   const [dataLoadedAt, setDataLoadedAt] = useState(() => Date.now());
 
@@ -338,71 +333,8 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
     }
   };
 
-  const submitMgmtRequest = async () => {
-    if (autoMgmtHours < 0.01) {
-      setMgmtErr(
-        claimedCoverHours > 0.01
-          ? 'Cover Time already claimed today\'s surplus. No remaining Management OT.'
-          : 'No surplus past daily working hours for Management OT yet.'
-      );
-      return;
-    }
-    if (!mgmtReason.trim()) {
-      setMgmtErr('Please add a reason for management overtime.');
-      return;
-    }
-    setMgmtBusy(true);
-    setMgmtErr('');
-    try {
-      const today = att.date || new Date().toISOString().slice(0, 10);
-      // Hours are computed on the server from today's attendance surplus.
-      await api('/overtime', {
-        method: 'POST',
-        body: { date: today, reason: mgmtReason, ot_type: 'Management' },
-      });
-      setMgmtReason('');
-      setOtRequestOpen(false);
-      await load();
-    } catch (e) {
-      setMgmtErr(e instanceof Error ? e.message : 'Failed to send request');
-    } finally {
-      setMgmtBusy(false);
-    }
-  };
-
   const openOtRequestModal = () => {
-    setMgmtErr('');
-    setCoverErr('');
     setOtRequestOpen(true);
-  };
-
-  const submitCoverRequest = async () => {
-    if (autoCoverHours + 0.001 < coverMinHours) {
-      setCoverErr(
-        `Cover time unlocks after at least ${formatHours(coverMinHours)} past daily hours (capped by shortfall).`
-      );
-      return;
-    }
-    if (!coverReason.trim()) {
-      setCoverErr('Please add a reason for cover time.');
-      return;
-    }
-    setCoverBusy(true);
-    setCoverErr('');
-    try {
-      // Hours are computed on the server from surplus past daily hours (capped by shortfall).
-      await api('/attendance/me/cover-time-request', {
-        method: 'POST',
-        body: { reason: coverReason },
-      });
-      setCoverReason('');
-      setOtRequestOpen(false);
-      await load();
-    } catch (e) {
-      setCoverErr(e instanceof Error ? e.message : 'Failed to send request');
-    } finally {
-      setCoverBusy(false);
-    }
   };
 
   const cancelCoverRequest = async () => {
@@ -491,10 +423,10 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
                   <Button
                     variant="outline"
                     className="attendance-action"
-                    disabled={busy || coverBusy || mgmtBusy}
+                    disabled={busy}
                     onClick={openOtRequestModal}
                   >
-                    <Timer size={16} /> Overtime Request
+                    <Timer size={16} /> Surplus Request
                   </Button>
                 )}
                 {canShowCheckout && (
@@ -770,102 +702,21 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={otRequestOpen} onOpenChange={(o) => !o && setOtRequestOpen(false)}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Overtime Request</DialogTitle>
-            <DialogDescription>
-              Management OT is counted automatically from your daily working hours through checkout. Cover Time is
-              optional when you have monthly shortfall — it only reduces Management OT after you submit a Cover request.
-            </DialogDescription>
-          </DialogHeader>
-
-          <p className="emp-stat-hint" style={{ margin: '0 0 8px' }}>
-            Today surplus {formatHours(dailySurplusHrs)}
-            {monthPending > 0.001 ? ` · shortfall ${formatHours(monthPending)}` : ''}
-            {' → '}
-            Management OT {formatHours(autoMgmtHours)}
-            {canRequestCover ? ` · Cover available ${formatHours(autoCoverHours)}` : ''}
-            {claimedCoverHours > 0.01 ? ` · cover claimed ${formatHours(claimedCoverHours)}` : ''}
-          </p>
-
-          <section className="grid gap-3" style={{ borderBottom: canRequestCover ? '1px solid var(--border)' : undefined, paddingBottom: canRequestCover ? 16 : 0 }}>
-            <h4 style={{ margin: 0, fontSize: '0.95rem' }}>Management OT</h4>
-            <p className="emp-stat-hint" style={{ margin: 0 }}>
-              Auto {formatHours(autoMgmtHours)} from daily hours through checkout
-              {claimedCoverHours > 0.001 ? ` (after claimed cover ${formatHours(claimedCoverHours)})` : ''}. Add a reason only.
-            </p>
-            <div className="grid gap-1.5">
-              <label className="label" htmlFor="mgmt-reason">
-                Reason <span style={{ color: 'var(--error)' }}>*</span>
-              </label>
-              <Textarea
-                id="mgmt-reason"
-                rows={2}
-                placeholder="e.g. Urgent client delivery, production deadline…"
-                value={mgmtReason}
-                onChange={(e) => setMgmtReason(e.target.value)}
-              />
-            </div>
-            {mgmtErr && <p style={{ color: 'var(--error)', margin: 0 }}>{mgmtErr}</p>}
-            <Button disabled={mgmtBusy || autoMgmtHours < 0.01} onClick={submitMgmtRequest}>
-              {mgmtBusy ? 'Sending…' : 'Submit Management OT'}
-            </Button>
-          </section>
-
-          {canRequestCover && (
-            <section className="grid gap-3" style={{ paddingTop: 8 }}>
-              <h4 style={{ margin: 0, fontSize: '0.95rem' }}>Cover Time</h4>
-              <p className="emp-stat-hint" style={{ margin: 0 }}>
-                Optional: use surplus toward monthly shortfall (
-                {formatHours(autoCoverHours)}). Submitting Cover reduces Management OT for this day.
-              </p>
-              <div className="grid gap-1.5">
-                <label className="label" htmlFor="cover-hours">
-                  Hours (auto from surplus → shortfall)
-                </label>
-                <input
-                  id="cover-hours"
-                  className="input"
-                  type="text"
-                  readOnly
-                  value={formatHours(autoCoverHours)}
-                  aria-readonly="true"
-                />
-                <span className="emp-stat-hint">
-                  min {formatHours(coverMinHours)} · shortfall {formatHours(monthPending)} · server confirms on submit
-                </span>
-              </div>
-              <div className="grid gap-1.5">
-                <label className="label" htmlFor="cover-reason">
-                  Reason <span style={{ color: 'var(--error)' }}>*</span>
-                </label>
-                <Textarea
-                  id="cover-reason"
-                  rows={2}
-                  placeholder="e.g. Making up 2h early checkout from 19 Aug…"
-                  value={coverReason}
-                  onChange={(e) => setCoverReason(e.target.value)}
-                />
-              </div>
-              {coverErr && <p style={{ color: 'var(--error)', margin: 0 }}>{coverErr}</p>}
-              <Button
-                variant="outline"
-                disabled={coverBusy || autoCoverHours + 0.001 < coverMinHours}
-                onClick={submitCoverRequest}
-              >
-                {coverBusy ? 'Sending…' : 'Submit Cover Time'}
-              </Button>
-            </section>
-          )}
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOtRequestOpen(false)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <SurplusRequestModal
+        mode="live"
+        open={otRequestOpen}
+        onClose={() => setOtRequestOpen(false)}
+        onSaved={load}
+        date={att.date || undefined}
+        dailySurplusHours={dailySurplusHrs}
+        managementOtHours={autoMgmtHours}
+        coverHours={autoCoverHours}
+        coverMinHours={coverMinHours}
+        monthlyShortfallHours={monthPending}
+        claimedCoverHours={claimedCoverHours}
+        canRequestOt={canRequestOt}
+        canRequestCover={canRequestCover}
+      />
     </>
   );
 }
