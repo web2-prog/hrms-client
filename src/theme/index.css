@@ -2383,6 +2383,7 @@ table.data.ecr-table thead th.ecr-col-actions {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  width: min(920px, calc(100% - 2rem));
 }
 
 .ecr-recent-dialog .ecr-recent-table-wrap {

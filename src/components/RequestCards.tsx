@@ -91,7 +91,7 @@ function RecentRequestsModal({
         </Button>
       </div>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="ecr-recent-dialog sm:max-w-3xl">
+        <DialogContent className="ecr-recent-dialog sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
             <DialogDescription>
