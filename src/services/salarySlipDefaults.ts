@@ -137,10 +137,10 @@ export const calculateTotalDeductions = (form: SalarySlipFormData) =>
 export function normalizePayslipForm(form: SalarySlipFormData): SalarySlipFormData {
   let next: SalarySlipFormData = {
     ...form,
-    earlyCheckoutDeduction: 0,
-    ytdEarlyCheckoutDeduction: 0,
-    tds: 0,
-    ytdTds: 0,
+    earlyCheckoutDeduction: Number(form.earlyCheckoutDeduction) || 0,
+    ytdEarlyCheckoutDeduction: Number(form.ytdEarlyCheckoutDeduction) || 0,
+    tds: Number(form.tds) || 0,
+    ytdTds: Number(form.ytdTds) || 0,
   };
   const lop = Number(next.lopDays) || 0;
   const leaveAmt = Number(next.leaveDeduction) || 0;
@@ -162,15 +162,18 @@ export const calculateYtdGrossEarnings = (form: SalarySlipFormData) =>
 export const calculateYtdTotalDeductions = (form: SalarySlipFormData) =>
   Number(form.ytdShortfallDeduction || 0) +
   Number(form.ytdLeaveDeduction || 0) +
+  Number(form.ytdEarlyCheckoutDeduction || 0) +
   Number(form.ytdBondSecurity || 0) +
+  Number(form.ytdTds || 0) +
   (form.customDeductions || []).reduce((sum, item) => sum + (Number(item.ytd) || 0), 0);
 
-export const slipDailyRate = (form: Pick<SalarySlipFormData, 'basic'>) => {
-  const salary = Number(form.basic) || 0;
-  return salary > 0 ? salary / SALARY_DAYS_PER_MONTH : 0;
-};
+/** Average days per month (365 ÷ 12) — LOP per-day rate = monthly salary ÷ this. */
+export const LOP_DAYS_PER_MONTH = SALARY_DAYS_PER_MONTH;
 
-/** LOP days → leave deduction amount (salary / 30.42 × unpaid days). Approved leave is display-only. */
+export const slipDailyRate = (form: Pick<SalarySlipFormData, 'basic'>) =>
+  Number(form.basic) / LOP_DAYS_PER_MONTH;
+
+/** LOP days → leave deduction amount (salary ÷ 30.42 × unpaid days). Approved leave is display-only. */
 export const applyLopDays = (form: SalarySlipFormData, lopDays: number): SalarySlipFormData => {
   const days = Math.max(0, Number(lopDays) || 0);
   const workingDays = Number(form.workingDays) || Number(form.paidDays) + Number(form.lopDays) || 0;
@@ -337,8 +340,8 @@ export const apiPayslipToForm = (p: Partial<SalarySlipFormData> & Record<string,
     leaveDeduction: Number(p.leaveDeduction) || 0,
     ytdLeaveDeduction: Number(p.ytdLeaveDeduction) || 0,
     earlyCheckoutMinutes: Number(p.earlyCheckoutMinutes) || 0,
-    earlyCheckoutDeduction: 0,
-    ytdEarlyCheckoutDeduction: 0,
+    earlyCheckoutDeduction: Number(p.earlyCheckoutDeduction) || 0,
+    ytdEarlyCheckoutDeduction: Number(p.ytdEarlyCheckoutDeduction) || 0,
     bondSecurity: Number(p.bondSecurity) || 0,
     bondSecurityPercent: Number(p.bondSecurityPercent) || 0,
     ytdBondSecurity: Number(p.ytdBondSecurity) || 0,

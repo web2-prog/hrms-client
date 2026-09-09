@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { api, type ListResult } from '../services/api';
 import { ListPagination, PAGE_SIZE } from './ListingPage';
 import { StatusBadge, formatHours } from './StatusBadge';
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -31,7 +32,137 @@ type EcRequest = {
   status: string;
   decision_note?: string;
   employee_id?: EmpRef;
+  already_checked_out?: boolean;
+  auto_checkout?: boolean;
 };
+
+function isAutoClosedEcrNote(note?: string) {
+  if (!note) return false;
+  return /auto-checked out at 11:55/i.test(note);
+}
+
+function formatEcrDate(ymd?: string) {
+  if (!ymd) return '—';
+  const [y, m, d] = ymd.split('-').map(Number);
+  if (!y || !m || !d) return ymd;
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+const RECENT_DAYS = 10;
+
+function daysAgoYmd(n: number, from = todayYmd()) {
+  return addDays(from, -n);
+}
+
+function recentWindow() {
+  const to = todayYmd();
+  const from = daysAgoYmd(RECENT_DAYS - 1, to);
+  return { from, to };
+}
+
+/** Shared button + modal shell for recent request history. */
+function RecentRequestsModal({
+  open,
+  onOpenChange,
+  title,
+  loading,
+  error,
+  empty,
+  children,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  loading?: boolean;
+  error?: string;
+  empty?: boolean;
+  children: ReactNode;
+}) {
+  const { from, to } = recentWindow();
+  return (
+    <>
+      <div className="ecr-recent-bar">
+        <Button variant="outline" size="sm" onClick={() => onOpenChange(true)}>
+          Recent requests
+        </Button>
+      </div>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="ecr-recent-dialog sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>{title}</DialogTitle>
+            <DialogDescription>
+              Decisions from the last {RECENT_DAYS} days ({formatEcrDate(from)} – {formatEcrDate(to)}).
+            </DialogDescription>
+          </DialogHeader>
+          {error ? <p className="ecr-flash is-err">{error}</p> : null}
+          {loading ? (
+            <p className="ecr-recent-empty">Loading…</p>
+          ) : empty ? (
+            <p className="ecr-recent-empty">No requests in the last {RECENT_DAYS} days.</p>
+          ) : (
+            <div className="table-wrap ecr-recent-table-wrap">{children}</div>
+          )}
+          <DialogFooter showCloseButton />
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function RequestCardHeader({
+  title,
+  help,
+  pendingTotal,
+  onRefresh,
+}: {
+  title: string;
+  help: string;
+  pendingTotal: number;
+  onRefresh: () => void;
+}) {
+  return (
+    <div className="ecr-head">
+      <div className="ecr-head-top">
+        <h3 className="ecr-title">{title}</h3>
+        <div className="ecr-head-actions">
+          {pendingTotal > 0 && <span className="badge badge-warn">{pendingTotal} pending</span>}
+          <Button variant="outline" size="sm" onClick={onRefresh}>
+            Refresh
+          </Button>
+        </div>
+      </div>
+      <p className="ecr-help">{help}</p>
+    </div>
+  );
+}
+
+function DecideActions({
+  canDecide,
+  busy,
+  onApprove,
+  onReject,
+}: {
+  canDecide: boolean;
+  busy: boolean;
+  onApprove: () => void;
+  onReject: () => void;
+}) {
+  if (!canDecide) return <span className="ecr-admin-only">Admin only</span>;
+  return (
+    <div className="row-actions ecr-actions">
+      <Button size="sm" disabled={busy} onClick={onApprove}>
+        Approve
+      </Button>
+      <Button size="sm" variant="outline" disabled={busy} onClick={onReject}>
+        Reject
+      </Button>
+    </div>
+  );
+}
 
 type CtRequest = {
   _id: string;
@@ -94,27 +225,43 @@ export function EarlyCheckoutRequestsCard() {
   const [pending, setPending] = useState<EcRequest[]>([]);
   const [pendingTotal, setPendingTotal] = useState(0);
   const [pendingPage, setPendingPage] = useState(1);
-  const [recent, setRecent] = useState<EcRequest[]>([]);
   const [rejecting, setRejecting] = useState<EcRequest | null>(null);
   const [note, setNote] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
+  const [recentOpen, setRecentOpen] = useState(false);
+  const [recent, setRecent] = useState<EcRequest[]>([]);
+  const [recentLoading, setRecentLoading] = useState(false);
+  const [recentErr, setRecentErr] = useState('');
 
   const load = async () => {
     setErr('');
     try {
-      const [p, r] = await Promise.all([
-        api<ListResult<EcRequest>>(
-          `/attendance/early-checkout-requests?status=Pending&page=${pendingPage}&limit=${PAGE_SIZE}`
-        ),
-        api<ListResult<EcRequest>>(`/attendance/early-checkout-requests?page=1&limit=${PAGE_SIZE}&status=Approved`),
-      ]);
+      const p = await api<ListResult<EcRequest>>(
+        `/attendance/early-checkout-requests?status=Pending&page=${pendingPage}&limit=${PAGE_SIZE}`
+      );
       setPending(p.data || []);
       setPendingTotal(p.total || 0);
-      setRecent(r.data || []);
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Failed to load requests');
+    }
+  };
+
+  const loadRecent = async () => {
+    setRecentLoading(true);
+    setRecentErr('');
+    try {
+      const { from, to } = recentWindow();
+      const r = await api<ListResult<EcRequest>>(
+        `/attendance/early-checkout-requests?page=1&limit=100&status=Approved,Rejected,Cancelled&from=${from}&to=${to}`
+      );
+      setRecent((r.data || []).filter((x) => x.status !== 'Pending'));
+    } catch (e) {
+      setRecentErr(e instanceof Error ? e.message : 'Failed to load recent requests');
+      setRecent([]);
+    } finally {
+      setRecentLoading(false);
     }
   };
 
@@ -126,19 +273,30 @@ export function EarlyCheckoutRequestsCard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingPage]);
 
+  useEffect(() => {
+    if (recentOpen) loadRecent();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recentOpen]);
+
   const decide = async (req: EcRequest, status: 'Approved' | 'Rejected', decisionNote = '') => {
     setBusyId(req._id);
     setErr('');
     try {
-      await api(`/attendance/early-checkout-requests/${req._id}/decide`, {
+      const result = await api<EcRequest>(`/attendance/early-checkout-requests/${req._id}/decide`, {
         method: 'POST',
         body: { status, note: decisionNote },
       });
-      setMsg(
-        status === 'Approved'
-          ? `Approved — ${req.employee_id?.name || 'employee'} can now check out from their dashboard.`
-          : 'Request rejected.'
-      );
+      if (status === 'Approved') {
+        setMsg(
+          result.already_checked_out
+            ? `Approved for record — ${req.employee_id?.name || 'employee'} was already checked out${
+                result.auto_checkout || isAutoClosedEcrNote(req.decision_note) ? ' (auto 11:55 PM)' : ''
+              }.`
+            : `Approved — ${req.employee_id?.name || 'employee'} can now check out from their dashboard.`
+        );
+      } else {
+        setMsg('Request rejected.');
+      }
       setRejecting(null);
       setNote('');
       await load();
@@ -151,70 +309,57 @@ export function EarlyCheckoutRequestsCard() {
 
   return (
     <div className="card ecr-card" style={{ marginBottom: 16 }}>
-      <div className="ecr-head">
-        <div>
-          <h3 style={{ margin: 0 }}>Early Checkout Requests</h3>
-          <p className="emp-action-help" style={{ margin: '4px 0 0' }}>
-            Employees leaving before shift end need approval. Approving unlocks checkout — the employee
-            must check out themselves.
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {pendingTotal > 0 && <span className="badge badge-warn">{pendingTotal} pending</span>}
-          <Button variant="outline" size="sm" onClick={load}>
-            Refresh
-          </Button>
-        </div>
-      </div>
+      <RequestCardHeader
+        title="Early Checkout Requests"
+        help="Approve to unlock checkout. Requests stay pending if the day auto-closes at 11:55 PM."
+        pendingTotal={pendingTotal}
+        onRefresh={load}
+      />
 
-      {msg && <p style={{ color: 'var(--success)', margin: '0.75rem 0 0' }}>{msg}</p>}
-      {err && <p style={{ color: 'var(--error)', margin: '0.75rem 0 0' }}>{err}</p>}
+      {msg && <p className="ecr-flash is-ok">{msg}</p>}
+      {err && <p className="ecr-flash is-err">{err}</p>}
 
       {pendingTotal === 0 ? (
         <p className="ecr-empty">No pending early checkout requests.</p>
       ) : (
         <>
-          <div className="table-wrap" style={{ marginTop: 12 }}>
-            <table className="data">
+          <div className="table-wrap ecr-table-wrap">
+            <table className="data ecr-table">
               <thead>
                 <tr>
-                  <th>Employee</th>
-                  <th>Requested at</th>
-                  <th>Date</th>
-                  <th>Reason</th>
-                  <th></th>
+                  <th className="ecr-col-emp">Employee</th>
+                  <th className="ecr-col-time">Requested</th>
+                  <th className="ecr-col-date">Date</th>
+                  <th className="ecr-col-reason">Reason</th>
+                  <th className="ecr-col-actions">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {pending.map((r) => (
                   <tr key={r._id}>
-                    <td>
-                      <EmpCell name={r.employee_id?.name} dept={r.employee_id?.department_id?.name} />
+                    <td className="ecr-col-emp">
+                      <div className="ecr-emp-block">
+                        <EmpCell name={r.employee_id?.name} dept={r.employee_id?.department_id?.name} />
+                        {isAutoClosedEcrNote(r.decision_note) ? (
+                          <span className="ecr-auto-chip" title={r.decision_note}>
+                            Auto-closed · needs decision
+                          </span>
+                        ) : null}
+                      </div>
                     </td>
-                    <td>{displayClock(r.requested_time)}</td>
-                    <td>{r.date}</td>
-                    <td style={{ maxWidth: 320 }}>{r.reason || '—'}</td>
-                    <td className="row-actions">
-                      {canDecideRequest(user, r.employee_id) ? (
-                        <>
-                          <Button size="sm" disabled={busyId === r._id} onClick={() => decide(r, 'Approved')}>
-                            Approve
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={busyId === r._id}
-                            onClick={() => {
-                              setRejecting(r);
-                              setNote('');
-                            }}
-                          >
-                            Reject
-                          </Button>
-                        </>
-                      ) : (
-                        <span className="label">Admin only</span>
-                      )}
+                    <td className="ecr-col-time">{displayClock(r.requested_time)}</td>
+                    <td className="ecr-col-date">{formatEcrDate(r.date)}</td>
+                    <td className="ecr-col-reason">{r.reason || '—'}</td>
+                    <td className="ecr-col-actions">
+                      <DecideActions
+                        canDecide={canDecideRequest(user, r.employee_id)}
+                        busy={busyId === r._id}
+                        onApprove={() => decide(r, 'Approved')}
+                        onReject={() => {
+                          setRejecting(r);
+                          setNote('');
+                        }}
+                      />
                     </td>
                   </tr>
                 ))}
@@ -225,26 +370,46 @@ export function EarlyCheckoutRequestsCard() {
         </>
       )}
 
-      {recent.some((r) => r.status !== 'Pending') && (
-        <div style={{ marginTop: 14, borderTop: '1px solid var(--hairline)', paddingTop: 12 }}>
-          <span className="label">Recent decisions</span>
-          <div className="ecr-recent-list">
-            {recent
-              .filter((r) => r.status !== 'Pending')
-              .slice(0, 5)
-              .map((r) => (
-                <div key={r._id} className="ecr-recent-item">
-                  <span style={{ fontWeight: 600 }}>{r.employee_id?.name || '—'}</span>
+      <RecentRequestsModal
+        open={recentOpen}
+        onOpenChange={setRecentOpen}
+        title="Recent early checkout requests"
+        loading={recentLoading}
+        error={recentErr}
+        empty={!recent.length}
+      >
+        <table className="data ecr-recent-table">
+          <thead>
+            <tr>
+              <th>Employee</th>
+              <th>Status</th>
+              <th>Requested</th>
+              <th>Date</th>
+              <th>Reason</th>
+            </tr>
+          </thead>
+          <tbody>
+            {recent.map((r) => (
+              <tr key={r._id}>
+                <td>
+                  <EmpCell name={r.employee_id?.name} dept={r.employee_id?.department_id?.name} />
+                </td>
+                <td>
                   <StatusBadge status={r.status} />
-                  <span style={{ color: 'var(--muted)', fontSize: '0.82rem' }}>
-                    {displayClock(r.requested_time)} · {r.date}
-                    {r.decision_note ? ` · “${r.decision_note}”` : ''}
-                  </span>
-                </div>
-              ))}
-          </div>
-        </div>
-      )}
+                </td>
+                <td className="ecr-col-time">{displayClock(r.requested_time)}</td>
+                <td>{formatEcrDate(r.date)}</td>
+                <td>
+                  {r.reason || '—'}
+                  {r.decision_note ? (
+                    <div className="ecr-recent-note">{r.decision_note}</div>
+                  ) : null}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </RecentRequestsModal>
 
       <Dialog open={!!rejecting} onOpenChange={(o) => !o && setRejecting(null)}>
         <DialogContent>
@@ -295,27 +460,43 @@ export function CoverTimeRequestsCard() {
   const [pending, setPending] = useState<CtRequest[]>([]);
   const [pendingTotal, setPendingTotal] = useState(0);
   const [pendingPage, setPendingPage] = useState(1);
-  const [recent, setRecent] = useState<CtRequest[]>([]);
   const [rejecting, setRejecting] = useState<CtRequest | null>(null);
   const [note, setNote] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
+  const [recentOpen, setRecentOpen] = useState(false);
+  const [recent, setRecent] = useState<CtRequest[]>([]);
+  const [recentLoading, setRecentLoading] = useState(false);
+  const [recentErr, setRecentErr] = useState('');
 
   const load = async () => {
     setErr('');
     try {
-      const [p, r] = await Promise.all([
-        api<ListResult<CtRequest>>(
-          `/attendance/cover-time-requests?status=Pending&page=${pendingPage}&limit=${PAGE_SIZE}`
-        ),
-        api<ListResult<CtRequest>>(`/attendance/cover-time-requests?page=1&limit=${PAGE_SIZE}&status=Approved`),
-      ]);
+      const p = await api<ListResult<CtRequest>>(
+        `/attendance/cover-time-requests?status=Pending&page=${pendingPage}&limit=${PAGE_SIZE}`
+      );
       setPending(p.data || []);
       setPendingTotal(p.total || 0);
-      setRecent(r.data || []);
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Failed to load cover time requests');
+    }
+  };
+
+  const loadRecent = async () => {
+    setRecentLoading(true);
+    setRecentErr('');
+    try {
+      const { from, to } = recentWindow();
+      const r = await api<ListResult<CtRequest>>(
+        `/attendance/cover-time-requests?page=1&limit=100&status=Approved,Rejected,Cancelled&from=${from}&to=${to}`
+      );
+      setRecent((r.data || []).filter((x) => x.status !== 'Pending'));
+    } catch (e) {
+      setRecentErr(e instanceof Error ? e.message : 'Failed to load recent requests');
+      setRecent([]);
+    } finally {
+      setRecentLoading(false);
     }
   };
 
@@ -326,6 +507,11 @@ export function CoverTimeRequestsCard() {
     return () => window.removeEventListener('focus', onFocus);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingPage]);
+
+  useEffect(() => {
+    if (recentOpen) loadRecent();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recentOpen]);
 
   const decide = async (req: CtRequest, status: 'Approved' | 'Rejected', decisionNote = '') => {
     setBusyId(req._id);
@@ -352,72 +538,52 @@ export function CoverTimeRequestsCard() {
 
   return (
     <div className="card ecr-card" style={{ marginBottom: 16 }}>
-      <div className="ecr-head">
-        <div>
-          <h3 style={{ margin: 0 }}>Cover Time Requests</h3>
-          <p className="emp-action-help" style={{ margin: '4px 0 0' }}>
-            Employees making up shortfall hours after completing daily working hours. Approved cover time counts toward
-            monthly working hours (not overtime). Minimum 45m.
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {pendingTotal > 0 && <span className="badge badge-warn">{pendingTotal} pending</span>}
-          <Button variant="outline" size="sm" onClick={load}>
-            Refresh
-          </Button>
-        </div>
-      </div>
+      <RequestCardHeader
+        title="Cover Time Requests"
+        help="Make up shortfall after daily hours. Approved cover counts toward monthly hours (not OT). Min 45m."
+        pendingTotal={pendingTotal}
+        onRefresh={load}
+      />
 
-      {msg && <p style={{ color: 'var(--success)', margin: '0.75rem 0 0' }}>{msg}</p>}
-      {err && <p style={{ color: 'var(--error)', margin: '0.75rem 0 0' }}>{err}</p>}
+      {msg && <p className="ecr-flash is-ok">{msg}</p>}
+      {err && <p className="ecr-flash is-err">{err}</p>}
 
       {pendingTotal === 0 ? (
         <p className="ecr-empty">No pending cover time requests.</p>
       ) : (
         <>
-          <div className="table-wrap" style={{ marginTop: 12 }}>
-            <table className="data">
+          <div className="table-wrap ecr-table-wrap">
+            <table className="data ecr-table">
               <thead>
                 <tr>
-                  <th>Employee</th>
-                  <th>Requested</th>
-                  <th>Covered</th>
-                  <th>Date</th>
-                  <th>Reason</th>
-                  <th></th>
+                  <th className="ecr-col-emp">Employee</th>
+                  <th className="ecr-col-hours">Requested</th>
+                  <th className="ecr-col-hours">Covered</th>
+                  <th className="ecr-col-date">Date</th>
+                  <th className="ecr-col-reason">Reason</th>
+                  <th className="ecr-col-actions">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {pending.map((r) => (
                   <tr key={r._id}>
-                    <td>
+                    <td className="ecr-col-emp">
                       <EmpCell name={r.employee_id?.name} dept={r.employee_id?.department_id?.name} />
                     </td>
-                    <td>{formatHours(r.requested_hours)}</td>
-                    <td>{formatHours(r.actual_cover_hours || 0)}</td>
-                    <td>{r.date}</td>
-                    <td style={{ maxWidth: 320 }}>{r.reason || '—'}</td>
-                    <td className="row-actions">
-                      {canDecideRequest(user, r.employee_id) ? (
-                        <>
-                          <Button size="sm" disabled={busyId === r._id} onClick={() => decide(r, 'Approved')}>
-                            Approve
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={busyId === r._id}
-                            onClick={() => {
-                              setRejecting(r);
-                              setNote('');
-                            }}
-                          >
-                            Reject
-                          </Button>
-                        </>
-                      ) : (
-                        <span className="label">Admin only</span>
-                      )}
+                    <td className="ecr-col-hours">{formatHours(r.requested_hours)}</td>
+                    <td className="ecr-col-hours">{formatHours(r.actual_cover_hours || 0)}</td>
+                    <td className="ecr-col-date">{formatEcrDate(r.date)}</td>
+                    <td className="ecr-col-reason">{r.reason || '—'}</td>
+                    <td className="ecr-col-actions">
+                      <DecideActions
+                        canDecide={canDecideRequest(user, r.employee_id)}
+                        busy={busyId === r._id}
+                        onApprove={() => decide(r, 'Approved')}
+                        onReject={() => {
+                          setRejecting(r);
+                          setNote('');
+                        }}
+                      />
                     </td>
                   </tr>
                 ))}
@@ -428,26 +594,48 @@ export function CoverTimeRequestsCard() {
         </>
       )}
 
-      {recent.some((r) => r.status !== 'Pending') && (
-        <div style={{ marginTop: 14, borderTop: '1px solid var(--hairline)', paddingTop: 12 }}>
-          <span className="label">Recent cover approvals</span>
-          <div className="ecr-recent-list">
-            {recent
-              .filter((r) => r.status !== 'Pending')
-              .slice(0, 5)
-              .map((r) => (
-                <div key={r._id} className="ecr-recent-item">
-                  <span style={{ fontWeight: 600 }}>{r.employee_id?.name || '—'}</span>
+      <RecentRequestsModal
+        open={recentOpen}
+        onOpenChange={setRecentOpen}
+        title="Recent cover time requests"
+        loading={recentLoading}
+        error={recentErr}
+        empty={!recent.length}
+      >
+        <table className="data ecr-recent-table">
+          <thead>
+            <tr>
+              <th>Employee</th>
+              <th>Status</th>
+              <th>Requested</th>
+              <th>Covered</th>
+              <th>Date</th>
+              <th>Reason</th>
+            </tr>
+          </thead>
+          <tbody>
+            {recent.map((r) => (
+              <tr key={r._id}>
+                <td>
+                  <EmpCell name={r.employee_id?.name} dept={r.employee_id?.department_id?.name} />
+                </td>
+                <td>
                   <StatusBadge status={r.status} />
-                  <span style={{ color: 'var(--muted)', fontSize: '0.82rem' }}>
-                    {formatHours(r.actual_cover_hours || r.requested_hours)} · {r.date}
-                    {r.decision_note ? ` · “${r.decision_note}”` : ''}
-                  </span>
-                </div>
-              ))}
-          </div>
-        </div>
-      )}
+                </td>
+                <td>{formatHours(r.requested_hours)}</td>
+                <td>{formatHours(r.actual_cover_hours || 0)}</td>
+                <td>{formatEcrDate(r.date)}</td>
+                <td>
+                  {r.reason || '—'}
+                  {r.decision_note ? (
+                    <div className="ecr-recent-note">{r.decision_note}</div>
+                  ) : null}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </RecentRequestsModal>
 
       <Dialog open={!!rejecting} onOpenChange={(o) => !o && setRejecting(null)}>
         <DialogContent>
@@ -498,27 +686,43 @@ export function OvertimeRequestsCard() {
   const [pending, setPending] = useState<OtRequest[]>([]);
   const [pendingTotal, setPendingTotal] = useState(0);
   const [pendingPage, setPendingPage] = useState(1);
-  const [recent, setRecent] = useState<OtRequest[]>([]);
   const [rejecting, setRejecting] = useState<OtRequest | null>(null);
   const [note, setNote] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
+  const [recentOpen, setRecentOpen] = useState(false);
+  const [recent, setRecent] = useState<OtRequest[]>([]);
+  const [recentLoading, setRecentLoading] = useState(false);
+  const [recentErr, setRecentErr] = useState('');
 
   const load = async () => {
     setErr('');
     try {
-      const [p, r] = await Promise.all([
-        api<ListResult<OtRequest>>(
-          `/overtime?status=Pending&source=requests&page=${pendingPage}&limit=${PAGE_SIZE}`
-        ),
-        api<ListResult<OtRequest>>(`/overtime?status=Approved&source=requests&page=1&limit=${PAGE_SIZE}`),
-      ]);
+      const p = await api<ListResult<OtRequest>>(
+        `/overtime?status=Pending&source=requests&page=${pendingPage}&limit=${PAGE_SIZE}`
+      );
       setPending(p.data || []);
       setPendingTotal(p.total || 0);
-      setRecent(r.data || []);
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Failed to load overtime requests');
+    }
+  };
+
+  const loadRecent = async () => {
+    setRecentLoading(true);
+    setRecentErr('');
+    try {
+      const { from, to } = recentWindow();
+      const r = await api<ListResult<OtRequest>>(
+        `/overtime?status=Approved,Rejected&source=requests&page=1&limit=100&from_date=${from}&to_date=${to}`
+      );
+      setRecent((r.data || []).filter((x) => x.status !== 'Pending'));
+    } catch (e) {
+      setRecentErr(e instanceof Error ? e.message : 'Failed to load recent requests');
+      setRecent([]);
+    } finally {
+      setRecentLoading(false);
     }
   };
 
@@ -529,6 +733,11 @@ export function OvertimeRequestsCard() {
     return () => window.removeEventListener('focus', onFocus);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingPage]);
+
+  useEffect(() => {
+    if (recentOpen) loadRecent();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recentOpen]);
 
   const decide = async (req: OtRequest, status: 'Approved' | 'Rejected', decisionNote = '') => {
     setBusyId(req._id);
@@ -559,69 +768,52 @@ export function OvertimeRequestsCard() {
 
   return (
     <div className="card ecr-card" style={{ marginBottom: 16 }}>
-      <div className="ecr-head">
-        <div>
-          <h3 style={{ margin: 0 }}>Management Overtime Requests</h3>
-          <p className="emp-action-help" style={{ margin: '4px 0 0' }}>
-            Company-paid overtime requested after daily target. General OT is automatic at checkout and does not appear here.
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {pendingTotal > 0 && <span className="badge badge-warn">{pendingTotal} pending</span>}
-          <Button variant="outline" size="sm" onClick={load}>
-            Refresh
-          </Button>
-        </div>
-      </div>
+      <RequestCardHeader
+        title="Management Overtime Requests"
+        help="Company-paid OT after daily target. General OT is automatic at checkout and does not appear here."
+        pendingTotal={pendingTotal}
+        onRefresh={load}
+      />
 
-      {msg && <p style={{ color: 'var(--success)', margin: '0.75rem 0 0' }}>{msg}</p>}
-      {err && <p style={{ color: 'var(--error)', margin: '0.75rem 0 0' }}>{err}</p>}
+      {msg && <p className="ecr-flash is-ok">{msg}</p>}
+      {err && <p className="ecr-flash is-err">{err}</p>}
 
       {pendingTotal === 0 ? (
         <p className="ecr-empty">No pending management overtime requests.</p>
       ) : (
         <>
-          <div className="table-wrap" style={{ marginTop: 12 }}>
-            <table className="data">
+          <div className="table-wrap ecr-table-wrap">
+            <table className="data ecr-table">
               <thead>
                 <tr>
-                  <th>Employee</th>
-                  <th>Date</th>
-                  <th>Hours</th>
-                  <th>Reason</th>
-                  <th></th>
+                  <th className="ecr-col-emp">Employee</th>
+                  <th className="ecr-col-date">Date</th>
+                  <th className="ecr-col-hours">Hours</th>
+                  <th className="ecr-col-reason">Reason</th>
+                  <th className="ecr-col-actions">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {pending.map((r) => (
                   <tr key={r._id}>
-                    <td>
+                    <td className="ecr-col-emp">
                       <EmpCell name={r.employee_id?.name} dept={r.employee_id?.department_id?.name} />
                     </td>
-                    <td>{r.date}</td>
-                    <td className="num-cell"><strong>{formatHours(r.minutes != null ? r.minutes / 60 : r.hours)}</strong></td>
-                    <td style={{ maxWidth: 320 }}>{r.reason || '—'}</td>
-                    <td className="row-actions">
-                      {canDecideRequest(user, r.employee_id) ? (
-                        <>
-                          <Button size="sm" disabled={busyId === r._id} onClick={() => decide(r, 'Approved')}>
-                            Approve
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={busyId === r._id}
-                            onClick={() => {
-                              setRejecting(r);
-                              setNote('');
-                            }}
-                          >
-                            Reject
-                          </Button>
-                        </>
-                      ) : (
-                        <span className="label">Admin only</span>
-                      )}
+                    <td className="ecr-col-date">{formatEcrDate(r.date)}</td>
+                    <td className="ecr-col-hours">
+                      <strong>{formatHours(r.minutes != null ? r.minutes / 60 : r.hours)}</strong>
+                    </td>
+                    <td className="ecr-col-reason">{r.reason || '—'}</td>
+                    <td className="ecr-col-actions">
+                      <DecideActions
+                        canDecide={canDecideRequest(user, r.employee_id)}
+                        busy={busyId === r._id}
+                        onApprove={() => decide(r, 'Approved')}
+                        onReject={() => {
+                          setRejecting(r);
+                          setNote('');
+                        }}
+                      />
                     </td>
                   </tr>
                 ))}
@@ -632,23 +824,46 @@ export function OvertimeRequestsCard() {
         </>
       )}
 
-      {recent.length > 0 && (
-        <div style={{ marginTop: 14, borderTop: '1px solid var(--hairline)', paddingTop: 12 }}>
-          <span className="label">Recent OT approvals</span>
-          <div className="ecr-recent-list">
-            {recent.slice(0, 5).map((r) => (
-              <div key={r._id} className="ecr-recent-item">
-                <span style={{ fontWeight: 600 }}>{r.employee_id?.name || '—'}</span>
-                <StatusBadge status={r.status} />
-                <span style={{ color: 'var(--muted)', fontSize: '0.82rem' }}>
-                  {formatHours(r.hours)} · {r.date}
-                  {r.decision_note ? ` · “${r.decision_note}”` : ''}
-                </span>
-              </div>
+      <RecentRequestsModal
+        open={recentOpen}
+        onOpenChange={setRecentOpen}
+        title="Recent overtime requests"
+        loading={recentLoading}
+        error={recentErr}
+        empty={!recent.length}
+      >
+        <table className="data ecr-recent-table">
+          <thead>
+            <tr>
+              <th>Employee</th>
+              <th>Status</th>
+              <th>Date</th>
+              <th>Hours</th>
+              <th>Reason</th>
+            </tr>
+          </thead>
+          <tbody>
+            {recent.map((r) => (
+              <tr key={r._id}>
+                <td>
+                  <EmpCell name={r.employee_id?.name} dept={r.employee_id?.department_id?.name} />
+                </td>
+                <td>
+                  <StatusBadge status={r.status} />
+                </td>
+                <td>{formatEcrDate(r.date)}</td>
+                <td>{formatHours(r.hours)}</td>
+                <td>
+                  {r.reason || '—'}
+                  {r.decision_note ? (
+                    <div className="ecr-recent-note">{r.decision_note}</div>
+                  ) : null}
+                </td>
+              </tr>
             ))}
-          </div>
-        </div>
-      )}
+          </tbody>
+        </table>
+      </RecentRequestsModal>
 
       <Dialog open={!!rejecting} onOpenChange={(o) => !o && setRejecting(null)}>
         <DialogContent>
@@ -658,7 +873,8 @@ export function OvertimeRequestsCard() {
           {rejecting && (
             <>
               <p style={{ margin: 0, color: 'var(--muted)' }}>
-                {rejecting.employee_id?.name || 'Employee'} · {formatHours(rejecting.hours)} · {rejecting.date}
+                {rejecting.employee_id?.name || 'Employee'} · {formatHours(rejecting.hours)} ·{' '}
+                {formatEcrDate(rejecting.date)}
               </p>
               <p style={{ margin: '8px 0 0' }}>{rejecting.reason || 'No reason given'}</p>
               <div className="grid gap-1.5">
@@ -699,25 +915,40 @@ export function LeaveRequestsCard() {
   const [pending, setPending] = useState<Leave[]>([]);
   const [pendingTotal, setPendingTotal] = useState(0);
   const [pendingPage, setPendingPage] = useState(1);
-  const [recent, setRecent] = useState<Leave[]>([]);
   const [rejecting, setRejecting] = useState<Leave | null>(null);
-  const [note, setNote] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
+  const [recentOpen, setRecentOpen] = useState(false);
+  const [recent, setRecent] = useState<Leave[]>([]);
+  const [recentLoading, setRecentLoading] = useState(false);
+  const [recentErr, setRecentErr] = useState('');
 
   const load = async () => {
     setErr('');
     try {
-      const [p, r] = await Promise.all([
-        api<ListResult<Leave>>(`/leaves?status=Pending&page=${pendingPage}&limit=${PAGE_SIZE}`),
-        api<ListResult<Leave>>(`/leaves?status=Approved&page=1&limit=${PAGE_SIZE}`),
-      ]);
+      const p = await api<ListResult<Leave>>(`/leaves?status=Pending&page=${pendingPage}&limit=${PAGE_SIZE}`);
       setPending(p.data || []);
       setPendingTotal(p.total || 0);
-      setRecent(r.data || []);
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Failed to load leave requests');
+    }
+  };
+
+  const loadRecent = async () => {
+    setRecentLoading(true);
+    setRecentErr('');
+    try {
+      const { from, to } = recentWindow();
+      const r = await api<ListResult<Leave>>(
+        `/leaves?status=Approved,Rejected&page=1&limit=100&decided_from=${from}&decided_to=${to}`
+      );
+      setRecent((r.data || []).filter((x) => x.status !== 'Pending'));
+    } catch (e) {
+      setRecentErr(e instanceof Error ? e.message : 'Failed to load recent requests');
+      setRecent([]);
+    } finally {
+      setRecentLoading(false);
     }
   };
 
@@ -728,6 +959,11 @@ export function LeaveRequestsCard() {
     return () => window.removeEventListener('focus', onFocus);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingPage]);
+
+  useEffect(() => {
+    if (recentOpen) loadRecent();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recentOpen]);
 
   const decide = async (req: Leave, status: 'Approved' | 'Rejected') => {
     setBusyId(req._id);
@@ -740,7 +976,6 @@ export function LeaveRequestsCard() {
           : 'Leave request rejected.'
       );
       setRejecting(null);
-      setNote('');
       await load();
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Failed');
@@ -751,80 +986,58 @@ export function LeaveRequestsCard() {
 
   return (
     <div className="card ecr-card" style={{ marginBottom: 16 }}>
-      <div className="ecr-head">
-        <div>
-          <h3 style={{ margin: 0 }}>Leave Requests</h3>
-          <p className="emp-action-help" style={{ margin: '4px 0 0' }}>
-            Full-day and half-day leave applications awaiting HR/Admin decision.
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {pendingTotal > 0 && <span className="badge badge-warn">{pendingTotal} pending</span>}
-          <Button variant="outline" size="sm" onClick={load}>
-            Refresh
-          </Button>
-        </div>
-      </div>
+      <RequestCardHeader
+        title="Leave Requests"
+        help="Full-day and half-day leave applications awaiting HR/Admin decision."
+        pendingTotal={pendingTotal}
+        onRefresh={load}
+      />
 
-      {msg && <p style={{ color: 'var(--success)', margin: '0.75rem 0 0' }}>{msg}</p>}
-      {err && <p style={{ color: 'var(--error)', margin: '0.75rem 0 0' }}>{err}</p>}
+      {msg && <p className="ecr-flash is-ok">{msg}</p>}
+      {err && <p className="ecr-flash is-err">{err}</p>}
 
       {pendingTotal === 0 ? (
         <p className="ecr-empty">No pending leave requests.</p>
       ) : (
         <>
-          <div className="table-wrap" style={{ marginTop: 12 }}>
-            <table className="data">
+          <div className="table-wrap ecr-table-wrap">
+            <table className="data ecr-table">
               <thead>
                 <tr>
-                  <th>Employee</th>
-                  <th>From</th>
-                  <th>To</th>
-                  <th>Day type</th>
-                  <th>Reason</th>
-                  <th></th>
+                  <th className="ecr-col-emp">Employee</th>
+                  <th className="ecr-col-from">From</th>
+                  <th className="ecr-col-to">To</th>
+                  <th className="ecr-col-day">Day type</th>
+                  <th className="ecr-col-reason">Reason</th>
+                  <th className="ecr-col-actions">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {pending.map((l) => (
                   <tr key={l._id}>
-                    <td>
+                    <td className="ecr-col-emp">
                       <EmpCell name={l.employee_id?.name} dept={l.employee_id?.department_id?.name} />
                     </td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                        <span>{l.from_date}</span>
+                    <td className="ecr-col-from">
+                      <div className="ecr-date-with-chip">
+                        <span>{formatEcrDate(l.from_date)}</span>
                         {leaveUrgencyChip(l, today)}
                       </div>
                     </td>
-                    <td>{l.to_date}</td>
-                    <td>
+                    <td className="ecr-col-to">{formatEcrDate(l.to_date)}</td>
+                    <td className="ecr-col-day">
                       <span className={`hol-chip ${l.day_type === 'Half Day' ? 'is-saturday' : 'is-neutral'}`}>
                         {l.day_type || 'Full Day'}
                       </span>
                     </td>
-                    <td style={{ maxWidth: 280 }}>{l.reason || '—'}</td>
-                    <td className="row-actions">
-                      {canDecideRequest(user, l.employee_id) ? (
-                        <>
-                          <Button size="sm" disabled={busyId === l._id} onClick={() => decide(l, 'Approved')}>
-                            Approve
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={busyId === l._id}
-                            onClick={() => {
-                              setRejecting(l);
-                              setNote('');
-                            }}
-                          >
-                            Reject
-                          </Button>
-                        </>
-                      ) : (
-                        <span className="label">Admin only</span>
-                      )}
+                    <td className="ecr-col-reason">{l.reason || '—'}</td>
+                    <td className="ecr-col-actions">
+                      <DecideActions
+                        canDecide={canDecideRequest(user, l.employee_id)}
+                        busy={busyId === l._id}
+                        onApprove={() => decide(l, 'Approved')}
+                        onReject={() => setRejecting(l)}
+                      />
                     </td>
                   </tr>
                 ))}
@@ -835,22 +1048,47 @@ export function LeaveRequestsCard() {
         </>
       )}
 
-      {recent.length > 0 && (
-        <div style={{ marginTop: 14, borderTop: '1px solid var(--hairline)', paddingTop: 12 }}>
-          <span className="label">Recent leave approvals</span>
-          <div className="ecr-recent-list">
-            {recent.slice(0, 5).map((l) => (
-              <div key={l._id} className="ecr-recent-item">
-                <span style={{ fontWeight: 600 }}>{l.employee_id?.name || '—'}</span>
-                <StatusBadge status={l.status} />
-                <span style={{ color: 'var(--muted)', fontSize: '0.82rem' }}>
-                  {l.from_date} – {l.to_date} · {l.day_type || 'Full Day'}
-                </span>
-              </div>
+      <RecentRequestsModal
+        open={recentOpen}
+        onOpenChange={setRecentOpen}
+        title="Recent leave requests"
+        loading={recentLoading}
+        error={recentErr}
+        empty={!recent.length}
+      >
+        <table className="data ecr-recent-table">
+          <thead>
+            <tr>
+              <th>Employee</th>
+              <th>Status</th>
+              <th>From</th>
+              <th>To</th>
+              <th>Day type</th>
+              <th>Reason</th>
+            </tr>
+          </thead>
+          <tbody>
+            {recent.map((l) => (
+              <tr key={l._id}>
+                <td>
+                  <EmpCell name={l.employee_id?.name} dept={l.employee_id?.department_id?.name} />
+                </td>
+                <td>
+                  <StatusBadge status={l.status} />
+                </td>
+                <td>{formatEcrDate(l.from_date)}</td>
+                <td>{formatEcrDate(l.to_date)}</td>
+                <td>
+                  <span className={`hol-chip ${l.day_type === 'Half Day' ? 'is-saturday' : 'is-neutral'}`}>
+                    {l.day_type || 'Full Day'}
+                  </span>
+                </td>
+                <td>{l.reason || '—'}</td>
+              </tr>
             ))}
-          </div>
-        </div>
-      )}
+          </tbody>
+        </table>
+      </RecentRequestsModal>
 
       <Dialog open={!!rejecting} onOpenChange={(o) => !o && setRejecting(null)}>
         <DialogContent>
@@ -860,7 +1098,8 @@ export function LeaveRequestsCard() {
           {rejecting && (
             <>
               <p style={{ margin: 0, color: 'var(--muted)' }}>
-                {rejecting.employee_id?.name || 'Employee'} · {rejecting.from_date} – {rejecting.to_date}
+                {rejecting.employee_id?.name || 'Employee'} · {formatEcrDate(rejecting.from_date)} –{' '}
+                {formatEcrDate(rejecting.to_date)}
               </p>
               <p style={{ margin: '8px 0 0' }}>{rejecting.reason || 'No reason given'}</p>
               <DialogFooter>

@@ -469,6 +469,11 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
                     Cancel cover request
                   </button>
                 )}
+                {ctr?.status === 'Pending' && (
+                  <button className="attendance-cancel" disabled={busy} onClick={cancelCoverRequest}>
+                    Cancel cover request
+                  </button>
+                )}
               </>
             )}
             {live.checkedOut && (

@@ -41,9 +41,6 @@ function patchAmount(
 
 function buildEarningRows(form: SalarySlipFormData, editable: boolean): Row[] {
   const rows: Row[] = [{ key: 'basic', label: 'Basic', amount: form.basic, ytd: form.ytdBasic }];
-  if (editable || form.overtime > 0) {
-    rows.push({ key: 'overtime', label: 'Overtime', amount: form.overtime, ytd: form.ytdOvertime });
-  }
   (form.customEarnings || []).forEach((item, index) => {
     if (!editable && !item.label) return;
     rows.push({
@@ -59,36 +56,6 @@ function buildEarningRows(form: SalarySlipFormData, editable: boolean): Row[] {
 
 function buildDeductionRows(form: SalarySlipFormData, editable: boolean): Row[] {
   const rows: Row[] = [];
-  if (form.shortfallDeduction > 0 || (editable && form.shortfallHours > 0)) {
-    rows.push({
-      key: 'shortfall',
-      label: 'Shortfall Deduction',
-      amount: form.shortfallDeduction,
-      ytd: form.ytdShortfallDeduction,
-    });
-  }
-  // Leave / LOP — show whenever there is LOP, an amount, or HR is editing (manual adjust).
-  if (form.leaveDeduction > 0 || form.lopDays > 0 || editable) {
-    const lopLabel =
-      form.lopDays > 0
-        ? `Leave Deduction (${form.lopDays} LOP day${form.lopDays === 1 ? '' : 's'})`
-        : 'Leave Deduction';
-    rows.push({
-      key: 'leave',
-      label: lopLabel,
-      amount: form.leaveDeduction,
-      ytd: form.ytdLeaveDeduction,
-    });
-  }
-  if (form.bondSecurity > 0 || (editable && form.bondSecurityPercent > 0)) {
-    const pct = form.bondSecurityPercent ? ` (${form.bondSecurityPercent}%)` : '';
-    rows.push({
-      key: 'bond',
-      label: `Bond Security Hold${pct}`,
-      amount: form.bondSecurity,
-      ytd: form.ytdBondSecurity,
-    });
-  }
   (form.customDeductions || []).forEach((item, index) => {
     if (!editable && !(item.label && item.amount)) return;
     rows.push({
@@ -238,42 +205,6 @@ export function SalarySlipPreview({ form, previewRef, editable = false, disabled
         />
       );
     }
-    if (row.key === 'overtime') {
-      return (
-        <AmountField
-          value={form.overtime}
-          disabled={disabled}
-          onChange={(v) => update(patchAmount(form, 'overtime', 'ytdOvertime', v))}
-        />
-      );
-    }
-    if (row.key === 'shortfall') {
-      return (
-        <AmountField
-          value={form.shortfallDeduction}
-          disabled={disabled}
-          onChange={(v) => update(patchAmount(form, 'shortfallDeduction', 'ytdShortfallDeduction', v))}
-        />
-      );
-    }
-    if (row.key === 'leave') {
-      return (
-        <AmountField
-          value={form.leaveDeduction}
-          disabled={disabled}
-          onChange={(v) => update(patchAmount(form, 'leaveDeduction', 'ytdLeaveDeduction', v))}
-        />
-      );
-    }
-    if (row.key === 'bond') {
-      return (
-        <AmountField
-          value={form.bondSecurity}
-          disabled={disabled}
-          onChange={(v) => update(patchAmount(form, 'bondSecurity', 'ytdBondSecurity', v))}
-        />
-      );
-    }
     if (row.customIndex != null) {
       const key = side === 'earn' ? 'customEarnings' : 'customDeductions';
       return (
@@ -387,12 +318,12 @@ export function SalarySlipPreview({ form, previewRef, editable = false, disabled
               <span className="meta-value">
                 {editable && onChange ? (
                   <DaysField
-                    value={form.lopDays}
+                    value={form.leaveDays}
                     disabled={disabled}
-                    onChange={(v) => update(applyLopDays(form, v))}
+                    onChange={(v) => update({ ...form, leaveDays: v })}
                   />
                 ) : (
-                  form.lopDays
+                  form.leaveDays
                 )}
               </span>
             </div>
