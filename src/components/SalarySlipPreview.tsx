@@ -56,6 +56,17 @@ function buildEarningRows(form: SalarySlipFormData, editable: boolean): Row[] {
 
 function buildDeductionRows(form: SalarySlipFormData, editable: boolean): Row[] {
   const rows: Row[] = [];
+  const lopAmount = Number(form.leaveDeduction) || 0;
+  const lopDays = Number(form.lopDays) || 0;
+  const showLop = editable || lopAmount !== 0 || lopDays > 0;
+  if (showLop) {
+    rows.push({
+      key: 'lop',
+      label: form.leaveDeductionLabel || 'LOP Deduction',
+      amount: lopAmount,
+      ytd: form.ytdLeaveDeduction,
+    });
+  }
   (form.customDeductions || []).forEach((item, index) => {
     if (!editable && !(item.label && item.amount)) return;
     rows.push({
@@ -205,6 +216,15 @@ export function SalarySlipPreview({ form, previewRef, editable = false, disabled
         />
       );
     }
+    if (row.key === 'lop') {
+      return (
+        <AmountField
+          value={form.leaveDeduction}
+          disabled={disabled}
+          onChange={(v) => update(patchAmount(form, 'leaveDeduction', 'ytdLeaveDeduction', v))}
+        />
+      );
+    }
     if (row.customIndex != null) {
       const key = side === 'earn' ? 'customEarnings' : 'customDeductions';
       return (
@@ -220,6 +240,18 @@ export function SalarySlipPreview({ form, previewRef, editable = false, disabled
 
   const renderNameCell = (row: Row | undefined, side: 'earn' | 'ded') => {
     if (!row) return '';
+    if (editable && onChange && row.key === 'lop') {
+      return (
+        <span className="payslip-custom-name">
+          <TextField
+            value={form.leaveDeductionLabel || 'LOP Deduction'}
+            disabled={disabled}
+            className="payslip-input-label"
+            onChange={(v) => update({ ...form, leaveDeductionLabel: v })}
+          />
+        </span>
+      );
+    }
     if (editable && onChange && row.customIndex != null) {
       const key = side === 'earn' ? 'customEarnings' : 'customDeductions';
       return (
@@ -318,12 +350,12 @@ export function SalarySlipPreview({ form, previewRef, editable = false, disabled
               <span className="meta-value">
                 {editable && onChange ? (
                   <DaysField
-                    value={form.leaveDays}
+                    value={form.lopDays}
                     disabled={disabled}
-                    onChange={(v) => update({ ...form, leaveDays: v })}
+                    onChange={(v) => update(applyLopDays(form, v))}
                   />
                 ) : (
-                  form.leaveDays
+                  form.lopDays
                 )}
               </span>
             </div>

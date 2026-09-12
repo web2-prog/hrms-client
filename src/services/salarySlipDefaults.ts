@@ -71,6 +71,7 @@ export type SalarySlipFormData = {
   shortfallDeduction: number;
   ytdShortfallDeduction: number;
   leaveDeduction: number;
+  leaveDeductionLabel: string;
   ytdLeaveDeduction: number;
   earlyCheckoutMinutes: number;
   earlyCheckoutDeduction: number;
@@ -338,6 +339,7 @@ export const apiPayslipToForm = (p: Partial<SalarySlipFormData> & Record<string,
     shortfallDeduction,
     ytdShortfallDeduction: Number(p.ytdShortfallDeduction) || 0,
     leaveDeduction: Number(p.leaveDeduction) || 0,
+    leaveDeductionLabel: String(p.leaveDeductionLabel || 'LOP Deduction').trim() || 'LOP Deduction',
     ytdLeaveDeduction: Number(p.ytdLeaveDeduction) || 0,
     earlyCheckoutMinutes: Number(p.earlyCheckoutMinutes) || 0,
     earlyCheckoutDeduction: Number(p.earlyCheckoutDeduction) || 0,
@@ -388,6 +390,7 @@ export const formToAdjustPayload = (form: SalarySlipFormData) => ({
   overtime_hours: form.overtimeHours,
   deduction_amount: form.shortfallDeduction,
   leave_deduction_amount: form.leaveDeduction,
+  leave_deduction_label: form.leaveDeductionLabel || 'LOP Deduction',
   early_checkout_deduction_amount: 0,
   bond_security_deduction: form.bondSecurity,
   bond_security_percent: form.bondSecurityPercent,
