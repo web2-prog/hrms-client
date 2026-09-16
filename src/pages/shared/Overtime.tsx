@@ -11,13 +11,13 @@ import { Button } from '@/components/ui/button';
 
 type OtRequest = {
   _id: string;
-  source?: 'request' | 'attendance';
+  source?: 'request' | 'attendance' | 'cover';
   date: string;
   hours: number;
   minutes?: number;
   reason?: string;
   status: string;
-  ot_type?: 'General' | 'Management' | 'Attendance' | null;
+  ot_type?: 'General' | 'Management' | 'Attendance' | 'Cover' | null;
   working_hours?: number;
   applied_on?: string;
   decision_note?: string;
@@ -28,10 +28,15 @@ type OtRequest = {
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 function otTypeChip(row: OtRequest) {
+  if (row.ot_type === 'Cover' || row.source === 'cover') {
+    return <span className="hol-chip is-saturday">Cover Time</span>;
+  }
+  if (row.ot_type === 'Management' || row.source === 'request') {
+    return <span className="hol-chip is-festival">Management OT</span>;
+  }
   if (row.ot_type === 'General' || row.source === 'attendance') {
     return <span className="hol-chip is-vacation">General OT</span>;
   }
-  if (row.ot_type === 'Management') return <span className="hol-chip is-festival">Management OT</span>;
   return '—';
 }
 
@@ -116,8 +121,8 @@ export function OvertimePage() {
         title="Overtime"
         subtitle={
           isManager
-            ? 'OT records and history — approve pending management OT in Requests'
-            : 'General OT from checkout extras · Management OT from employee requests'
+            ? 'OT and cover-time history — approve pending items in Requests'
+            : 'General OT · Management OT · Cover Time'
         }
         searchPlaceholder="Search employee…"
         loading={loading}
@@ -147,9 +152,10 @@ export function OvertimePage() {
               value={source === 'all' || !source ? 'all' : source}
               onChange={(v) => list.setFilter('source', v === 'all' ? '' : v)}
               options={[
-                { value: 'all', label: 'All OT' },
+                { value: 'all', label: 'All types' },
                 { value: 'attendance', label: 'General OT (auto)' },
-                { value: 'requests', label: 'Management requests' },
+                { value: 'requests', label: 'Management OT' },
+                { value: 'cover', label: 'Cover Time' },
               ]}
             />
             <AppSelect
@@ -157,7 +163,7 @@ export function OvertimePage() {
               onChange={(v) => list.setFilter('status', v)}
               options={[
                 { value: '', label: 'Status' },
-                { value: 'Extra', label: 'Extra (auto General)' },
+                { value: 'Extra', label: 'Extra (General OT)' },
                 { value: 'Pending', label: 'Pending' },
                 { value: 'Approved', label: 'Approved' },
                 { value: 'Rejected', label: 'Rejected' },
@@ -171,6 +177,7 @@ export function OvertimePage() {
                   { value: '', label: 'OT Type' },
                   { value: 'General', label: 'General OT' },
                   { value: 'Management', label: 'Management OT' },
+                  { value: 'Cover', label: 'Cover Time' },
                 ]}
               />
             )}
@@ -229,9 +236,9 @@ export function OvertimePage() {
         }
       >
         <p className="listing-note">
-          General OT is automatic when checkout hours exceed the daily target (status Extra, no request).
-          Management OT and Cover Time use one request form — pick the type in the dropdown; duration is counted from
-          daily working hours through checkout.
+          <strong>General OT</strong> is automatic surplus after daily hours (minus any Cover / Management claim).{' '}
+          <strong>Cover Time</strong> fills monthly shortfall and counts as working hours (not OT).{' '}
+          <strong>Management OT</strong> is requested for remaining surplus and paid when approved.
         </p>
         <div className="table-wrap">
           <table className="data">

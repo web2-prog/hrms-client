@@ -229,9 +229,7 @@
 }
 
 .salary-table th.col-amt,
-.salary-table th.col-ytd,
-.salary-table td.col-amt,
-.salary-table td.col-ytd {
+.salary-table td.col-amt {
   text-align: right;
 }
 
@@ -256,21 +254,17 @@
   padding-left: 24px;
 }
 
-.salary-table td:nth-child(4),
+.salary-table td:nth-child(3),
 .salary-table th.th-ded {
   padding-left: 16px;
 }
 
 .salary-table .col-name {
-  width: 28%;
+  width: 35%;
 }
 
 .salary-table .col-amt {
-  width: 14%;
-}
-
-.salary-table .col-ytd {
-  width: 14%;
+  width: 15%;
 }
 
 .salary-table tr.spacer-row td {

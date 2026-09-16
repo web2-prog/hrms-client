@@ -9,8 +9,6 @@ import {
   calculateGrossEarnings,
   calculateTotalDeductions,
   calculateNetPay,
-  calculateYtdGrossEarnings,
-  calculateYtdTotalDeductions,
   formatSlipAmount,
   amountToWords,
   applyLopDays,
@@ -18,7 +16,7 @@ import {
 import './SalarySlipPreview.css';
 
 type Line = { label: string; amount: number; ytd: number };
-type Row = { key: string; label: string; amount: number; ytd: number; customIndex?: number };
+type Row = { key: string; label: string; amount: number; customIndex?: number };
 
 type Props = {
   form: SalarySlipFormData;
@@ -31,23 +29,19 @@ type Props = {
 function patchAmount(
   form: SalarySlipFormData,
   field: keyof SalarySlipFormData,
-  ytdField: keyof SalarySlipFormData,
   next: number
 ): SalarySlipFormData {
-  const prev = Number(form[field]) || 0;
-  const prevYtd = Number(form[ytdField]) || 0;
-  return { ...form, [field]: next, [ytdField]: Math.round((prevYtd - prev + next) * 100) / 100 };
+  return { ...form, [field]: next };
 }
 
 function buildEarningRows(form: SalarySlipFormData, editable: boolean): Row[] {
-  const rows: Row[] = [{ key: 'basic', label: 'Basic', amount: form.basic, ytd: form.ytdBasic }];
+  const rows: Row[] = [{ key: 'basic', label: 'Basic', amount: form.basic }];
   (form.customEarnings || []).forEach((item, index) => {
     if (!editable && !item.label) return;
     rows.push({
       key: `ce-${index}`,
       label: item.label,
       amount: item.amount,
-      ytd: item.ytd ?? item.amount,
       customIndex: index,
     });
   });
@@ -64,7 +58,6 @@ function buildDeductionRows(form: SalarySlipFormData, editable: boolean): Row[] 
       key: 'lop',
       label: form.leaveDeductionLabel || 'LOP Deduction',
       amount: lopAmount,
-      ytd: form.ytdLeaveDeduction,
     });
   }
   (form.customDeductions || []).forEach((item, index) => {
@@ -73,7 +66,6 @@ function buildDeductionRows(form: SalarySlipFormData, editable: boolean): Row[] 
       key: `cd-${index}`,
       label: item.label || 'Manual Deduction',
       amount: item.amount,
-      ytd: item.ytd ?? item.amount,
       customIndex: index,
     });
   });
@@ -162,8 +154,6 @@ export function SalarySlipPreview({ form, previewRef, editable = false, disabled
   const grossEarnings = calculateGrossEarnings(form);
   const totalDeductions = calculateTotalDeductions(form);
   const netPay = calculateNetPay(form);
-  const ytdGrossEarnings = calculateYtdGrossEarnings(form);
-  const ytdTotalDeductions = calculateYtdTotalDeductions(form);
   const monthLabel = MONTH_NAMES[form.month - 1] || '';
   const payPeriod = `${monthLabel} ${form.year}`;
   const earningRows = buildEarningRows(form, editable);
@@ -177,7 +167,8 @@ export function SalarySlipPreview({ form, previewRef, editable = false, disabled
     lines[index] = {
       ...current,
       ...patch,
-      ytd: Math.round((current.ytd - current.amount + amount) * 100) / 100,
+      amount,
+      ytd: amount,
     };
     update({ ...form, [key]: lines });
   };
@@ -209,7 +200,7 @@ export function SalarySlipPreview({ form, previewRef, editable = false, disabled
           value={form.basic}
           disabled={disabled}
           onChange={(v) => {
-            let next = patchAmount(form, 'basic', 'ytdBasic', v);
+            let next = patchAmount(form, 'basic', v);
             if ((Number(next.lopDays) || 0) > 0) next = applyLopDays(next, next.lopDays);
             update(next);
           }}
@@ -221,7 +212,7 @@ export function SalarySlipPreview({ form, previewRef, editable = false, disabled
         <AmountField
           value={form.leaveDeduction}
           disabled={disabled}
-          onChange={(v) => update(patchAmount(form, 'leaveDeduction', 'ytdLeaveDeduction', v))}
+          onChange={(v) => update(patchAmount(form, 'leaveDeduction', v))}
         />
       );
     }
@@ -368,10 +359,8 @@ export function SalarySlipPreview({ form, previewRef, editable = false, disabled
           <tr>
             <th className="col-name th-earn">EARNINGS</th>
             <th className="col-amt">AMOUNT</th>
-            <th className="col-ytd">YTD</th>
             <th className="col-name th-ded">DEDUCTIONS</th>
             <th className="col-amt">AMOUNT</th>
-            <th className="col-ytd">YTD</th>
           </tr>
         </thead>
         <tbody>
@@ -382,22 +371,20 @@ export function SalarySlipPreview({ form, previewRef, editable = false, disabled
               <tr key={index}>
                 <td className="col-name">{renderNameCell(earning, 'earn')}</td>
                 <td className="col-amt">{renderAmountCell(earning, 'earn')}</td>
-                <td className="col-ytd">{earning ? formatSlipAmount(earning.ytd, true) : ''}</td>
                 <td className="col-name">{renderNameCell(deduction, 'ded')}</td>
                 <td className="col-amt">{renderAmountCell(deduction, 'ded')}</td>
-                <td className="col-ytd">{deduction ? formatSlipAmount(deduction.ytd, true) : ''}</td>
               </tr>
             );
           })}
 
           {editable && onChange && (
             <tr className="add-row">
-              <td className="col-name" colSpan={3}>
+              <td className="col-name" colSpan={2}>
                 <button type="button" className="payslip-add" disabled={disabled} onClick={() => addCustom('customEarnings')}>
                   <Plus size={12} /> Add earning
                 </button>
               </td>
-              <td className="col-name" colSpan={3}>
+              <td className="col-name" colSpan={2}>
                 <button type="button" className="payslip-add" disabled={disabled} onClick={() => addCustom('customDeductions')}>
                   <Plus size={12} /> Add Deduction
                 </button>
@@ -408,19 +395,15 @@ export function SalarySlipPreview({ form, previewRef, editable = false, disabled
           <tr className="spacer-row" aria-hidden="true">
             <td className="col-name">&nbsp;</td>
             <td className="col-amt">&nbsp;</td>
-            <td className="col-ytd">&nbsp;</td>
             <td className="col-name">&nbsp;</td>
             <td className="col-amt">&nbsp;</td>
-            <td className="col-ytd">&nbsp;</td>
           </tr>
 
           <tr className="total-row">
             <td className="col-name total-label">Gross Earnings</td>
             <td className="col-amt total-amt">{formatSlipAmount(grossEarnings, true)}</td>
-            <td className="col-ytd total-amt">{formatSlipAmount(ytdGrossEarnings, true)}</td>
             <td className="col-name total-label">Total Deductions</td>
             <td className="col-amt total-amt">{formatSlipAmount(totalDeductions, true)}</td>
-            <td className="col-ytd total-amt">{formatSlipAmount(ytdTotalDeductions, true)}</td>
           </tr>
         </tbody>
       </table>
