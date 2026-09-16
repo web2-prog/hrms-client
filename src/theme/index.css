@@ -2122,9 +2122,15 @@ table.data.salary-table {
   min-width: 1100px;
 }
 
+/* Keep records list on hairline rows only (do not inherit payslip borders) */
 table.data.salary-table th,
 table.data.salary-table td {
   vertical-align: middle;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  border-bottom: 1px solid var(--hairline);
+  background-clip: padding-box;
 }
 
 table.data.salary-table .salary-net {

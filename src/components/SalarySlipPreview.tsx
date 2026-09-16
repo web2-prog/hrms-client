@@ -1,4 +1,4 @@
-import type { RefObject } from 'react';
+import type { ReactNode, RefObject } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { NumberInput } from './NumberInput';
 import {
@@ -77,7 +77,7 @@ function CompanyLogo({ form }: { form: SalarySlipFormData }) {
   const company = SALARY_COMPANIES[key];
   return (
     <img
-      src={company.logoSrc}
+      src={`${company.logoSrc}?v=9`}
       alt={company.label}
       className={`company-logo company-logo--${key}`}
       crossOrigin="anonymous"
@@ -149,16 +149,54 @@ function DaysField({
   );
 }
 
+function InfoCell({
+  label,
+  value,
+  editable,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: ReactNode;
+  editable?: boolean;
+  disabled?: boolean;
+  onChange?: (value: string) => void;
+}) {
+  return (
+    <div className="info-cell">
+      <span className="info-label">{label}</span>
+      <span className="info-value">
+        {editable && onChange && typeof value === 'string' ? (
+          <TextField value={value} disabled={disabled} onChange={onChange} />
+        ) : (
+          value || '—'
+        )}
+      </span>
+    </div>
+  );
+}
+
+function fmtAmt(n: number) {
+  if (!Number.isFinite(n) || n === 0) return '0';
+  return formatSlipAmount(n, false).replace(/\.00$/, '');
+}
+
 export function SalarySlipPreview({ form, previewRef, editable = false, disabled, onChange }: Props) {
   const update = (next: SalarySlipFormData) => onChange?.(next);
   const grossEarnings = calculateGrossEarnings(form);
   const totalDeductions = calculateTotalDeductions(form);
   const netPay = calculateNetPay(form);
+  const exGratia = Number(form.overtime) || 0;
+  /** Sample layout: overtime shown under Ex-Gratia, not inside GROSS line. */
+  const displayGross = Math.round((grossEarnings - exGratia) * 100) / 100;
   const monthLabel = MONTH_NAMES[form.month - 1] || '';
-  const payPeriod = `${monthLabel} ${form.year}`;
+  const monthDash = `${monthLabel}-${form.year}`;
+  const companyKey = resolveCompanyKeyFromForm(form);
+  const company = SALARY_COMPANIES[companyKey];
   const earningRows = buildEarningRows(form, editable);
   const deductionRows = buildDeductionRows(form, editable);
   const maxRows = Math.max(earningRows.length, deductionRows.length, 1);
+  const department = form.department || form.designation || '—';
 
   const setCustom = (key: 'customEarnings' | 'customDeductions', index: number, patch: Partial<Line>) => {
     const lines = [...(form[key] || [])];
@@ -193,7 +231,7 @@ export function SalarySlipPreview({ form, previewRef, editable = false, disabled
 
   const renderAmountCell = (row: Row | undefined, side: 'earn' | 'ded') => {
     if (!row) return '';
-    if (!editable || !onChange) return formatSlipAmount(row.amount, true);
+    if (!editable || !onChange) return fmtAmt(row.amount);
     if (row.key === 'basic') {
       return (
         <AmountField
@@ -226,7 +264,7 @@ export function SalarySlipPreview({ form, previewRef, editable = false, disabled
         />
       );
     }
-    return formatSlipAmount(row.amount, true);
+    return fmtAmt(row.amount);
   };
 
   const renderNameCell = (row: Row | undefined, side: 'earn' | 'ded') => {
@@ -270,158 +308,210 @@ export function SalarySlipPreview({ form, previewRef, editable = false, disabled
 
   return (
     <div ref={previewRef} className={`payslip${editable ? ' is-editing' : ''}`}>
-      <div className="payslip-header">
-        <div className="header-left">
+      <div className="payslip-box payslip-header-box">
+        <div className="payslip-logo-wrap">
           <CompanyLogo form={form} />
-          <div className="header-company">
-            <p className="company-address">{form.companyAddress}</p>
-          </div>
         </div>
-        <div className="header-right">
-          <p className="payslip-title-label">Payslip For the Month</p>
-          <p className="payslip-title-month">
-            {monthLabel} {form.year}
-          </p>
-        </div>
+        <p className="company-address">{form.companyAddress}</p>
       </div>
 
-      <div className="summary-section">
-        <div className="employee-details">
-          <div className="detail-row">
-            <span className="detail-label">Employee Name</span>
-            <span className="detail-colon">:</span>
-            <span className="detail-value">{form.empName || '—'}</span>
-          </div>
-          <div className="detail-row">
-            <span className="detail-label">Designation</span>
-            <span className="detail-colon">:</span>
-            <span className="detail-value">{form.designation || '—'}</span>
-          </div>
-          <div className="detail-row">
-            <span className="detail-label">Employee ID</span>
-            <span className="detail-colon">:</span>
-            <span className="detail-value">{form.empNo || '—'}</span>
-          </div>
-          <div className="detail-row">
-            <span className="detail-label">Pay Period</span>
-            <span className="detail-colon">:</span>
-            <span className="detail-value">{payPeriod}</span>
-          </div>
-          <div className="detail-row">
-            <span className="detail-label">Pay Date</span>
-            <span className="detail-colon">:</span>
-            <span className="detail-value">
-              {editable && onChange ? (
-                <TextField value={form.payDate} disabled={disabled} onChange={(v) => update({ ...form, payDate: v })} />
-              ) : (
-                form.payDate || '—'
-              )}
-            </span>
-          </div>
+      <div className="payslip-box payslip-title-box">
+        <h1 className="payslip-title">
+          Payslip for {monthLabel} {form.year}
+        </h1>
+      </div>
+
+      <div className="payslip-box info-grid">
+        <InfoCell label="Emp Name" value={form.empName || '—'} />
+        <InfoCell label="Emp No" value={form.empNo || '—'} />
+
+        <InfoCell label="Department" value={department} />
+        <InfoCell label="Month" value={monthDash} />
+
+        <InfoCell label="Bank" value={form.bankName || '—'} />
+        <InfoCell label="Bank A/c No" value={form.bankAccount || '—'} />
+
+        <InfoCell label="Designation" value={form.designation || department || '—'} />
+        <InfoCell label="PF No" value={form.pfNo || 'NA'} />
+
+        <div className="info-cell">
+          <span className="info-label">STD days</span>
+          <span className="info-value">
+            {editable && onChange ? (
+              <DaysField
+                value={form.workingDays}
+                disabled={disabled}
+                onChange={(v) => {
+                  const workingDays = Math.max(0, Number(v) || 0);
+                  const lop = Number(form.lopDays) || 0;
+                  update({
+                    ...form,
+                    workingDays,
+                    paidDays: Math.max(0, Math.round((workingDays - lop) * 100) / 100),
+                  });
+                }}
+              />
+            ) : (
+              form.workingDays || '—'
+            )}
+          </span>
+        </div>
+        <InfoCell label="ESIC No" value={form.esicNo || 'NA'} />
+
+        <div className="info-cell">
+          <span className="info-label">Worked Days</span>
+          <span className="info-value">
+            {editable && onChange ? (
+              <DaysField
+                value={form.paidDays}
+                disabled={disabled}
+                onChange={(v) => update({ ...form, paidDays: v })}
+              />
+            ) : (
+              form.paidDays
+            )}
+          </span>
+        </div>
+        <div className="info-cell">
+          <span className="info-label">Leave Balance</span>
+          <span className="info-value">
+            {editable && onChange ? (
+              <DaysField
+                value={form.leaveDays}
+                disabled={disabled}
+                onChange={(v) => update({ ...form, leaveDays: v })}
+              />
+            ) : (
+              form.leaveDays
+            )}
+          </span>
         </div>
 
-        <div className="net-pay-card">
-          <div className="net-pay-accent">
-            <p className="net-pay-amount">{formatSlipAmount(netPay, true)}</p>
-            <p className="net-pay-label">Employee Net Pay</p>
-          </div>
-          <div className="net-pay-white">
-            <div className="meta-row">
-              <span className="meta-label">Paid Days</span>
-              <span className="meta-value">
-                {editable && onChange ? (
-                  <DaysField value={form.paidDays} disabled={disabled} onChange={(v) => update({ ...form, paidDays: v })} />
-                ) : (
-                  form.paidDays
-                )}
+        {editable && onChange && (
+          <>
+            <div className="info-cell">
+              <span className="info-label">Pay Date</span>
+              <span className="info-value">
+                <TextField
+                  value={form.payDate}
+                  disabled={disabled}
+                  onChange={(v) => update({ ...form, payDate: v })}
+                />
               </span>
             </div>
-            <div className="meta-row">
-              <span className="meta-label">LOP</span>
-              <span className="meta-value">
+            <div className="info-cell">
+              <span className="info-label">LOP Days</span>
+              <span className="info-value">
+                <DaysField
+                  value={form.lopDays}
+                  disabled={disabled}
+                  onChange={(v) => update(applyLopDays(form, v))}
+                />
+              </span>
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="payslip-box payslip-amount-box">
+        <table className="payslip-amount-table">
+          <thead>
+            <tr>
+              <th className="col-name th-earn">Earnings</th>
+              <th className="col-amt">Amount In Rs.</th>
+              <th className="col-name th-ded">Statutory Deduction</th>
+              <th className="col-amt">Amount In Rs.</th>
+            </tr>
+          </thead>
+          <tbody>
+            {Array.from({ length: maxRows }).map((_, index) => {
+              const earning = earningRows[index];
+              const deduction = deductionRows[index];
+              return (
+                <tr key={index}>
+                  <td className="col-name">{renderNameCell(earning, 'earn')}</td>
+                  <td className="col-amt">{renderAmountCell(earning, 'earn')}</td>
+                  <td className="col-name">{renderNameCell(deduction, 'ded')}</td>
+                  <td className="col-amt">{renderAmountCell(deduction, 'ded')}</td>
+                </tr>
+              );
+            })}
+
+            {editable && onChange && (
+              <tr className="add-row">
+                <td className="col-name" colSpan={2}>
+                  <button type="button" className="payslip-add" disabled={disabled} onClick={() => addCustom('customEarnings')}>
+                    <Plus size={12} /> Add earning
+                  </button>
+                </td>
+                <td className="col-name" colSpan={2}>
+                  <button type="button" className="payslip-add" disabled={disabled} onClick={() => addCustom('customDeductions')}>
+                    <Plus size={12} /> Add Deduction
+                  </button>
+                </td>
+              </tr>
+            )}
+
+            <tr className="total-row">
+              <td className="col-name total-label">GROSS EARNINGS</td>
+              <td className="col-amt total-amt">{fmtAmt(displayGross)}</td>
+              <td className="col-name total-label">GROSS DEDUCTIONS</td>
+              <td className="col-amt total-amt">{fmtAmt(totalDeductions)}</td>
+            </tr>
+
+            <tr className="extra-row">
+              <td className="col-name">Add: Ex-Gratia Payment</td>
+              <td className="col-amt">
                 {editable && onChange ? (
-                  <DaysField
-                    value={form.lopDays}
+                  <AmountField
+                    value={exGratia}
                     disabled={disabled}
-                    onChange={(v) => update(applyLopDays(form, v))}
+                    onChange={(v) => update(patchAmount(form, 'overtime', v))}
                   />
                 ) : (
-                  form.lopDays
+                  fmtAmt(exGratia)
                 )}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <table className="salary-table">
-        <thead>
-          <tr>
-            <th className="col-name th-earn">EARNINGS</th>
-            <th className="col-amt">AMOUNT</th>
-            <th className="col-name th-ded">DEDUCTIONS</th>
-            <th className="col-amt">AMOUNT</th>
-          </tr>
-        </thead>
-        <tbody>
-          {Array.from({ length: maxRows }).map((_, index) => {
-            const earning = earningRows[index];
-            const deduction = deductionRows[index];
-            return (
-              <tr key={index}>
-                <td className="col-name">{renderNameCell(earning, 'earn')}</td>
-                <td className="col-amt">{renderAmountCell(earning, 'earn')}</td>
-                <td className="col-name">{renderNameCell(deduction, 'ded')}</td>
-                <td className="col-amt">{renderAmountCell(deduction, 'ded')}</td>
-              </tr>
-            );
-          })}
-
-          {editable && onChange && (
-            <tr className="add-row">
-              <td className="col-name" colSpan={2}>
-                <button type="button" className="payslip-add" disabled={disabled} onClick={() => addCustom('customEarnings')}>
-                  <Plus size={12} /> Add earning
-                </button>
               </td>
-              <td className="col-name" colSpan={2}>
-                <button type="button" className="payslip-add" disabled={disabled} onClick={() => addCustom('customDeductions')}>
-                  <Plus size={12} /> Add Deduction
-                </button>
-              </td>
+              <td className="col-name">Less: Advance etc</td>
+              <td className="col-amt">0</td>
             </tr>
-          )}
 
-          <tr className="spacer-row" aria-hidden="true">
-            <td className="col-name">&nbsp;</td>
-            <td className="col-amt">&nbsp;</td>
-            <td className="col-name">&nbsp;</td>
-            <td className="col-amt">&nbsp;</td>
-          </tr>
-
-          <tr className="total-row">
-            <td className="col-name total-label">Gross Earnings</td>
-            <td className="col-amt total-amt">{formatSlipAmount(grossEarnings, true)}</td>
-            <td className="col-name total-label">Total Deductions</td>
-            <td className="col-amt total-amt">{formatSlipAmount(totalDeductions, true)}</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <div className="net-payable-box">
-        <div className="net-payable-left">
-          <p className="net-payable-title">TOTAL NET PAYABLE</p>
-          <p className="net-payable-sub">Gross Earnings - Total Deductions</p>
-        </div>
-        <div className="net-payable-right">
-          <span className="net-payable-amt">{formatSlipAmount(netPay, true)}</span>
-        </div>
+            <tr className="net-row">
+              <td className="net-label" colSpan={3}>
+                NET SALARY EARNED
+              </td>
+              <td className="col-amt net-amt">{fmtAmt(netPay)}</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
       <p className="amount-in-words">
         <span className="amount-in-words-label">Amount In Words :</span>{' '}
         <strong>{amountToWords(netPay)}</strong>
       </p>
+
+      <div className="payslip-box sign-block">
+        <div className="sign-cell sign-prepared">
+          <div className="sign-content">
+            <p className="authorised-name">{company.authorisedName}</p>
+            <p className="authorised-title">{company.authorisedTitle}</p>
+          </div>
+          <span className="sign-label">Prepared By</span>
+        </div>
+        <div className="sign-cell sign-authorised">
+          <div className="sign-content">
+            <img
+              src="/images/authorised-sign.png?v=3"
+              alt="Authorised signature"
+              className="sign-image sign-image--authorised"
+              crossOrigin="anonymous"
+              decoding="sync"
+            />
+          </div>
+          <span className="sign-label">Authorised Sign.</span>
+        </div>
+      </div>
     </div>
   );
 }

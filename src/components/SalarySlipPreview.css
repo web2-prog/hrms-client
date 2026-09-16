@@ -1,440 +1,434 @@
+/* Classic KriraAI / Ondial payslip — match sample spacing & type */
+
 .payslip {
-  width: 794px;
+  --slip-line: #111;
+  --slip-gap: 10px;
+  width: 720px;
   margin: 0 auto;
-  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  background: var(--canvas);
-  color: var(--text);
+  padding: 8px;
+  font-family: Arial, Helvetica, 'Segoe UI', sans-serif;
+  background: #fff;
+  color: #111;
   box-sizing: border-box;
-  font-size: 13px;
-  line-height: 1.5;
-  border: 1px solid var(--hairline-strong);
+  font-size: 12.5px;
+  line-height: 1.45;
+  border: none;
 }
 
 .payslip * {
   box-sizing: border-box;
 }
 
-.payslip-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  padding: 20px 24px 16px;
-  border-bottom: 1px solid var(--hairline);
+.payslip .payslip-box {
+  border: 1.5px solid var(--slip-line);
+  background: #fff;
 }
 
-.header-left {
+.payslip .payslip-box + .payslip-box {
+  margin-top: var(--slip-gap);
+}
+
+/* ── Header: logo + address ── */
+.payslip-header-box {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 16px;
-  min-width: 0;
-  flex: 1;
+  justify-content: center;
+  text-align: center;
+  padding: 8px 16px 8px;
 }
 
-.company-logo {
-  flex-shrink: 0;
+.payslip .payslip-logo-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  margin: 0 0 4px;
+  text-align: center;
+  line-height: 0;
+}
+
+.payslip .company-logo {
   display: block;
+  margin: 0 auto;
   object-fit: contain;
+  object-position: center;
   background: transparent;
 }
 
-/* KriraAI logo is square (icon + wordmark) — transparent, no card chrome */
-.company-logo--kriraai {
-  width: 88px;
-  height: 88px;
-  border-radius: 0;
-  border: none;
+/* Cropped SVG — no empty padding above/below artwork */
+.payslip .company-logo--kriraai {
+  width: 90px;
+  height: auto;
+  max-height: 68px;
 }
 
-/* Ondial logo is a wide wordmark */
-.company-logo--ondial {
-  height: 44px;
+.payslip .company-logo--ondial {
+  height: 48px;
   width: auto;
   max-width: 180px;
 }
 
-.header-company {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  max-width: 320px;
-  min-width: 0;
-}
-
 .payslip .company-address {
-  font-size: 12px;
-  margin: 2px 0 0;
-  color: var(--graphite);
-  line-height: 1.3;
-}
-
-.header-right {
-  text-align: right;
-  padding-top: 2px;
-}
-
-.payslip-title-label {
-  margin: 0;
-  font-size: 12px;
-  color: var(--graphite);
-  font-weight: 400;
-}
-
-.payslip-title-month {
-  margin: 2px 0 0;
-  font-size: 18px;
+  margin: 0 auto;
+  font-size: 12.5px;
   font-weight: 700;
-  color: var(--text);
-  letter-spacing: -0.01em;
-}
-
-.summary-section {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  padding: 20px 24px;
-  gap: 24px;
-  border-bottom: 1px dashed var(--hairline-strong);
-}
-
-.employee-details {
-  flex: 1;
-  padding-top: 2px;
-}
-
-.detail-row {
-  display: flex;
-  align-items: baseline;
-  margin-bottom: 6px;
-  font-size: 13px;
-}
-
-.detail-label {
-  width: 130px;
-  color: var(--graphite);
-  flex-shrink: 0;
-}
-
-.detail-colon {
-  width: 12px;
-  color: var(--graphite);
-  flex-shrink: 0;
-}
-
-.detail-value {
-  font-weight: 600;
-  color: var(--text);
-}
-
-.net-pay-card {
-  width: 220px;
-  border: 1px solid var(--hairline-strong);
-  border-radius: 8px;
-  overflow: hidden;
-  flex-shrink: 0;
-}
-
-.net-pay-accent {
-  background: var(--blue-soft);
-  padding: 16px 16px 12px;
+  color: #111;
+  line-height: 1.4;
+  max-width: 92%;
   text-align: center;
 }
 
-.net-pay-amount {
+/* ── Title band ── */
+.payslip-title-box {
+  padding: 7px 12px;
+  text-align: center;
+}
+
+.payslip .payslip-title {
   margin: 0;
-  font-size: 22px;
-  font-weight: 800;
-  color: var(--text);
-  line-height: 1.2;
-  letter-spacing: -0.02em;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-decoration: none;
 }
 
-.net-pay-label {
-  margin: 4px 0 0;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--blue-ink);
+/* ── Employee info: 2 cols, no inner cell borders ── */
+.payslip .info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 0;
+  padding: 8px 14px 10px;
+  row-gap: 3px;
 }
 
-.net-pay-white {
-  background: var(--canvas);
-  padding: 10px 16px 12px;
-}
-
-.meta-row {
-  display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-  margin-bottom: 4px;
-  color: var(--charcoal);
-}
-
-.meta-row:last-child {
-  margin-bottom: 0;
-}
-
-.meta-label {
-  color: var(--graphite);
-}
-
-.meta-value {
-  font-weight: 600;
-  color: var(--text);
-}
-
-.id-section {
-  display: flex;
-  gap: 48px;
-  padding: 12px 24px;
-  border-bottom: 1px dashed var(--hairline-strong);
-  background: var(--canvas);
-}
-
-.id-item {
-  display: flex;
+.payslip .info-cell {
+  display: grid;
+  grid-template-columns: 118px 1fr;
   align-items: baseline;
-  font-size: 13px;
+  min-height: 22px;
+  padding: 1px 6px;
+  border: none;
+  gap: 6px;
 }
 
-.id-label {
-  color: var(--graphite);
+.payslip .info-label {
+  font-weight: 700;
+  font-size: 12.5px;
+  color: #111;
+  white-space: nowrap;
 }
 
-.id-colon {
-  margin: 0 6px;
-  color: var(--graphite);
+.payslip .info-value {
+  font-weight: 400;
+  font-size: 12.5px;
+  color: #111;
+  min-width: 0;
+  word-break: break-word;
 }
 
-.id-value {
-  font-weight: 600;
-  color: var(--text);
+/* ── Earnings / deductions ── */
+.payslip-amount-box {
+  padding: 0;
+  overflow: hidden;
 }
 
-.salary-table {
+.payslip .payslip-amount-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
-  border-bottom: 1px solid var(--hairline);
+  table-layout: fixed;
+  font-size: 12.5px;
 }
 
-.salary-table th {
-  background: var(--slate-deep);
-  padding: 10px 14px;
+.payslip .payslip-amount-table .col-name {
+  width: 32%;
+}
+
+.payslip .payslip-amount-table .col-amt {
+  width: 18%;
+}
+
+.payslip .payslip-amount-table th {
+  background: transparent;
+  padding: 8px 10px 6px;
   text-align: left;
   font-weight: 700;
-  border-bottom: 1px solid var(--hairline);
-  color: var(--graphite);
-  font-size: 11px;
+  font-size: 12.5px;
+  color: #111;
+  border: none;
+  border-bottom: 1.5px solid var(--slip-line);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.payslip .payslip-amount-table th.col-amt,
+.payslip .payslip-amount-table td.col-amt {
+  text-align: right;
+  white-space: nowrap;
+  padding-right: 14px;
+}
+
+.payslip .payslip-amount-table th.th-ded,
+.payslip .payslip-amount-table td:nth-child(3) {
+  border-left: 1.5px solid var(--slip-line);
+  padding-left: 12px;
+}
+
+.payslip .payslip-amount-table td {
+  padding: 3px 10px;
+  border: none;
+  color: #111;
+  vertical-align: middle;
+  height: 22px;
+  font-size: 12.5px;
+}
+
+.payslip .payslip-amount-table td.col-name {
+  font-weight: 400;
+}
+
+.payslip .payslip-amount-table tr.total-row td {
+  background: transparent;
+  border: none;
+  border-top: 1.5px solid var(--slip-line);
+  font-weight: 700;
+  padding: 8px 10px;
+}
+
+.payslip .payslip-amount-table tr.total-row td:nth-child(3) {
+  border-left: 1.5px solid var(--slip-line);
+}
+
+.payslip .payslip-amount-table tr.extra-row td {
+  padding: 4px 10px 8px;
+  font-weight: 400;
+}
+
+.payslip .payslip-amount-table tr.extra-row td:nth-child(3) {
+  border-left: 1.5px solid var(--slip-line);
+}
+
+.payslip .payslip-amount-table tr.net-row td {
+  background: transparent;
+  border: none;
+  border-top: 1.5px solid var(--slip-line);
+  font-weight: 700;
+  padding: 9px 10px;
+}
+
+.payslip .payslip-amount-table tr.net-row td.net-label {
+  text-align: center;
   letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.salary-table th.col-amt,
-.salary-table td.col-amt {
-  text-align: right;
-}
-
-.salary-table td.col-amt {
-  font-weight: 700;
-  color: var(--text);
-}
-
-.salary-table th.th-ded {
-  padding-left: 16px;
-}
-
-.salary-table td {
-  padding: 8px 14px;
-  border: none;
-  color: var(--charcoal);
   font-size: 13px;
 }
 
-.salary-table td.col-name:first-child,
-.salary-table th.th-earn {
-  padding-left: 24px;
-}
-
-.salary-table td:nth-child(3),
-.salary-table th.th-ded {
-  padding-left: 16px;
-}
-
-.salary-table .col-name {
-  width: 35%;
-}
-
-.salary-table .col-amt {
-  width: 15%;
-}
-
-.salary-table tr.spacer-row td {
-  padding: 14px 14px;
-  border: none;
-  background: var(--canvas);
-  height: 28px;
-}
-
-.salary-table tr.total-row td {
-  background: var(--slate-deep);
-  border: none;
-  border-top: 1px solid var(--hairline);
-  padding: 10px 14px;
-}
-
-.salary-table tr.total-row td.total-label {
-  font-weight: 700;
-  color: var(--text);
-}
-
-.salary-table tr.total-row td.total-amt {
-  font-weight: 700;
-  color: var(--text);
+.payslip .payslip-amount-table tr.net-row td.net-amt {
+  font-size: 13px;
   text-align: right;
 }
 
-.net-payable-box {
+.payslip .payslip-amount-table tr.add-row td {
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
+.payslip .payslip-amount-table tr.add-row td:nth-child(2),
+.payslip .payslip-amount-table tr.add-row td:nth-child(3) {
+  border-left: 1.5px solid var(--slip-line);
+}
+
+.payslip .amount-in-words {
+  padding: 8px 4px 2px;
+  margin: 0;
+  font-size: 11.5px;
+  color: #111;
+  border: none;
+}
+
+.payslip .amount-in-words-label {
+  font-weight: 700;
+}
+
+.payslip .amount-in-words strong {
+  font-weight: 700;
+}
+
+/* ── Signature footer: Prepared By | Authorised Sign. ── */
+.payslip .sign-block {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 96px;
+  padding: 0;
+  margin-top: var(--slip-gap);
+}
+
+.payslip .sign-cell {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
   align-items: center;
-  margin: 16px 24px;
-  padding: 14px 18px;
-  border: 1px solid var(--hairline-strong);
-  border-radius: 8px;
-  background: var(--canvas);
+  justify-content: space-between;
+  padding: 8px 10px 6px;
+  text-align: center;
+  border-right: 1.5px solid var(--slip-line);
+  min-height: 96px;
 }
 
-.net-payable-left {
+.payslip .sign-cell:last-child {
+  border-right: none;
+}
+
+.payslip .sign-prepared {
+  align-items: flex-start;
+  text-align: left;
+  padding-left: 12px;
+}
+
+.payslip .sign-authorised {
+  align-items: center;
+}
+
+.payslip .sign-content {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 56px;
 }
 
-.net-payable-title {
+.payslip .sign-prepared .sign-content {
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.payslip .sign-image {
+  display: block;
+  object-fit: contain;
+  object-position: center;
+  background: transparent;
+}
+
+.payslip .sign-image--authorised {
+  height: 56px;
+  width: auto;
+  max-width: 180px;
+  margin: 0 auto;
+}
+
+.payslip .authorised-name {
   margin: 0;
   font-weight: 700;
-  font-size: 14px;
-  color: var(--text);
-  letter-spacing: 0.02em;
+  font-size: 12.5px;
+  line-height: 1.3;
 }
 
-.net-payable-sub {
+.payslip .authorised-title {
   margin: 2px 0 0;
-  font-size: 11px;
-  color: var(--graphite);
+  font-size: 12px;
+  font-weight: 700;
 }
 
-.net-payable-right {
-  background: var(--blue-soft);
-  border-radius: 8px;
-  padding: 8px 20px;
-  flex-shrink: 0;
+.payslip .sign-label {
+  font-size: 12.5px;
+  font-weight: 700;
+  margin-top: auto;
+  padding-top: 4px;
+  width: 100%;
+  text-align: center;
 }
 
-.net-payable-amt {
-  font-size: 18px;
-  font-weight: 800;
-  color: var(--text);
-  letter-spacing: -0.01em;
+.payslip .sign-prepared .sign-label {
+  text-align: left;
 }
 
-.amount-in-words {
-  padding: 4px 24px 20px;
-  margin: 0;
-  font-size: 13px;
-  color: var(--charcoal);
-  text-align: right;
-}
-
-.amount-in-words-label {
-  color: var(--graphite);
-}
-
-.amount-in-words strong {
-  font-weight: 600;
-  color: var(--text);
-}
-
-.payslip-input {
+/* ── Edit controls ── */
+.payslip .payslip-input {
   font: inherit;
   font-weight: inherit;
   color: inherit;
   text-align: inherit;
   width: 100%;
   min-width: 0;
-  border: 1px dashed var(--hairline-strong);
-  background: var(--blue-soft);
-  border-radius: 4px;
-  padding: 2px 6px;
+  border: 1px dashed #888;
+  background: #fffbe6;
+  border-radius: 2px;
+  padding: 0 4px;
   outline: none;
+  height: 20px;
 }
 
-.payslip-input:focus {
-  border-color: var(--blue-ink);
-  background: var(--canvas);
+.payslip .payslip-input:focus {
+  border-color: #111;
+  background: #fff;
 }
 
-.payslip-input::placeholder {
-  color: inherit;
-  opacity: 0.45;
-}
-
-.payslip-input-amt::-webkit-outer-spin-button,
-.payslip-input-amt::-webkit-inner-spin-button,
-.payslip-input-days::-webkit-outer-spin-button,
-.payslip-input-days::-webkit-inner-spin-button {
+.payslip .payslip-input-amt::-webkit-outer-spin-button,
+.payslip .payslip-input-amt::-webkit-inner-spin-button,
+.payslip .payslip-input-days::-webkit-outer-spin-button,
+.payslip .payslip-input-days::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
 
-.payslip-input-amt,
-.payslip-input-days {
+.payslip .payslip-input-amt,
+.payslip .payslip-input-days {
   text-align: right;
-  max-width: 110px;
+  max-width: 100px;
   margin-left: auto;
   display: block;
 }
 
-.payslip-input-days {
-  max-width: 72px;
+.payslip .payslip-input-days {
+  max-width: 56px;
 }
 
-.payslip-input-label {
+.payslip .info-value .payslip-input-days,
+.payslip .info-value .payslip-input {
+  margin-left: 0;
+  display: inline-block;
+  max-width: 140px;
+}
+
+.payslip .payslip-input-label {
   flex: 1;
-  font-weight: 600;
+  font-weight: 400;
 }
 
-.payslip-custom-name {
+.payslip .payslip-custom-name {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
-.payslip-remove {
+.payslip .payslip-remove {
   border: none;
   background: transparent;
-  color: var(--graphite);
+  color: #666;
   cursor: pointer;
   padding: 2px;
   display: inline-flex;
   flex-shrink: 0;
 }
 
-.payslip-remove:hover {
-  color: var(--error, #c0392b);
+.payslip .payslip-remove:hover {
+  color: #c0392b;
 }
 
-.payslip-add {
+.payslip .payslip-add {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   border: none;
   background: transparent;
-  color: var(--blue-ink);
-  font-size: 12px;
-  font-weight: 600;
+  color: #1a4a8a;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
   cursor: pointer;
   padding: 0;
 }
 
-.salary-table tr.add-row td {
-  padding-top: 4px;
-  padding-bottom: 4px;
+.payslip.is-editing .payslip-amount-table td {
+  height: 24px;
 }

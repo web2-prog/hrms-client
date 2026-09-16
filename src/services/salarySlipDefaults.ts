@@ -8,6 +8,8 @@ export const SALARY_COMPANIES: Record<
     companyAddress: string;
     logoSrc: string;
     pdfPrefix: string;
+    authorisedName: string;
+    authorisedTitle: string;
   }
 > = {
   kriraai: {
@@ -17,6 +19,8 @@ export const SALARY_COMPANIES: Record<
       'C2-1310, Pragati IT Park, opp. AR Mall, Mota Varachha Road, Uttran, Surat',
     logoSrc: '/images/kriraai-logo.svg',
     pdfPrefix: 'KriraAI',
+    authorisedName: 'Divyang Mandani',
+    authorisedTitle: 'CEO at KriraAI',
   },
   ondial: {
     label: 'Ondial',
@@ -25,6 +29,8 @@ export const SALARY_COMPANIES: Record<
       'C2-1310, Pragati IT Park, opp. AR Mall, Mota Varachha Road, Uttran, Surat',
     logoSrc: '/images/ondial-logo.svg',
     pdfPrefix: 'Ondial',
+    authorisedName: 'Divyang Mandani',
+    authorisedTitle: 'CEO at Ondial',
   },
 };
 
@@ -53,7 +59,13 @@ export type SalarySlipFormData = {
   companyAddress: string;
   empName: string;
   empNo: string;
+  /** Job title / role label when available. */
   designation: string;
+  /** Department name (display). */
+  department: string;
+  bankName: string;
+  bankAccount: string;
+  esicNo: string;
   doj: string;
   payDate: string;
   pfNo: string;
@@ -322,6 +334,10 @@ export const apiPayslipToForm = (p: Partial<SalarySlipFormData> & Record<string,
     empName: String(p.empName || ''),
     empNo: String(p.empNo || ''),
     designation: String(p.designation || ''),
+    department: String(p.department || p.designation || ''),
+    bankName: String(p.bankName || ''),
+    bankAccount: String(p.bankAccount || ''),
+    esicNo: String(p.esicNo || 'NA'),
     doj: String(p.doj || '—'),
     payDate: String(p.payDate || ''),
     pfNo: String(p.pfNo || 'NA'),
@@ -386,6 +402,7 @@ export const formToAdjustPayload = (form: SalarySlipFormData) => ({
   paid_days: form.paidDays,
   leave_days: form.leaveDays,
   lop_days: form.lopDays,
+  working_days: form.workingDays,
   overtime_amount: form.overtime,
   overtime_hours: form.overtimeHours,
   deduction_amount: form.shortfallDeduction,
