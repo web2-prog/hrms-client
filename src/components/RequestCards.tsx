@@ -469,6 +469,13 @@ export function CoverTimeRequestsCard() {
   const [recent, setRecent] = useState<CtRequest[]>([]);
   const [recentLoading, setRecentLoading] = useState(false);
   const [recentErr, setRecentErr] = useState('');
+  const [coverMinMinutes, setCoverMinMinutes] = useState(30);
+
+  useEffect(() => {
+    api<{ cover_time_min_minutes?: number }>('/settings')
+      .then((s) => setCoverMinMinutes(Number(s.cover_time_min_minutes) || 30))
+      .catch(() => {});
+  }, []);
 
   const load = async () => {
     setErr('');
@@ -540,7 +547,7 @@ export function CoverTimeRequestsCard() {
     <div className="card ecr-card" style={{ marginBottom: 16 }}>
       <RequestCardHeader
         title="Cover Time Requests"
-        help="Make up shortfall after daily hours. Approved cover counts toward monthly hours (not OT). Min 45m."
+        help={`Make up shortfall after daily hours. Approved cover counts toward monthly hours (not OT). Min ${coverMinMinutes}m.`}
         pendingTotal={pendingTotal}
         onRefresh={load}
       />

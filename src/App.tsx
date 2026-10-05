@@ -24,6 +24,7 @@ import {
   HrDashboard,
   ProfilePage,
   GlobalDataPage,
+  SystemSettingsPage,
   AuditPage,
 } from './pages/shared/Dashboards';
 
@@ -63,6 +64,7 @@ function AppRoutes() {
         <Route path="policies" element={<PoliciesPage />} />
         <Route path="helpdesk" element={<HelpdeskPage />} />
         <Route path="salary" element={<SalaryPage allowBulk />} />
+        <Route path="settings" element={<SystemSettingsPage />} />
         <Route path="global" element={<GlobalDataPage />} />
         <Route path="audit" element={<AuditPage />} />
       </Route>
@@ -90,6 +92,7 @@ function AppRoutes() {
         <Route path="policies" element={<PoliciesPage canManage={false} />} />
         <Route path="helpdesk" element={<HelpdeskPage />} />
         <Route path="salary" element={<SalaryPage />} />
+        <Route path="settings" element={<SystemSettingsPage />} />
         <Route path="profile" element={<ProfilePage />} />
         <Route path="my-attendance" element={<AttendanceHistoryPage />} />
       </Route>

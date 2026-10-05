@@ -245,7 +245,7 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
   const summary = data.monthly_summary;
   const ecr = data.early_checkout_request || null;
   const ctr = data.cover_time_request || null;
-  const coverMinHours = Number(data.cover_time_min_hours ?? 0.75);
+  const coverMinHours = Number(data.cover_time_min_hours ?? 0.5);
   const monthTarget = Number(summary?.monthly_target_hours || 0);
   const monthCounted = Number(summary?.monthly_counted_hours || 0);
   const monthPending = Number(summary?.pending_hours || 0);
@@ -1297,7 +1297,11 @@ export function GlobalDataPage() {
   const [depts, setDepts] = useState<any[]>([]);
   const [form, setForm] = useState({ department_id: '', month: String(new Date().getMonth() + 1), year: '2026' });
   const [msg, setMsg] = useState('');
-  const [settings, setSettings] = useState({ overtime_multiplier: 1.5, deduction_multiplier: 1 });
+  const [settings, setSettings] = useState({
+    overtime_multiplier: 1.5,
+    deduction_multiplier: 1,
+    cover_time_min_minutes: 30,
+  });
 
   useEffect(() => {
     api<any>('/departments?limit=50').then((r) => setDepts(r.data));
@@ -1374,8 +1378,83 @@ export function GlobalDataPage() {
             <label className="label">Deduction multiplier</label>
             <input className="input" type="number" step="0.1" value={settings.deduction_multiplier} onChange={(e) => setSettings({ ...settings, deduction_multiplier: Number(e.target.value) })} />
           </div>
+          <div>
+            <label className="label">Cover time minimum (minutes)</label>
+            <input
+              className="input"
+              type="number"
+              min={1}
+              max={480}
+              step={1}
+              value={settings.cover_time_min_minutes ?? 30}
+              onChange={(e) => setSettings({ ...settings, cover_time_min_minutes: Number(e.target.value) })}
+            />
+          </div>
         </div>
+        <p style={{ color: 'var(--muted)', marginTop: 8 }}>
+          Employees must stay this many minutes past daily hours before cover-time checkout.
+        </p>
         <Button style={{ marginTop: 12 }} onClick={async () => { await api('/settings', { method: 'PUT', body: settings }); setMsg('Settings saved'); }}>Save settings</Button>
+      </div>
+    </div>
+  );
+}
+
+export function SystemSettingsPage() {
+  const [minutes, setMinutes] = useState(30);
+  const [msg, setMsg] = useState('');
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    api<{ cover_time_min_minutes?: number }>('/settings')
+      .then((s) => setMinutes(Number(s.cover_time_min_minutes) || 30))
+      .catch(() => {});
+  }, []);
+
+  return (
+    <div>
+      <div className="page-header">
+        <div>
+          <h1>System Settings</h1>
+          <p className="page-header-sub">Cover time minimum past daily hours</p>
+        </div>
+      </div>
+      <div className="card card-accent teal">
+        <h3>Cover time</h3>
+        <div className="form-grid">
+          <div>
+            <label className="label">Minimum (minutes)</label>
+            <input
+              className="input"
+              type="number"
+              min={1}
+              max={480}
+              step={1}
+              value={minutes}
+              onChange={(e) => setMinutes(Number(e.target.value))}
+            />
+          </div>
+        </div>
+        <p style={{ color: 'var(--muted)', marginTop: 8 }}>
+          Employees must stay this many minutes past daily hours before cover-time checkout.
+        </p>
+        <Button
+          style={{ marginTop: 12 }}
+          onClick={async () => {
+            try {
+              await api('/settings', { method: 'PUT', body: { cover_time_min_minutes: minutes } });
+              setErr('');
+              setMsg('Settings saved');
+            } catch (e) {
+              setMsg('');
+              setErr(e instanceof Error ? e.message : 'Failed to save');
+            }
+          }}
+        >
+          Save settings
+        </Button>
+        {msg && <p style={{ color: 'var(--success)' }}>{msg}</p>}
+        {err && <p style={{ color: 'var(--error)' }}>{err}</p>}
       </div>
     </div>
   );

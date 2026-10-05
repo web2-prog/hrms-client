@@ -60,7 +60,7 @@ export function SurplusRequestModal(props: SurplusRequestModalProps) {
   const [datedOtEligible, setDatedOtEligible] = useState(false);
   const [datedCoverEligible, setDatedCoverEligible] = useState(false);
   const [datedHint, setDatedHint] = useState('');
-  const [datedCoverMin, setDatedCoverMin] = useState(0.75);
+  const [datedCoverMin, setDatedCoverMin] = useState(0.5);
   const [datedShortfall, setDatedShortfall] = useState(0);
   const [datedSurplus, setDatedSurplus] = useState(0);
 
@@ -113,7 +113,7 @@ export function SurplusRequestModal(props: SurplusRequestModalProps) {
 
         let coverEligible = false;
         let coverHrs = Number(ot.cover_hours) || 0;
-        let coverMin = Number(ot.min_cover_hours) || 0.75;
+        let coverMin = Number(ot.min_cover_hours) || 0.5;
         if (date === todayYmd()) {
           try {
             const cover = await api<{

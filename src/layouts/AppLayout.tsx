@@ -79,7 +79,8 @@ const adminGroups: NavGroup[] = [
   {
     title: 'System',
     items: [
-      { to: '/admin/global', label: 'Global / Bulk', icon: Settings },
+      { to: '/admin/settings', label: 'System Settings', icon: Settings },
+      { to: '/admin/global', label: 'Global / Bulk', icon: Building2 },
       { to: '/admin/audit', label: 'Audit', icon: ScrollText },
     ],
   },
@@ -127,6 +128,10 @@ const hrGroups: NavGroup[] = [
       { to: '/hr/helpdesk', label: 'Helpdesk', icon: Headphones },
       { to: '/hr/salary', label: 'Salary', icon: Wallet },
     ],
+  },
+  {
+    title: 'System',
+    items: [{ to: '/hr/settings', label: 'System Settings', icon: Settings }],
   },
 ];
 
