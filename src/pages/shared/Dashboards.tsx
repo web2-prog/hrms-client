@@ -15,6 +15,7 @@ import {
 import { api, apiUrl } from '../../services/api';
 import { formatHours, hoursBadge, StatusBadge } from '../../components/StatusBadge';
 import { SurplusRequestModal } from '../../components/SurplusRequestModal';
+import { BreakSegmentList, normalizeBreakSegments } from '../../components/BreakSegments';
 import { ListingPage, useListParams } from '../../components/ListingPage';
 import { useAuth } from '../../context/AuthContext';
 import { AppSelect } from '../../components/AppSelect';
@@ -95,24 +96,35 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
     const clock = nowHMS();
     const att = data?.attendance;
     if (path.endsWith('/check-in')) {
+      const holiday = !!data?.is_holiday;
       const shiftStart = data?.shift?.shift_start || '09:30';
       const startSec = timeToSeconds(shiftStart);
       const clockSec = timeToSeconds(data?.now ? addSecondsToTime(data.now, Math.max(0, Math.round((Date.now() - dataLoadedAt) / 1000))) : clock);
-      if (startSec != null && clockSec != null && clockSec < startSec) {
+      if (!holiday && startSec != null && clockSec != null && clockSec < startSec) {
         setBusy(false);
         setErr(`Check-in unlocks at shift start (${displayClock(shiftStart)}).`);
         return;
       }
-      patchAttendance({ check_in: clock, status: 'Working', auto_checkout: false }, clock);
+      patchAttendance(
+        { check_in: clock, status: 'Working', auto_checkout: false, penalty_waived: holiday || !!att?.penalty_waived },
+        clock
+      );
     } else if (path.endsWith('/start-break') && att) {
-      patchAttendance({ status: 'OnBreak', break_started_at: clock }, clock);
+      const breaks = normalizeBreakSegments(att).map((b) => ({ ...b }));
+      if (!breaks.some((b) => !b.end)) breaks.push({ start: clock, end: null });
+      patchAttendance({ status: 'OnBreak', break_started_at: clock, breaks }, clock);
     } else if (path.endsWith('/end-break') && att) {
       const session = minutesBetween(att.break_started_at, clock);
+      const breaks = normalizeBreakSegments(att).map((b) => ({ ...b }));
+      const open = [...breaks].reverse().find((b) => !b.end);
+      if (open) open.end = clock;
+      else if (att.break_started_at) breaks.push({ start: att.break_started_at, end: clock });
       patchAttendance(
         {
           status: 'Working',
           break_started_at: null,
           break_total: Number(att.break_total || 0) + Math.max(0, session),
+          breaks,
         },
         clock
       );
@@ -190,12 +202,14 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
     const shiftStartSec = timeToSeconds(shift.shift_start || '09:30');
     const shiftEndSec = timeToSeconds(shift.shift_end || '17:30');
     const nowSec = timeToSeconds(now) ?? 0;
+    const isHoliday = !!data.is_holiday;
     // Check-in unlocks at/after shift start. Never treat missing times as "already started/ended".
-    const shiftStarted = shiftStartSec != null && nowSec >= shiftStartSec;
+    // Calendar holidays allow check-in at any time.
+    const shiftStarted = isHoliday || (shiftStartSec != null && nowSec >= shiftStartSec);
     // Half-day leave skips wall-clock shift-end; full day requires now >= shift_end.
     const shiftEnded =
-      isHalfDay || (shiftEndSec != null && shiftEndSec > 0 && nowSec >= shiftEndSec);
-    const canCheckoutNormally = shiftEnded && dailyTargetMet;
+      isHoliday || isHalfDay || (shiftEndSec != null && shiftEndSec > 0 && nowSec >= shiftEndSec);
+    const canCheckoutNormally = isHoliday || (shiftEnded && dailyTargetMet);
     const penaltyMinutes = Number(data.penalty_minutes || 0);
     const lateMinutes = Number(data.late_minutes || 0);
 
@@ -216,6 +230,7 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
       threshold: checkoutHours,
       fullHours,
       isHalfDay,
+      isHoliday,
       shiftStarted,
       shiftEnded,
       canCheckoutNormally,
@@ -251,7 +266,8 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
   const monthPending = Number(summary?.pending_hours || 0);
   const monthPct = monthTarget > 0 ? Math.min(100, Math.round((monthCounted / monthTarget) * 100)) : 0;
   const activeCover = ctr && (ctr.status === 'Pending' || ctr.status === 'Approved');
-  const coverReadyToCheckout = !activeCover || live.coverMins >= coverMinHours * 60 - 0.5;
+  const coverReadyToCheckout =
+    live.isHoliday || !activeCover || live.coverMins >= coverMinHours * 60 - 0.5;
   const earlyApproved =
     ecr?.status === 'Approved' && live.checkedIn && !live.checkedOut;
   const canShowCheckout =
@@ -260,6 +276,7 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
     (live.canCheckoutNormally || earlyApproved) &&
     coverReadyToCheckout;
   const needsEarlyRequest =
+    !live.isHoliday &&
     live.checkedIn &&
     !live.checkedOut &&
     !earlyApproved &&
@@ -353,12 +370,12 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
   };
 
   const requestCheckout = () => {
-    if (ecr?.status === 'Pending') return;
-    if (activeCover && !coverReadyToCheckout) {
+    if (ecr?.status === 'Pending' && !live.isHoliday) return;
+    if (!live.isHoliday && activeCover && !coverReadyToCheckout) {
       setErr(`Cover time requires at least ${formatHours(coverMinHours)} before checkout.`);
       return;
     }
-    if (!live.canCheckoutNormally && !earlyApproved) {
+    if (!live.isHoliday && !live.canCheckoutNormally && !earlyApproved) {
       setErr(
         live.isHalfDay
           ? 'Complete your half-day working hours before checkout, or request early checkout.'
@@ -454,7 +471,7 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
                     Early Checkout Request
                   </Button>
                 )}
-                {ecr?.status === 'Pending' && (
+                {!live.isHoliday && ecr?.status === 'Pending' && (
                   <>
                     <Button className="attendance-action attendance-action-primary" disabled>
                       Early Checkout Pending
@@ -512,13 +529,13 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
           </div>
         </div>
 
-        {!live.checkedIn && !live.shiftStarted && (
+        {!live.isHoliday && !live.checkedIn && !live.shiftStarted && (
           <div className="attendance-notice">
             Check-in unlocks when your shift starts at {displayClock(shift.shift_start || '09:30')}. Current time is{' '}
             {displayClock(live.clock)}.
           </div>
         )}
-        {live.checkedIn && !live.checkedOut && !canShowCheckout && ecr?.status !== 'Pending' && !earlyApproved && (
+        {!live.isHoliday && live.checkedIn && !live.checkedOut && !canShowCheckout && ecr?.status !== 'Pending' && !earlyApproved && (
           <div className="attendance-notice">
             {!live.canCheckoutNormally && (
               <>
@@ -561,7 +578,9 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
             {formatHours(ctr.requested_hours)} to make up shortfall.
             {live.coverMins > 0
               ? ` Covered so far ${formatDurationMinutes(live.coverMins)}.`
-              : ` Stay at least ${formatHours(coverMinHours)} past daily hours before checkout.`}
+              : live.isHoliday
+                ? ''
+                : ` Stay at least ${formatHours(coverMinHours)} past daily hours before checkout.`}
             {monthPending > 0 ? ` Monthly shortfall left: ${formatHours(monthPending)}.` : ''}
           </div>
         )}
@@ -597,6 +616,7 @@ function PersonalAttendanceBody({ title: _title }: { title: string }) {
             <div>
               <span className="label">Break time</span>
               <div className="emp-stat-value">{formatDurationMinutes(live.breakMins)}</div>
+              <BreakSegmentList breaks={att.breaks} breakStartedAt={att.break_started_at} />
               <span className="emp-stat-hint">
                 {live.onBreak && !live.checkedOut
                   ? 'Live session'

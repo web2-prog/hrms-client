@@ -16,6 +16,7 @@ import { api, buildQuery, type ListResult } from '../../services/api';
 import { formatHours, hoursBadge, StatusBadge } from '../../components/StatusBadge';
 import { RequireRole } from '../../components/StatusBadge';
 import { AppSelect } from '../../components/AppSelect';
+import { BreakSegmentList, type BreakSegment } from '../../components/BreakSegments';
 import {
   displayClock,
   formatBreakMinutes,
@@ -41,6 +42,8 @@ type Att = {
   check_in?: string;
   check_out?: string;
   break_total?: number;
+  break_started_at?: string | null;
+  breaks?: BreakSegment[] | null;
   working_hours?: number;
   status?: string;
   surplus_shortfall?: number;
@@ -508,7 +511,10 @@ function EmployeeSummaryInner() {
                   displayClock(a.check_in),
                   displayClock(a.check_out),
                   formatWorked(a.working_hours),
-                  formatBreakMinutes(a.break_total),
+                  <span key="brk">
+                    {formatBreakMinutes(a.break_total)}
+                    <BreakSegmentList breaks={a.breaks} breakStartedAt={a.break_started_at} />
+                  </span>,
                   <span key="s" style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
                     <StatusBadge status={a.status} />
                     {hoursBadge(a.surplus_shortfall, a.status)}
@@ -522,10 +528,11 @@ function EmployeeSummaryInner() {
             {!loading && tab === 'breaks' && (
               <SummaryTable
                 empty="No break time logged"
-                head={['Date', 'Break', 'Check-in', 'Check-out', 'Status']}
+                head={['Date', 'Break', 'Start – end', 'Check-in', 'Check-out', 'Status']}
                 rows={breakRows.map((a) => [
                   a.date,
                   formatBreakMinutes(a.break_total),
+                  <BreakSegmentList key="b" breaks={a.breaks} breakStartedAt={a.break_started_at} />,
                   displayClock(a.check_in),
                   displayClock(a.check_out),
                   <StatusBadge key="s" status={a.status} />,

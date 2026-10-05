@@ -5,6 +5,7 @@ import { ListingPage, useListParams } from '../../components/ListingPage';
 import { StatusBadge, hoursBadge, formatHours } from '../../components/StatusBadge';
 import { AppSelect } from '../../components/AppSelect';
 import { displayClock, formatDurationMinutes } from '../../utils/timeFormat';
+import { BreakSegmentList, type BreakSegment } from '../../components/BreakSegments';
 import { useAuth } from '../../context/AuthContext';
 
 type Att = {
@@ -14,6 +15,8 @@ type Att = {
   check_out?: string;
   auto_checkout?: boolean;
   break_total?: number;
+  break_started_at?: string | null;
+  breaks?: BreakSegment[] | null;
   working_hours?: number;
   status?: string;
   surplus_shortfall?: number;
@@ -198,7 +201,10 @@ export function AttendanceHistoryPage() {
                     {displayClock(r.check_out)}
                     {r.auto_checkout ? <div className="label">Auto 11:55 PM</div> : null}
                   </td>
-                  <td>{formatDurationMinutes(r.break_total ?? 0)}</td>
+                  <td>
+                    {formatDurationMinutes(r.break_total ?? 0)}
+                    <BreakSegmentList breaks={r.breaks} breakStartedAt={r.break_started_at} />
+                  </td>
                   <td>{formatHours(r.working_hours)}</td>
                   <td>
                     {!r.auto_checkout && Number(r.surplus_shortfall) > 0

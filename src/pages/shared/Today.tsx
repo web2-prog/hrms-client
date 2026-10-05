@@ -14,6 +14,7 @@ import {
 } from '../../utils/timeFormat';
 import { liveAttendanceClock, startClockBeat } from '../../utils/attendanceLive';
 import { AppSelect } from '../../components/AppSelect';
+import { BreakSegmentList, type BreakSegment } from '../../components/BreakSegments';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -39,6 +40,7 @@ type TodayRow = {
   work_start?: string | null;
   break_total?: number;
   break_started_at?: string | null;
+  breaks?: BreakSegment[] | null;
   working_hours?: number;
   live_work_minutes?: number;
   live_break_minutes?: number;
@@ -354,9 +356,7 @@ export function TodayAttendancePage() {
                   </td>
                   <td>
                     {formatDurationMinutes(r.live_break_minutes ?? r.break_total ?? 0)}
-                    {r.break_started_at && !r.check_out ? (
-                      <div className="label">since {displayClock(r.break_started_at)}</div>
-                    ) : null}
+                    <BreakSegmentList breaks={r.breaks} breakStartedAt={r.break_started_at} />
                   </td>
                   <td>{formatDurationMinutes(r.live_work_minutes ?? (Number(r.working_hours) || 0) * 60)}</td>
                   <td>

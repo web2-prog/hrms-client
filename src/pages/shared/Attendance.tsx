@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { EarlyCheckoutRequestsCard, CoverTimeRequestsCard } from '../../components/RequestCards';
+import { BreakSegmentList, type BreakSegment } from '../../components/BreakSegments';
 
 type Att = {
   _id: string;
@@ -25,6 +26,8 @@ type Att = {
   check_out?: string;
   auto_checkout?: boolean;
   break_total?: number;
+  break_started_at?: string | null;
+  breaks?: BreakSegment[] | null;
   working_hours?: number;
   status?: string;
   surplus_shortfall?: number;
@@ -349,7 +352,10 @@ export function AttendancePage(_props: { allowBulk?: boolean }) {
                       {displayClock(r.check_out)}
                       {r.auto_checkout ? <div className="label">Auto 11:55 PM</div> : null}
                     </td>
-                    <td>{formatBreakMinutes(r.break_total ?? 0)}</td>
+                    <td>
+                      {formatBreakMinutes(r.break_total ?? 0)}
+                      <BreakSegmentList breaks={r.breaks} breakStartedAt={r.break_started_at} />
+                    </td>
                     <td className="num-cell">{formatHours(r.working_hours)}</td>
                     <td>{hoursBadge(r.surplus_shortfall, r.status === 'OnBreak' ? 'Working' : r.status)}</td>
                     {isStaff && (
