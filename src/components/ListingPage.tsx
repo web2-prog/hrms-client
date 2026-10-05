@@ -3,8 +3,15 @@ import { RefreshCw } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { AppSelect } from './AppSelect';
 
-export const PAGE_SIZE = 8;
+export const PAGE_SIZE = 10;
+export const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
+
+export function parsePageSize(value: string | null | undefined) {
+  const n = Number(value);
+  return (PAGE_SIZE_OPTIONS as readonly number[]).includes(n) ? n : PAGE_SIZE;
+}
 
 type Props = {
   title?: string;
@@ -31,15 +38,32 @@ type ListPaginationProps = {
   page: number;
   onPageChange: (page: number) => void;
   pageSize?: number;
+  onPageSizeChange?: (size: number) => void;
 };
 
-export function ListPagination({ total, page, onPageChange, pageSize = PAGE_SIZE }: ListPaginationProps) {
+export function ListPagination({
+  total,
+  page,
+  onPageChange,
+  pageSize = PAGE_SIZE,
+  onPageSizeChange,
+}: ListPaginationProps) {
   const pages = Math.max(1, Math.ceil(total / pageSize));
   const pageSafe = Math.min(Math.max(1, page), pages);
   return (
     <div className="pagination">
       <span>Total: {total}</span>
-      <span>{pageSize} per page</span>
+      {onPageSizeChange ? (
+        <AppSelect
+          value={String(pageSize)}
+          onChange={(v) => onPageSizeChange(Number(v))}
+          title="Rows per page"
+          className="pagination-size h-9"
+          options={PAGE_SIZE_OPTIONS.map((n) => ({ value: String(n), label: `${n} per page` }))}
+        />
+      ) : (
+        <span>{pageSize} per page</span>
+      )}
       <Button variant="outline" disabled={pageSafe <= 1} onClick={() => onPageChange(pageSafe - 1)}>
         Prev
       </Button>
@@ -72,6 +96,7 @@ export function ListingPage({
 }: Props) {
   const [params, setParams] = useSearchParams();
   const page = Number(params.get('page') || 1);
+  const pageSize = parsePageSize(params.get('limit'));
   const search = params.get('search') || '';
   const [localSearch, setLocalSearch] = useState(search);
 
@@ -92,6 +117,13 @@ export function ListingPage({
   const setPage = (p: number) => {
     const next = new URLSearchParams(params);
     next.set('page', String(p));
+    setParams(next);
+  };
+
+  const setPageSize = (size: number) => {
+    const next = new URLSearchParams(params);
+    next.set('limit', String(parsePageSize(String(size))));
+    next.set('page', '1');
     setParams(next);
   };
 
@@ -134,7 +166,13 @@ export function ListingPage({
         {!loading && empty && !error && <div className="state-box">No records found</div>}
         {!loading && !empty && children}
         {!hidePagination && (
-          <ListPagination total={total} page={page} onPageChange={setPage} />
+          <ListPagination
+            total={total}
+            page={page}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+          />
         )}
       </div>
     </div>
@@ -146,7 +184,7 @@ export function useListParams() {
   return useMemo(
     () => ({
       page: Number(params.get('page') || 1),
-      limit: PAGE_SIZE,
+      limit: parsePageSize(params.get('limit')),
       search: params.get('search') || '',
       get: (k: string) => params.get(k) || '',
       setFilter: (k: string, v: string) => {

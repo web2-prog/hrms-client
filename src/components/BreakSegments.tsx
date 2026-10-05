@@ -1,3 +1,4 @@
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { displayClock } from '../utils/timeFormat';
 
 export type BreakSegment = { start?: string | null; end?: string | null };
@@ -17,7 +18,11 @@ export function normalizeBreakSegments(att?: {
   return list;
 }
 
-/** Start and end clock for each break. An open break shows "ongoing". */
+function formatSegment(b: { start: string; end: string | null }) {
+  return `${displayClock(b.start)} – ${b.end ? displayClock(b.end) : 'ongoing'}`;
+}
+
+/** Start and end clock for each break. More than two shows +N; hover lists the rest. */
 export function BreakSegmentList({
   breaks,
   breakStartedAt,
@@ -27,13 +32,29 @@ export function BreakSegmentList({
 }) {
   const segments = normalizeBreakSegments({ breaks, break_started_at: breakStartedAt });
   if (!segments.length) return null;
+  const visible = segments.slice(0, 2);
+  const extra = segments.slice(2);
   return (
     <div className="break-segments">
-      {segments.map((b, i) => (
+      {visible.map((b, i) => (
         <div key={`${b.start}-${b.end || 'open'}-${i}`} className="break-segment">
-          {displayClock(b.start)} – {b.end ? displayClock(b.end) : 'ongoing'}
+          {formatSegment(b)}
         </div>
       ))}
+      {extra.length > 0 && (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger type="button" className="break-segment-more">
+              +{extra.length}
+            </TooltipTrigger>
+            <TooltipContent side="top" className="break-segment-pop">
+              {extra.map((b, i) => (
+                <div key={`${b.start}-${b.end || 'open'}-${i}`}>{formatSegment(b)}</div>
+              ))}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
     </div>
   );
 }
